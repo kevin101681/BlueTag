@@ -1,16 +1,17 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
-import { Dashboard } from './components/Dashboard';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
 import { BlueTagLogo } from './components/Logo';
 
-// Firebase Imports
-import { auth, db } from './services/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, getDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+// Global declaration for Netlify Identity
+declare global {
+  interface Window {
+    netlifyIdentity: any;
+  }
+}
 
 const CompanyLogoAsset = "";
 const PartnerLogoAsset = "";
@@ -22,57 +23,13 @@ const LOGO_KEY = 'cbs_company_logo';
 const PARTNER_LOGO_KEY = 'cbs_partner_logo';
 const TEMPLATES_KEY = 'cbs_sign_off_templates';
 
-// ... [PasswordScreen & Helpers kept same]
-const PasswordScreen = ({ onUnlock }: { onUnlock: () => void }) => {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password.toLowerCase() === 'jackwagon') {
-      onUnlock();
-    } else {
-      setError(true);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 animate-fade-in z-50">
-      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[32px] shadow-xl p-8 border border-slate-100 dark:border-slate-800">
-        <div className="flex justify-center mb-8">
-           <BlueTagLogo size="xl" />
-        </div>
-        <h2 className="text-2xl font-bold text-center text-slate-800 dark:text-white mb-2">Welcome</h2>
-        <p className="text-center text-slate-500 dark:text-slate-400 mb-8">Enter access password to continue</p>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(false); }}
-              className={`w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-[20px] text-center text-lg font-bold outline-none border-2 transition-colors ${error ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-500' : 'border-transparent focus:border-primary text-slate-800 dark:text-white'}`}
-              placeholder="Password"
-              autoFocus
-            />
-            <button 
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-white font-bold text-lg py-4 rounded-[20px] shadow-lg hover:shadow-xl transition-all active:scale-95"
-            >
-              Enter App
-            </button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
 const hexToRgb = (hex: string) => {
     const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
     hex = hex.replace(shorthandRegex, function(m, r, g, b) {
         return r + r + g + g + b + b;
     });
 
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    const result = /^#?([a-f\d]{2})([a-f\d])([a-f\d]{2})$/i.exec(hex);
     return result ? {
         r: parseInt(result[1], 16),
         g: parseInt(result[2], 16),
@@ -98,9 +55,91 @@ const migrateProjectData = (p: any): ProjectDetails => {
     };
 };
 
+const SplashScreen = ({ onAnimationComplete, onRevealApp }: { onAnimationComplete: () => void, onRevealApp: () => void }) => {
+    const [animating, setAnimating] = useState(false);
+    
+    useEffect(() => {
+        // Start pause
+        const timer1 = setTimeout(() => {
+            setAnimating(true);
+            // Trigger app reveal slightly after animation starts so it's ready underneath
+            onRevealApp();
+        }, 800);
+
+        // End animation (match duration)
+        const timer2 = setTimeout(() => {
+            onAnimationComplete();
+        }, 1600); // 800ms wait + 800ms transition
+
+        return () => {
+            clearTimeout(timer1);
+            clearTimeout(timer2);
+        };
+    }, [onAnimationComplete, onRevealApp]);
+
+    return (
+        <div className={`fixed inset-0 z-[9999] bg-slate-200 dark:bg-slate-950 flex pointer-events-none transition-opacity duration-500 ${animating ? 'bg-opacity-0' : 'bg-opacity-100'}`}>
+            <div 
+                className="absolute transition-all duration-[800ms] cubic-bezier(0.2, 0, 0, 1)"
+                style={{
+                    top: animating ? '16px' : '50%',
+                    left: animating ? '22px' : '50%', // Adjusted slightly left to match perceived alignment
+                    transform: animating ? 'translate(0, 0)' : 'translate(-50%, -50%)',
+                }}
+            >
+                <BlueTagLogo 
+                    size='xl' 
+                    className={`transition-all duration-[800ms] cubic-bezier(0.2, 0, 0, 1) ${
+                        animating 
+                        ? '!w-[54px] !h-[54px] !p-[3px] !rounded-2xl !shadow-sm !border !border-slate-100 dark:!border-slate-700' 
+                        : 'shadow-2xl'
+                    }`} 
+                />
+            </div>
+        </div>
+    );
+};
+
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showSplash, setShowSplash] = useState(true);
+  const [isAppVisible, setIsAppVisible] = useState(false);
   
+  // Netlify Identity Effect
+  useEffect(() => {
+    if (window.netlifyIdentity) {
+      const user = window.netlifyIdentity.currentUser();
+      if (user) {
+        setCurrentUser(user);
+      }
+
+      window.netlifyIdentity.on('init', (user: any) => {
+         if (user) setCurrentUser(user);
+      });
+
+      window.netlifyIdentity.on('login', (user: any) => {
+        setCurrentUser(user);
+        window.netlifyIdentity.close();
+      });
+
+      window.netlifyIdentity.on('logout', () => {
+        setCurrentUser(null);
+      });
+    }
+  }, []);
+
+  const handleLogin = () => {
+      if (window.netlifyIdentity) {
+          window.netlifyIdentity.open();
+      }
+  };
+
+  const handleLogout = () => {
+      if (window.netlifyIdentity) {
+          window.netlifyIdentity.logout();
+      }
+  };
+
   const [savedReports, setSavedReports] = useState<Report[]>(() => {
     if (typeof window !== 'undefined') {
         try {
@@ -121,7 +160,7 @@ export default function App() {
     return [];
   });
   
-  const [isDataLoaded, setIsDataLoaded] = useState(false); 
+  const [isDataLoaded, setIsDataLoaded] = useState(true); 
 
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
@@ -135,20 +174,13 @@ export default function App() {
   
   const [scrollToLocations, setScrollToLocations] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
+  const [deleteModalRect, setDeleteModalRect] = useState<DOMRect | null>(null);
   
   const activeLocationIdRef = useRef<string | null>(null);
-
-  const isRemoteUpdate = useRef(false);
-  const lastWriteId = useRef<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [hasSynced, setHasSynced] = useState(false);
-
-  const [isAuthenticated, setIsAuthenticated] = useState(true); 
   
   const lastCreationRef = useRef(0);
   const [isCreating, setIsCreating] = useState(false);
 
-  // ... [Theme State Same]
   const [theme, setTheme] = useState<ThemeOption>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(THEME_KEY);
@@ -249,15 +281,13 @@ export default function App() {
       if (activeReportId && savedReports.length > 0) {
           const report = savedReports.find(r => r.id === activeReportId);
           if (report) {
-               if (!isRemoteUpdate.current) {
-                   setProject(report.project);
-                   setLocations(report.locations);
-               }
+               setProject(report.project);
+               setLocations(report.locations);
           }
       }
   }, [activeReportId, savedReports]);
 
-  // ... [PWA and Theme Effects Same]
+  // PWA and Theme Effects
   useEffect(() => {
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(ios);
@@ -348,111 +378,33 @@ export default function App() {
       localStorage.setItem(PARTNER_LOGO_KEY, newLogo);
   };
 
-  // ... [Auth & Sync Effects Same]
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-
-      if (currentUser) {
-        const q = query(collection(db, "users", currentUser.uid, "reports"));
-        const unsubReports = onSnapshot(q, (snapshot) => {
-            const loadedReports: Report[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data() as Report;
-                data.project = migrateProjectData(data.project);
-                loadedReports.push(data);
-            });
-            setSavedReports(loadedReports);
-            setIsDataLoaded(true);
-        }, (err) => {
-            console.error("Firestore Error", err);
-            setIsDataLoaded(true);
-        });
-        return () => { unsubReports(); };
-      } else {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setSavedReports(parsed.map((r: any) => ({
-                    ...r,
-                    project: migrateProjectData(r.project)
-                })));
-            } catch (e) {
-                console.error("Failed to parse saved reports", e);
-            }
-        }
-        setIsDataLoaded(true);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-      if (!user || !activeReportId) return;
-      setHasSynced(false);
-      const reportRef = doc(db, "users", user.uid, "reports", activeReportId);
-      const unsubscribe = onSnapshot(reportRef, (docSnap) => {
-          if (docSnap.exists()) {
-              const data = docSnap.data() as Report;
-              if (lastWriteId.current && data.lastModified?.toString() === lastWriteId.current) {
-                   return;
-              }
-              isRemoteUpdate.current = true;
-              
-              const migratedProject = migrateProjectData(data.project);
-              
-              setProject(migratedProject);
-              setLocations(data.locations);
-              setHasSynced(true);
-              setTimeout(() => { isRemoteUpdate.current = false; }, 50);
+  // Persist to LocalStorage Only
+  const persistReport = async (reportData: Report) => {
+      try {
+          const currentString = localStorage.getItem(STORAGE_KEY);
+          let currentList: Report[] = currentString ? JSON.parse(currentString) : [];
+          const idx = currentList.findIndex(r => r.id === reportData.id);
+          if (idx >= 0) {
+              currentList[idx] = reportData;
           } else {
-              setHasSynced(true);
+              currentList.push(reportData);
           }
-      }, (error) => {
-          console.error("Firestore Sync Error:", error);
-          setHasSynced(true);
-      });
-      return () => unsubscribe();
-  }, [user, activeReportId]);
-
-  const persistReport = async (reportData: Report, currentUser: User | null) => {
-      if (currentUser) {
-          try {
-              lastWriteId.current = reportData.lastModified.toString();
-              await setDoc(doc(db, "users", currentUser.uid, "reports", reportData.id), reportData);
-          } catch (e) {
-              console.error("Error saving to Firestore", e);
-          }
-      } else {
-          try {
-              const currentString = localStorage.getItem(STORAGE_KEY);
-              let currentList: Report[] = currentString ? JSON.parse(currentString) : [];
-              const idx = currentList.findIndex(r => r.id === reportData.id);
-              if (idx >= 0) {
-                  currentList[idx] = reportData;
-              } else {
-                  currentList.push(reportData);
-              }
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(currentList));
-          } catch (e: any) {
-              console.error("LocalStorage Save Failed:", e);
-          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentList));
+      } catch (e: any) {
+          console.error("LocalStorage Save Failed:", e);
       }
   };
 
   useEffect(() => {
-      if (isRemoteUpdate.current || !activeReportId || (user && !hasSynced) || !isDataLoaded) return;
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(async () => {
-          const currentTimestamp = Date.now();
-          const reportData: Report = {
-              id: activeReportId,
-              project,
-              locations,
-              lastModified: currentTimestamp
-          };
+      if (!activeReportId || !isDataLoaded) return;
+      const reportData: Report = {
+          id: activeReportId,
+          project,
+          locations,
+          lastModified: Date.now()
+      };
+      // Auto-save debounced
+      const handler = setTimeout(() => {
           setSavedReports(prev => {
               const idx = prev.findIndex(r => r.id === activeReportId);
               if (idx >= 0) {
@@ -463,10 +415,10 @@ export default function App() {
                   return [...prev, reportData];
               }
           });
-          await persistReport(reportData, user);
-      }, 1000);
-      return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [project, locations, activeReportId, user, hasSynced, isDataLoaded]); 
+          persistReport(reportData);
+      }, 500);
+      return () => clearTimeout(handler);
+  }, [project, locations, activeReportId, isDataLoaded]); 
 
   // --- Handlers ---
   const handleCreateNew = () => {
@@ -486,8 +438,7 @@ export default function App() {
       };
 
       setSavedReports(prev => [newReport, ...prev]);
-      persistReport(newReport, user);
-      if (user) { setHasSynced(true); }
+      persistReport(newReport);
   };
 
   const handleUpdateReport = (updatedReport: Report) => {
@@ -500,7 +451,7 @@ export default function App() {
           }
           return prev;
       });
-      persistReport(updatedReport, user);
+      persistReport(updatedReport);
   };
 
   const handleSelectReport = (id: string) => {
@@ -520,49 +471,24 @@ export default function App() {
       window.history.pushState({ reportId: activeReportId, locationId: id }, '', '');
   };
 
-  const forceSaveCurrent = async () => {
-      if (!activeReportId) return;
-      const reportData: Report = {
-          id: activeReportId,
-          project,
-          locations,
-          lastModified: Date.now()
-      };
-      setSavedReports(prev => {
-          const idx = prev.findIndex(r => r.id === activeReportId);
-          if (idx >= 0) {
-              const newReports = [...prev];
-              newReports[idx] = reportData;
-              return newReports;
-          }
-          return [...prev, reportData];
-      });
-      return persistReport(reportData, user);
-  };
-
   const handleConfirmDeleteReport = async () => {
       if (!reportToDelete) return;
       const id = reportToDelete;
       
       setSavedReports(prev => prev.filter(r => r.id !== id));
       if (activeReportId === id) { setActiveReportId(null); }
-      if (user) {
-          try {
-            await deleteDoc(doc(db, "users", user.uid, "reports", id));
-          } catch(e: any) {
-              console.error("Error deleting from firebase", e);
+      
+      try {
+          const currentString = localStorage.getItem(STORAGE_KEY);
+          if (currentString) {
+              const currentList: Report[] = JSON.parse(currentString);
+              const updatedList = currentList.filter(r => r.id !== id);
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
           }
-      } else {
-          try {
-              const currentString = localStorage.getItem(STORAGE_KEY);
-              if (currentString) {
-                  const currentList: Report[] = JSON.parse(currentString);
-                  const updatedList = currentList.filter(r => r.id !== id);
-                  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-              }
-          } catch(e) { console.error("Failed to delete locally", e); }
-      }
+      } catch(e) { console.error("Failed to delete locally", e); }
+      
       setReportToDelete(null);
+      setDeleteModalRect(null);
   };
 
   const handleDeleteOldReports = async () => {
@@ -572,21 +498,16 @@ export default function App() {
           alert("No reports older than 30 days found.");
           return;
       }
-      if (user) {
-          for (const report of reportsToDelete) {
-              try { await deleteDoc(doc(db, "users", user.uid, "reports", report.id)); } catch(e: any) {}
+      try {
+          const currentString = localStorage.getItem(STORAGE_KEY);
+          if (currentString) {
+              const currentList: Report[] = JSON.parse(currentString);
+              const updatedList = currentList.filter(r => r.lastModified >= thirtyDaysAgo);
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+              setSavedReports(updatedList);
           }
-      } else {
-           try {
-              const currentString = localStorage.getItem(STORAGE_KEY);
-              if (currentString) {
-                  const currentList: Report[] = JSON.parse(currentString);
-                  const updatedList = currentList.filter(r => r.lastModified >= thirtyDaysAgo);
-                  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-                  setSavedReports(updatedList);
-              }
-           } catch(e) {}
-      }
+      } catch(e) {}
+      
       if (activeReportId && reportsToDelete.find(r => r.id === activeReportId)) {
           setActiveReportId(null);
       }
@@ -602,7 +523,6 @@ export default function App() {
               newLocs[locIndex] = { ...newLocs[locIndex], issues: [...newLocs[locIndex].issues, issue] };
               return newLocs;
           } else {
-              // Create new location group if it doesn't exist
               return [...prev, {
                   id: generateUUID(),
                   name: locationName,
@@ -643,65 +563,75 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-full min-h-screen overflow-hidden bg-slate-200 dark:bg-slate-950">
-      {!isAuthenticated ? (
-          <PasswordScreen onUnlock={() => {
-              localStorage.setItem('cbs_app_access', 'granted');
-              setIsAuthenticated(true);
-          }} />
-      ) : (
-            <div className="fixed inset-0 overflow-y-auto bg-slate-200 dark:bg-slate-950">
-                <ReportList 
-                  reports={savedReports}
-                  onCreateNew={handleCreateNew}
-                  onSelectReport={handleSelectReport}
-                  onDeleteReport={(id) => setReportToDelete(id)}
-                  onDeleteOldReports={handleDeleteOldReports}
-                  onUpdateReport={handleUpdateReport}
-                  isDarkMode={isDarkMode}
-                  currentTheme={theme}
-                  onThemeChange={setTheme}
-                  colorTheme={colorTheme}
-                  onColorThemeChange={setColorTheme}
-                  user={user}
-                  companyLogo={companyLogo}
-                  onUpdateLogo={handleUpdateLogo}
-                  partnerLogo={partnerLogo}
-                  onUpdatePartnerLogo={handleUpdatePartnerLogo}
-                  installAvailable={!!installPrompt}
-                  onInstall={handleInstallApp}
-                  isIOS={isIOS}
-                  isStandalone={isStandalone}
-                  isDashboardOpen={false} 
-                  signOffTemplates={signOffTemplates}
-                  onUpdateTemplates={handleUpdateTemplates}
-                  isCreating={isCreating}
-                  onAddIssueGlobal={handleAddIssueGlobal}
-                />
-                
-                {activeLocationId && (
-                    <LocationDetail
-                        location={locations.find(l => l.id === activeLocationId)!}
-                        onBack={() => {
-                            setActiveLocationId(null);
-                            window.history.back();
-                        }}
-                        onAddIssue={handleAddIssue}
-                        onUpdateIssue={handleUpdateIssue}
-                        onDeleteIssue={handleDeleteIssue}
-                    />
-                )}
-                
-                {reportToDelete && (
-                    <DeleteConfirmationModal
-                        title="Delete Report?"
-                        message="Are you sure you want to delete this report? This action cannot be undone."
-                        onConfirm={handleConfirmDeleteReport}
-                        onCancel={() => setReportToDelete(null)}
-                    />
-                )}
-            </div>
+    <div className="w-full h-full min-h-screen overflow-hidden bg-slate-200 dark:bg-slate-950 relative">
+      {showSplash && (
+          <SplashScreen 
+              onAnimationComplete={() => setShowSplash(false)} 
+              onRevealApp={() => setIsAppVisible(true)}
+          />
       )}
+      
+      <div className={`fixed inset-0 overflow-y-auto bg-slate-200 dark:bg-slate-950 transition-opacity duration-500 ${isAppVisible ? 'opacity-100' : 'opacity-0'}`}>
+            <ReportList 
+              reports={savedReports}
+              onCreateNew={handleCreateNew}
+              onSelectReport={handleSelectReport}
+              onSelectLocation={handleSelectLocation}
+              onDeleteReport={(id, rect) => {
+                  setReportToDelete(id);
+                  if (rect) setDeleteModalRect(rect);
+              }}
+              onDeleteOldReports={handleDeleteOldReports}
+              onUpdateReport={handleUpdateReport}
+              isDarkMode={isDarkMode}
+              currentTheme={theme}
+              onThemeChange={setTheme}
+              colorTheme={colorTheme}
+              onColorThemeChange={setColorTheme}
+              user={currentUser}
+              companyLogo={companyLogo}
+              onUpdateLogo={handleUpdateLogo}
+              partnerLogo={partnerLogo}
+              onUpdatePartnerLogo={handleUpdatePartnerLogo}
+              installAvailable={!!installPrompt}
+              onInstall={handleInstallApp}
+              isIOS={isIOS}
+              isStandalone={isStandalone}
+              isDashboardOpen={false} 
+              signOffTemplates={signOffTemplates}
+              onUpdateTemplates={handleUpdateTemplates}
+              isCreating={isCreating}
+              onAddIssueGlobal={handleAddIssueGlobal}
+              onLogin={handleLogin}
+              onLogout={handleLogout}
+            />
+            
+            {activeLocationId && (
+                <LocationDetail
+                    location={locations.find(l => l.id === activeLocationId)!}
+                    onBack={() => {
+                        setActiveLocationId(null);
+                        window.history.back();
+                    }}
+                    onAddIssue={handleAddIssue}
+                    onUpdateIssue={handleUpdateIssue}
+                    onDeleteIssue={handleDeleteIssue}
+                />
+            )}
+            
+            {reportToDelete && (
+                <DeleteConfirmationModal
+                    title="Delete Report?"
+                    message="Are you sure you want to delete this report? This action cannot be undone."
+                    onConfirm={handleConfirmDeleteReport}
+                    onCancel={() => {
+                        setReportToDelete(null);
+                        setDeleteModalRect(null);
+                    }}
+                    targetRect={deleteModalRect}
+                />
+            )}
+        </div>
     </div>
   );
 }

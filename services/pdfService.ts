@@ -1,3 +1,4 @@
+
 import { jsPDF } from 'jspdf';
 import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField } from '../types';
 
@@ -152,6 +153,14 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
          ]);
          doc.stroke();
     } else if (t === 'check') {
+        doc.moveTo(x + s*0.15, y + s*0.55);
+        doc.lineTo(x + s*0.4, y + s*0.8);
+        doc.lineTo(x + s*0.9, y + s*0.2);
+        doc.stroke();
+    } else if (t === 'check-mark-thick') {
+        // Muted Green: #4ade80 [74, 222, 128]
+        doc.setDrawColor(74, 222, 128); 
+        doc.setLineWidth(1.5);
         doc.moveTo(x + s*0.15, y + s*0.55);
         doc.lineTo(x + s*0.4, y + s*0.8);
         doc.lineTo(x + s*0.9, y + s*0.2);
@@ -410,6 +419,7 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
     const titleLower = section.title.toLowerCase();
     if (section.type === 'signature') icon = 'pen-tip';
     else if (section.type === 'initials') icon = 'check';
+    else if (titleLower.includes('acknowledgement') || titleLower.includes('acknowledgment') || titleLower.includes('sign off')) icon = 'pen-tip';
     else if (titleLower.includes('warranty')) icon = 'paper';
     else if (titleLower.includes('warning') || titleLower.includes('note')) icon = 'alert';
 
@@ -799,7 +809,7 @@ const createPDFDocument = async (
         });
 
         if (marks && marks[issue.id]?.includes('check')) {
-             drawSimpleIcon(doc, 'check', boxX - 1, currentY, 8);
+             drawSimpleIcon(doc, 'check-mark-thick', boxX - 1, currentY, 8);
         }
 
         // Description
@@ -843,8 +853,9 @@ const createPDFDocument = async (
                       }
 
                       if (marks && marks[issue.id]?.includes('x')) {
-                          doc.setDrawColor(220, 38, 38);
-                          doc.setLineWidth(1);
+                          // Muted Red: #f87171 [248, 113, 113]
+                          doc.setDrawColor(248, 113, 113);
+                          doc.setLineWidth(1.5);
                           doc.line(px, py, px + photoSize, py + photoSize);
                           doc.line(px + photoSize, py, px, py + photoSize);
                       }

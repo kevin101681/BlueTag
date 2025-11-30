@@ -2,12 +2,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
 import { Dashboard } from './Dashboard';
-import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette } from 'lucide-react';
+import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { loginWithGoogle, logoutUser } from '../services/firebase';
-import { User } from 'firebase/auth';
 import { BlueTagLogo } from './Logo';
-import { ReportCard } from './Dashboard'; // Import shared ReportCard
+import { ReportCard } from './Dashboard';
 
 export type ThemeOption = 'light' | 'dark' | 'system';
 
@@ -15,7 +13,8 @@ interface ReportListProps {
   reports: Report[];
   onCreateNew: () => void;
   onSelectReport: (id: string) => void;
-  onDeleteReport: (id: string) => void;
+  onSelectLocation: (id: string) => void;
+  onDeleteReport: (id: string, rect?: DOMRect) => void;
   onDeleteOldReports: () => void;
   onUpdateReport: (report: Report) => void;
   isDarkMode: boolean;
@@ -23,7 +22,7 @@ interface ReportListProps {
   onThemeChange: (t: ThemeOption) => void;
   colorTheme: ColorTheme;
   onColorThemeChange: (c: ColorTheme) => void;
-  user: User | null;
+  user: any; 
   companyLogo: string;
   onUpdateLogo: (l: string) => void;
   partnerLogo: string;
@@ -37,12 +36,15 @@ interface ReportListProps {
   onUpdateTemplates: (t: SignOffTemplate[]) => void;
   isCreating: boolean;
   onAddIssueGlobal: (locationName: string, issue: Issue) => void;
+  onLogin?: () => void;
+  onLogout?: () => void;
 }
 
 // Helper to check active
 const DashboardWrapper = ({ 
     activeReport, 
     onUpdateReport, 
+    onSelectLocation,
     onBack, 
     isDarkMode, 
     toggleTheme,
@@ -50,6 +52,7 @@ const DashboardWrapper = ({
     signOffTemplates,
     onUpdateTemplates,
     isCreating,
+    isExiting,
     onDelete,
     onAddIssueGlobal
 }: any) => {
@@ -58,7 +61,7 @@ const DashboardWrapper = ({
             <Dashboard 
                 project={activeReport.project}
                 locations={activeReport.locations}
-                onSelectLocation={() => {}} 
+                onSelectLocation={onSelectLocation} 
                 onUpdateProject={(p: ProjectDetails) => onUpdateReport({ ...activeReport, project: p, lastModified: Date.now() })}
                 onUpdateLocations={(l: any[]) => onUpdateReport({ ...activeReport, locations: l, lastModified: Date.now() })}
                 onBack={onBack}
@@ -70,6 +73,7 @@ const DashboardWrapper = ({
                 signOffTemplates={signOffTemplates}
                 onUpdateTemplates={onUpdateTemplates}
                 isCreating={isCreating}
+                isExiting={isExiting}
                 onDelete={onDelete}
             />
         </div>
@@ -82,18 +86,65 @@ const SettingsModal = ({
     isDarkMode, 
     currentTheme, 
     onThemeChange, 
-    colorTheme,
+    colorTheme, 
     onColorThemeChange,
-    user,
     companyLogo,
     onUpdateLogo,
+    partnerLogo,
+    onUpdatePartnerLogo,
     installAvailable,
     onInstall,
-    onDeleteOldReports
+    onDeleteOldReports,
+    user,
+    onLogin,
+    onLogout
 }: any) => {
-    if (!isOpen) return null;
+    // Internal state to manage mount/unmount for exit animation
+    const [isVisible, setIsVisible] = useState(false);
+    const [shouldRender, setShouldRender] = useState(false);
 
+    useEffect(() => {
+        if (isOpen) {
+            setShouldRender(true);
+            setTimeout(() => setIsVisible(true), 10);
+        } else {
+            setIsVisible(false);
+            setTimeout(() => setShouldRender(false), 300);
+        }
+    }, [isOpen]);
+
+    if (!shouldRender) return null;
+
+    return createPortal(
+        <div className={`fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`bg-white dark:bg-slate-800 w-full max-w-md rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden transition-all duration-300 ${isVisible ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}>
+                <SettingsContent 
+                    onClose={onClose}
+                    isDarkMode={isDarkMode}
+                    currentTheme={currentTheme}
+                    onThemeChange={onThemeChange}
+                    colorTheme={colorTheme}
+                    onColorThemeChange={onColorThemeChange}
+                    companyLogo={companyLogo}
+                    onUpdateLogo={onUpdateLogo}
+                    partnerLogo={partnerLogo}
+                    onUpdatePartnerLogo={onUpdatePartnerLogo}
+                    installAvailable={installAvailable}
+                    onInstall={onInstall}
+                    onDeleteOldReports={onDeleteOldReports}
+                    user={user}
+                    onLogin={onLogin}
+                    onLogout={onLogout}
+                />
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, colorTheme, onColorThemeChange, companyLogo, onUpdateLogo, partnerLogo, onUpdatePartnerLogo, installAvailable, onInstall, onDeleteOldReports, user, onLogin, onLogout }: any) => {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const partnerFileInputRef = React.useRef<HTMLInputElement>(null);
 
     const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -101,6 +152,18 @@ const SettingsModal = ({
             reader.onload = (ev) => {
                 if (ev.target?.result) {
                     onUpdateLogo(ev.target.result as string);
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+
+    const handlePartnerLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    onUpdatePartnerLogo(ev.target.result as string);
                 }
             };
             reader.readAsDataURL(e.target.files[0]);
@@ -116,157 +179,215 @@ const SettingsModal = ({
         '#64748b', // Slate
     ];
 
-    return createPortal(
-        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-dialog-enter">
-                <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0">
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                            <Settings size={20} />
-                            Settings
-                        </h3>
+    return (
+        <>
+            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0">
+                <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <Settings size={20} />
+                        Settings
+                    </h3>
+                </div>
+                <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-2xl text-slate-500 hover:text-slate-800 dark:text-slate-400 transition-colors">
+                    <X size={20} />
+                </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-8 flex-1">
+                {/* Account Section */}
+                <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Account</h4>
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl">
+                            {user ? (
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-primary">
+                                            <User size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-slate-800 dark:text-white text-sm">{user.user_metadata?.full_name || 'User'}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">{user.email}</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={onLogout}
+                                        className="px-3 py-1.5 bg-white dark:bg-slate-600 text-red-500 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                    >
+                                        Sign Out
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between">
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                                        Sign in to verify account status
+                                    </div>
+                                    <button 
+                                        onClick={onLogin}
+                                        className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all"
+                                    >
+                                        Sign In
+                                    </button>
+                                </div>
+                            )}
                     </div>
-                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 transition-colors">
-                        <X size={20} />
+                </div>
+
+                {/* Appearance */}
+                <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Appearance</h4>
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-2 rounded-2xl flex">
+                        {(['light', 'system', 'dark'] as const).map((t) => (
+                            <button
+                                key={t}
+                                onClick={() => onThemeChange(t)}
+                                className={`flex-1 py-2 rounded-xl text-sm font-bold capitalize transition-all ${currentTheme === t ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                            >
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+                    
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-8 rounded-2xl">
+                            <div className="flex items-center gap-2 mb-8 text-slate-700 dark:text-slate-300 font-medium text-sm">
+                                <Palette size={16} />
+                                <span>Accent Color</span>
+                            </div>
+                            <div className="flex justify-between items-center px-2">
+                                {THEME_COLORS.map(color => (
+                                    <button
+                                        key={color}
+                                        onClick={() => onColorThemeChange(color)}
+                                        className={`w-12 h-12 rounded-full transition-all duration-300 ${colorTheme === color ? 'scale-125 ring-4 ring-offset-4 ring-slate-400 dark:ring-slate-500 shadow-xl z-10' : 'hover:scale-110 opacity-80 hover:opacity-100'}`}
+                                        style={{ backgroundColor: color }}
+                                        title="Set Accent Color"
+                                    />
+                                ))}
+                            </div>
+                    </div>
+                </div>
+
+                {/* Branding */}
+                <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Company Branding</h4>
+                    {/* Primary Logo */}
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            {companyLogo ? (
+                                <img src={companyLogo} className="w-12 h-12 object-contain bg-white rounded-lg p-1" alt="Logo" />
+                            ) : (
+                                <div className="w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400">
+                                    <Upload size={20} />
+                                </div>
+                            )}
+                            <div className="text-sm">
+                                <p className="font-bold text-slate-800 dark:text-white">Report Logo</p>
+                                <p className="text-slate-500 dark:text-slate-400 text-xs">Appears on PDFs</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-3 py-1.5 bg-white dark:bg-slate-600 text-slate-700 dark:text-white text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors"
+                        >
+                            Change
+                        </button>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handleLogoUpload}
+                        />
+                    </div>
+
+                    {/* Partner Logo */}
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            {partnerLogo ? (
+                                <img src={partnerLogo} className="w-12 h-12 object-contain bg-white rounded-lg p-1" alt="Partner Logo" />
+                            ) : (
+                                <div className="w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400">
+                                    <Upload size={20} />
+                                </div>
+                            )}
+                            <div className="text-sm">
+                                <p className="font-bold text-slate-800 dark:text-white">Co-branding Logo</p>
+                                <p className="text-slate-500 dark:text-slate-400 text-xs">Optional partner logo</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => partnerFileInputRef.current?.click()}
+                            className="px-3 py-1.5 bg-white dark:bg-slate-600 text-slate-700 dark:text-white text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors"
+                        >
+                            Change
+                        </button>
+                        <input 
+                            type="file" 
+                            ref={partnerFileInputRef} 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handlePartnerLogoUpload}
+                        />
+                    </div>
+                </div>
+
+                {/* App Actions */}
+                <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data & App</h4>
+                    {installAvailable && (
+                        <button 
+                            onClick={onInstall}
+                            className="w-full p-4 bg-primary/10 text-primary rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-primary/20 transition-colors"
+                        >
+                            <Download size={20} />
+                            Install App
+                        </button>
+                    )}
+                    <button 
+                        onClick={() => {
+                            if (confirm("Delete all reports older than 30 days?")) onDeleteOldReports();
+                        }}
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >
+                        <Trash2 size={20} />
+                        Delete Old Reports (30+ Days)
                     </button>
                 </div>
-                
-                <div className="p-6 overflow-y-auto space-y-8 flex-1">
-                    {/* User Section */}
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Account</h4>
-                        {user ? (
-                            <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    {user.photoURL ? (
-                                        <img src={user.photoURL} className="w-10 h-10 rounded-full" alt="" />
-                                    ) : (
-                                        <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold">
-                                            {user.email?.[0].toUpperCase()}
-                                        </div>
-                                    )}
-                                    <div className="text-sm">
-                                        <p className="font-bold text-slate-800 dark:text-white">{user.displayName || 'User'}</p>
-                                        <p className="text-slate-500 dark:text-slate-400">{user.email}</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => logoutUser()} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                                    <LogOut size={20} />
-                                </button>
-                            </div>
-                        ) : (
-                            <button 
-                                onClick={() => loginWithGoogle()}
-                                className="w-full py-3 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl flex items-center justify-center gap-2 font-bold text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
-                            >
-                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="" />
-                                Sign in with Google
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Appearance */}
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Appearance</h4>
-                        <div className="bg-slate-50 dark:bg-slate-700/50 p-2 rounded-2xl flex">
-                            {(['light', 'system', 'dark'] as const).map((t) => (
-                                <button
-                                    key={t}
-                                    onClick={() => onThemeChange(t)}
-                                    className={`flex-1 py-2 rounded-xl text-sm font-bold capitalize transition-all ${currentTheme === t ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
-                                >
-                                    {t}
-                                </button>
-                            ))}
-                        </div>
-                        
-                        <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl">
-                             <div className="flex items-center gap-2 mb-3 text-slate-700 dark:text-slate-300 font-medium text-sm">
-                                 <Palette size={16} />
-                                 <span>Accent Color</span>
-                             </div>
-                             <div className="flex justify-between items-center">
-                                 {THEME_COLORS.map(color => (
-                                     <button
-                                         key={color}
-                                         onClick={() => onColorThemeChange(color)}
-                                         className={`w-8 h-8 rounded-full transition-transform ${colorTheme === color ? 'scale-125 ring-2 ring-offset-2 ring-slate-400 dark:ring-slate-500' : 'hover:scale-110'}`}
-                                         style={{ backgroundColor: color }}
-                                     />
-                                 ))}
-                             </div>
-                        </div>
-                    </div>
-
-                    {/* Branding */}
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Company Branding</h4>
-                        <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                {companyLogo ? (
-                                    <img src={companyLogo} className="w-12 h-12 object-contain bg-white rounded-lg p-1" alt="Logo" />
-                                ) : (
-                                    <div className="w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400">
-                                        <Upload size={20} />
-                                    </div>
-                                )}
-                                <div className="text-sm">
-                                    <p className="font-bold text-slate-800 dark:text-white">Report Logo</p>
-                                    <p className="text-slate-500 dark:text-slate-400 text-xs">Appears on PDFs</p>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="px-3 py-1.5 bg-white dark:bg-slate-600 text-slate-700 dark:text-white text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors"
-                            >
-                                Change
-                            </button>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                className="hidden" 
-                                accept="image/*"
-                                onChange={handleLogoUpload}
-                            />
-                        </div>
-                    </div>
-
-                    {/* App Actions */}
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data & App</h4>
-                        {installAvailable && (
-                            <button 
-                                onClick={onInstall}
-                                className="w-full p-4 bg-primary/10 text-primary rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-primary/20 transition-colors"
-                            >
-                                <Download size={20} />
-                                Install App
-                            </button>
-                        )}
-                        <button 
-                            onClick={() => {
-                                if (confirm("Delete all reports older than 30 days?")) onDeleteOldReports();
-                            }}
-                            className="w-full p-4 bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                        >
-                            <Trash2 size={20} />
-                            Cleanup Old Reports
-                        </button>
-                    </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 text-center">
-                    <p className="text-xs text-slate-400 font-medium">BlueTag v1.1.11</p>
-                </div>
             </div>
-        </div>,
-        document.body
-    );
-};
 
-const ReportSelectionModal = ({ reports, onSelect, onClose }: { reports: Report[], onSelect: (id: string) => void, onClose: () => void }) => {
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 text-center">
+                <p className="text-xs text-slate-400 font-medium">BlueTag v1.1.13</p>
+            </div>
+        </>
+    );
+}
+
+const ReportSelectionModal = ({ 
+    isOpen,
+    reports, 
+    onSelect, 
+    onClose, 
+    onDelete 
+}: { 
+    isOpen: boolean,
+    reports: Report[], 
+    onSelect: (id: string) => void, 
+    onClose: () => void, 
+    onDelete: (id: string, rect?: DOMRect) => void 
+}) => {
     const [search, setSearch] = useState("");
-    
+    const [isVisible, setIsVisible] = useState(false);
+    const [shouldRender, setShouldRender] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            setShouldRender(true);
+            setTimeout(() => setIsVisible(true), 10);
+        } else {
+            setIsVisible(false);
+            setTimeout(() => setShouldRender(false), 300);
+        }
+    }, [isOpen]);
+
     // Most recent 5 reports for initial view
     const recentReports = useMemo(() => {
         return [...reports].sort((a, b) => b.lastModified - a.lastModified).slice(0, 5);
@@ -283,14 +404,16 @@ const ReportSelectionModal = ({ reports, onSelect, onClose }: { reports: Report[
         }).sort((a, b) => b.lastModified - a.lastModified);
     }, [reports, search, recentReports]);
 
+    if (!shouldRender) return null;
+
     return createPortal(
-        <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] animate-dialog-enter">
+        <div className={`fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] transition-all duration-300 ${isVisible ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}>
                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 rounded-t-[32px]">
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
+                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl">
                         <h3 className="text-lg font-bold text-slate-800 dark:text-white">Search Reports</h3>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 transition-colors">
+                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-2xl text-slate-500 hover:text-slate-800 dark:text-slate-400 transition-colors">
                         <X size={20} />
                     </button>
                 </div>
@@ -307,6 +430,7 @@ const ReportSelectionModal = ({ reports, onSelect, onClose }: { reports: Report[
                                         issueCount={report.locations.reduce((acc, l) => acc + l.issues.length, 0)}
                                         lastModified={report.lastModified}
                                         onClick={() => onSelect(report.id)}
+                                        onDelete={(e, rect) => { e.stopPropagation(); onDelete(report.id, rect); }}
                                         readOnly={false} // Interactive
                                     />
                                 </div>
@@ -344,6 +468,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
     const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [isExiting, setIsExiting] = useState(false);
 
     // Effect: If `isCreating` becomes true, we should probably select the newest report
     useEffect(() => {
@@ -373,37 +498,59 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
     };
 
     const handleCreate = () => {
-        onCreateNew();
+        // Trigger exit animation first
+        setIsExiting(true);
+        setTimeout(() => {
+            onCreateNew();
+            setIsExiting(false);
+        }, 600);
     };
 
     const activeReport = reports.find(r => r.id === internalSelectedId);
+    // Extract client name for the header pill
+    const clientName = activeReport?.project?.fields?.[0]?.value || "";
 
     return (
         <div className="flex flex-col h-full bg-slate-200 dark:bg-slate-950">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 shrink-0 bg-transparent relative z-20">
-                <BlueTagLogo size="md" className="drop-shadow-sm" />
+                <div className="flex items-center gap-3">
+                    <BlueTagLogo size="md" className="drop-shadow-sm" />
+                    
+                    <button 
+                        onClick={() => setIsSettingsOpen(true)}
+                        className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                    >
+                        <Settings size={24} />
+                    </button>
+                </div>
+                
+                {/* Center Pill: Client Name (Only if active report exists) */}
+                {activeReport && (
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
+                        <div className="bg-slate-100 dark:bg-slate-800 pl-2 pr-4 py-2.5 rounded-2xl flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
+                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--color-primary),0.6)] shrink-0" />
+                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[120px] sm:max-w-[200px]">
+                                {clientName || "New Report"}
+                            </span>
+                        </div>
+                    </div>
+                )}
                 
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setIsSearchOpen(true)}
-                        className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                        className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
                     >
                         <Search size={24} />
                     </button>
                     
                     <button 
                         onClick={handleCreate}
-                        className={`w-12 h-12 rounded-full bg-white dark:bg-slate-800 text-primary hover:bg-primary hover:text-white transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center ${isCreating ? 'animate-pulse' : 'animate-breathing-glow'}`}
+                        disabled={isCreating || isExiting}
+                        className={`w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-primary hover:bg-primary hover:text-white transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center ${isCreating ? 'animate-pulse' : 'animate-breathing-glow'}`}
                     >
                         <Plus size={24} strokeWidth={3} />
-                    </button>
-                    
-                    <button 
-                        onClick={() => setIsSettingsOpen(true)}
-                        className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
-                    >
-                        <Settings size={24} />
                     </button>
                 </div>
             </div>
@@ -414,6 +561,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     <DashboardWrapper 
                         activeReport={activeReport}
                         onUpdateReport={props.onUpdateReport}
+                        onSelectLocation={props.onSelectLocation}
                         onBack={() => {}} // No back button in this mode
                         isDarkMode={props.isDarkMode}
                         toggleTheme={() => props.onThemeChange(props.currentTheme === 'dark' ? 'light' : 'dark')}
@@ -421,22 +569,24 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         signOffTemplates={props.signOffTemplates}
                         onUpdateTemplates={props.onUpdateTemplates}
                         isCreating={isCreating}
-                        onDelete={() => props.onDeleteReport(activeReport.id)}
+                        isExiting={isExiting}
+                        onDelete={(e: React.MouseEvent, rect?: DOMRect) => props.onDeleteReport(activeReport.id, rect)}
                         onAddIssueGlobal={props.onAddIssueGlobal}
                     />
                 ) : (
-                    <div className="absolute inset-4 sm:inset-6 border-4 border-dashed border-slate-200 dark:border-slate-800 rounded-[32px] flex flex-col items-center justify-center p-8 text-center">
-                         <div className="w-24 h-24 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-6">
-                             <Plus size={48} className="text-slate-300 dark:text-slate-600" />
-                         </div>
-                         <h2 className="text-2xl font-bold text-slate-400 dark:text-slate-500 mb-2">No Reports Yet</h2>
-                         <p className="text-slate-400 dark:text-slate-500 max-w-xs mx-auto mb-8">Tap the + button above to create your first inspection report.</p>
-                         <button 
-                            onClick={handleCreate}
-                            className="bg-white dark:bg-slate-800 px-8 py-3 rounded-full shadow-lg text-primary font-bold animate-breathing-glow border border-slate-200 dark:border-slate-700"
-                        >
-                            Create Report
-                        </button>
+                    <div className="max-w-3xl mx-auto p-6 relative">
+                         {/* Empty Placeholder that matches ReportCard dimensions/position */}
+                        <div className="w-full bg-white/50 dark:bg-slate-900/50 rounded-[32px] p-6 border-4 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center min-h-[220px]">
+                             <div className="w-20 h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-6">
+                                 <Plus size={40} className="text-slate-300 dark:text-slate-600" />
+                             </div>
+                             <button 
+                                onClick={handleCreate}
+                                className="bg-white dark:bg-slate-800 px-8 py-3 rounded-full shadow-lg text-primary font-bold animate-breathing-glow border border-slate-200 dark:border-slate-700 hover:scale-105 transition-transform"
+                            >
+                                Create Report
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
@@ -448,13 +598,13 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                 {...props}
             />
             
-            {isSearchOpen && (
-                <ReportSelectionModal 
-                    reports={reports}
-                    onSelect={handleLocalSelect}
-                    onClose={() => setIsSearchOpen(false)}
-                />
-            )}
+            <ReportSelectionModal 
+                isOpen={isSearchOpen}
+                reports={reports}
+                onSelect={handleLocalSelect}
+                onClose={() => setIsSearchOpen(false)}
+                onDelete={(id, rect) => props.onDeleteReport(id, rect)}
+            />
         </div>
     );
 }

@@ -411,7 +411,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
     const ToolButton = ({ tool, icon: Icon }: { tool: ToolType, icon: any }) => (
         <button 
             onClick={() => { setActiveTool(tool); setPendingText(null); }} 
-            className={`p-3 rounded-full transition-all duration-200 ${
+            className={`p-3 rounded-2xl transition-all duration-200 ${
                 activeTool === tool 
                 ? 'bg-white text-red-600 shadow-md scale-110' 
                 : 'text-white/70 hover:text-white hover:bg-white/10'
@@ -422,7 +422,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
     );
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-fade-in">
+        <div className="fixed inset-0 z-[300] bg-black flex flex-col animate-fade-in">
             {/* Top Floating Toolbar - Tools Only */}
             <div className="absolute top-6 left-0 right-0 flex justify-center items-center px-6 z-20 pointer-events-none">
                 <div className="pointer-events-auto flex items-center gap-1 bg-black/60 backdrop-blur-xl px-3 py-2 rounded-full border border-white/10 shadow-2xl">
@@ -436,14 +436,14 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
                     <button 
                         onClick={handleUndo} 
                         disabled={historyStep <= 0} 
-                        className="p-3 hover:bg-white/10 rounded-full disabled:opacity-30 transition-colors text-white/70 hover:text-white disabled:cursor-not-allowed"
+                        className="p-3 hover:bg-white/10 rounded-2xl disabled:opacity-30 transition-colors text-white/70 hover:text-white disabled:cursor-not-allowed"
                     >
                         <Undo size={20} />
                     </button>
                     <button 
                         onClick={handleRedo} 
                         disabled={historyStep >= history.length - 1} 
-                        className="p-3 hover:bg-white/10 rounded-full disabled:opacity-30 transition-colors text-white/70 hover:text-white disabled:cursor-not-allowed"
+                        className="p-3 hover:bg-white/10 rounded-2xl disabled:opacity-30 transition-colors text-white/70 hover:text-white disabled:cursor-not-allowed"
                     >
                         <Redo size={20} />
                     </button>
@@ -477,7 +477,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
                  {/* Cancel Button */}
                  <button 
                     onClick={onCancel} 
-                    className="pointer-events-auto bg-black/40 backdrop-blur-md text-white w-16 h-16 rounded-[24px] hover:bg-black/60 transition-colors border border-white/10 shadow-sm flex items-center justify-center active:scale-95"
+                    className="pointer-events-auto bg-black/40 backdrop-blur-md text-white w-16 h-16 rounded-2xl hover:bg-black/60 transition-colors border border-white/10 shadow-sm flex items-center justify-center active:scale-95"
                     title="Cancel"
                 >
                     <X size={24} />
@@ -520,7 +520,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
                 {/* Save Button */}
                 <button 
                     onClick={handleSave} 
-                    className="pointer-events-auto bg-primary text-white w-16 h-16 rounded-[24px] hover:bg-primary/90 transition-colors shadow-xl border border-white/10 flex items-center justify-center active:scale-95"
+                    className="pointer-events-auto bg-primary text-white w-16 h-16 rounded-2xl hover:bg-primary/90 transition-colors shadow-xl border border-white/10 flex items-center justify-center active:scale-95"
                     title="Save Changes"
                 >
                     <Check size={24} strokeWidth={3} />

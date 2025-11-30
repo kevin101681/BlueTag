@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
-import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles } from 'lucide-react';
+import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save } from 'lucide-react';
 import { PREDEFINED_LOCATIONS, generateUUID } from '../constants';
 import { ImageEditor } from './ImageEditor';
 import { analyzeDefectImage } from '../services/geminiService';
@@ -18,7 +18,6 @@ const compressImage = (file: File): Promise<string> => {
                 let width = img.width;
                 let height = img.height;
                 
-                // Max dimension 1200px (approx 150-200kb per image)
                 const MAX_SIZE = 1200; 
                 
                 if (width > height) {
@@ -43,7 +42,6 @@ const compressImage = (file: File): Promise<string> => {
                 }
                 
                 ctx.drawImage(img, 0, 0, width, height);
-                // Compress to JPEG 0.7 quality
                 resolve(canvas.toDataURL('image/jpeg', 0.7));
             };
             img.onerror = (err) => reject(err);
@@ -54,38 +52,68 @@ const compressImage = (file: File): Promise<string> => {
     });
 };
 
-// --- Delete Confirmation Modal ---
-export const DeleteConfirmationModal = ({ onConfirm, onCancel, title = "Delete Item?", message = "This action cannot be undone. The item and its photos will be permanently removed." }: { onConfirm: () => void, onCancel: () => void, title?: string, message?: string }) => createPortal(
+export const DeleteConfirmationModal = ({ 
+    onConfirm, 
+    onCancel, 
+    title = "Delete Item?", 
+    message = "This action cannot be undone. The item and its photos will be permanently removed.",
+    targetRect
+}: { 
+    onConfirm: () => void, 
+    onCancel: () => void, 
+    title?: string, 
+    message?: string,
+    targetRect?: DOMRect | null
+}) => createPortal(
     <div 
-        className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+        className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
         onClick={onCancel}
     >
         <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl w-full max-w-sm p-6 border-2 border-red-500/50 animate-pulse-border-red flex flex-col items-center text-center animate-dialog-enter"
+            style={targetRect ? {
+                position: 'fixed',
+                top: targetRect.top,
+                left: targetRect.left,
+                width: targetRect.width,
+                height: targetRect.height,
+                margin: 0,
+                transform: 'none'
+            } : {}}
+            className={`bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl border-2 border-red-500/50 animate-pulse-border-red flex flex-col items-center text-center animate-dialog-enter overflow-hidden ${targetRect ? 'justify-center p-2 box-border' : 'w-full max-w-sm p-6'}`}
         >
-            <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4 shadow-sm">
-                <Trash2 size={32} strokeWidth={2} />
-            </div>
-            <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full mb-2">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
-            </div>
-            <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed max-w-[260px]">
-                {message}
-            </p>
-            <div className="flex gap-3 w-full">
-                <button 
-                    onClick={onCancel}
-                    className="flex-1 py-3.5 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                >
-                    Cancel
-                </button>
-                <button 
-                    onClick={onConfirm}
-                    className="flex-1 py-3.5 rounded-[20px] font-bold text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg hover:shadow-xl active:scale-95"
-                >
-                    Delete
-                </button>
+            <div className={`w-full h-full flex flex-col items-center justify-center ${targetRect ? 'p-2' : ''}`}>
+                
+                {!targetRect && (
+                    <div className="bg-red-50 dark:bg-red-900/20 text-red-500 rounded-2xl flex items-center justify-center shadow-sm shrink-0 w-16 h-16 mb-4">
+                        <Trash2 size={32} strokeWidth={2} />
+                    </div>
+                )}
+                
+                {!targetRect && (
+                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full mb-2 shrink-0">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
+                    </div>
+                )}
+                
+                <p className={`text-slate-500 dark:text-slate-400 leading-relaxed max-w-[260px] ${targetRect ? 'mb-6 text-sm font-medium' : 'mb-8'}`}>
+                    {message}
+                </p>
+                
+                <div className="flex gap-3 w-full max-w-[300px]">
+                    <button 
+                        onClick={onCancel}
+                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={onConfirm}
+                        className="flex-1 py-3 rounded-[20px] font-bold text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg hover:shadow-xl active:scale-95"
+                    >
+                        Delete
+                    </button>
+                </div>
             </div>
         </div>
     </div>,
@@ -107,7 +135,6 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     availableLocations,
     initialIssue
 }) => {
-    // ... [AddIssueForm code unchanged]
     const [description, setDescription] = useState(initialIssue?.description || "");
     const [photos, setPhotos] = useState<IssuePhoto[]>(initialIssue?.photos || []);
     
@@ -115,19 +142,15 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     const [isListening, setIsListening] = useState(false);
     const recognitionRef = useRef<any>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    
+    // Editor State
+    const [editingPhotoIndex, setEditingPhotoIndex] = useState<number | null>(null);
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
         return () => {
             document.body.style.overflow = '';
         };
-    }, []);
-
-    useLayoutEffect(() => {
-        if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollTop = 0;
-        }
     }, []);
 
     useEffect(() => {
@@ -199,6 +222,17 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
             return newPhotos;
         });
     };
+    
+    const handleSaveEditedImage = (newUrl: string) => {
+        if (editingPhotoIndex !== null) {
+            setPhotos(prev => {
+                const newPhotos = [...prev];
+                newPhotos[editingPhotoIndex] = { ...newPhotos[editingPhotoIndex], url: newUrl };
+                return newPhotos;
+            });
+            setEditingPhotoIndex(null);
+        }
+    };
 
     const analyzeLastPhoto = async () => {
         if (photos.length === 0) return;
@@ -239,70 +273,79 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     const isEditing = !!initialIssue;
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-dialog-enter">
-                <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 z-10">
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white">
-                            {isEditing ? 'Edit Item' : 'Add Item'}
-                        </h3>
+        <>
+            <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md overflow-y-auto animate-fade-in flex items-center justify-center min-h-full">
+                <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col animate-dialog-enter relative m-4">
+                    <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 z-10 rounded-t-[32px]">
+                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                                {isEditing ? 'Edit Item' : 'Add Item'}
+                            </h3>
+                        </div>
                     </div>
-                </div>
 
-                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
                     <div className="p-6 space-y-6">
-                         <div>
-                             <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">Photos</label>
-                             <div className="grid grid-cols-2 gap-3">
-                                 {photos.map((photo, idx) => (
-                                     <div key={idx} className="bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden relative group">
-                                         <div className="aspect-square w-full relative">
-                                            <img src={photo.url} alt="Issue" className="w-full h-full object-cover" />
+                        <div>
+                            <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">Photos</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {photos.map((photo, idx) => (
+                                    <div key={idx} className="bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden relative group">
+                                        <div className="aspect-square w-full relative">
+                                            <img 
+                                                src={photo.url} 
+                                                alt="Issue" 
+                                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity" 
+                                                onClick={() => setEditingPhotoIndex(idx)}
+                                            />
+                                            {/* Edit Icon Always Visible */}
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                                                <Edit2 size={24} className="text-white drop-shadow-md" />
+                                            </div>
                                             <button 
                                                 onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
-                                                className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full transition-colors"
+                                                className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full transition-colors z-10"
                                             >
                                                 <X size={14} />
                                             </button>
-                                         </div>
-                                         <div className="p-2">
-                                             <input 
+                                        </div>
+                                        <div className="p-2">
+                                            <input 
                                                 type="text"
                                                 value={photo.description || ""}
                                                 onChange={(e) => handlePhotoDescriptionChange(idx, e.target.value)}
                                                 placeholder="Caption..."
                                                 className="w-full bg-white dark:bg-slate-800 text-xs px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-white"
-                                             />
-                                         </div>
-                                     </div>
-                                 ))}
-                                 <button 
-                                     onClick={() => fileInputRef.current?.click()}
-                                     className="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary dark:hover:text-white hover:border-primary/50 transition-colors"
-                                 >
-                                     <Camera size={24} />
-                                     <span className="text-[10px] font-bold mt-1">Add Photo</span>
-                                 </button>
-                             </div>
-                             <input 
-                                 type="file" 
-                                 accept="image/*" 
-                                 capture="environment" 
-                                 ref={fileInputRef} 
-                                 className="hidden" 
-                                 onChange={handlePhotoUpload} 
-                             />
-                         </div>
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary dark:hover:text-white hover:border-primary/50 transition-colors"
+                                >
+                                    <Camera size={24} />
+                                    <span className="text-[10px] font-bold mt-1">Add Photo</span>
+                                </button>
+                            </div>
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                capture="environment" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                onChange={handlePhotoUpload} 
+                            />
+                        </div>
 
-                         <div>
-                             <div className="flex justify-between items-center mb-2">
-                                 <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Description</label>
-                                 <div className="flex items-center gap-3">
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Description</label>
+                                <div className="flex items-center gap-3">
                                     {photos.length > 0 && (
-                                         <button
+                                        <button
                                             onClick={analyzeLastPhoto}
                                             disabled={isAnalyzing}
-                                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm ${
+                                            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
                                                 isAnalyzing 
                                                     ? 'bg-primary/20 text-primary' 
                                                     : !isAnalyzing 
@@ -310,31 +353,32 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                                                         : 'bg-slate-100 dark:bg-slate-700 text-primary dark:text-blue-400 hover:bg-primary hover:text-white'
                                             }`}
                                             title="Analyze Image with AI"
-                                         >
+                                        >
                                             {isAnalyzing ? (
                                                 <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                             ) : (
                                                 <Sparkles size={18} />
                                             )}
-                                         </button>
+                                        </button>
                                     )}
                                     
                                     <button 
-                                       onClick={toggleListening}
-                                       className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
-                                       title={isListening ? 'Stop Recording' : 'Start Voice Input'}
+                                    onClick={toggleListening}
+                                    className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                                    title={isListening ? 'Stop Recording' : 'Start Voice Input'}
                                     >
                                         {isListening ? <MicOff size={18} /> : <Mic size={18} />}
                                     </button>
-                                 </div>
-                             </div>
-                             <textarea
-                                 value={description}
-                                 onChange={(e) => setDescription(e.target.value)}
-                                 placeholder="Describe the issue..."
-                                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[120px] resize-none"
-                             />
-                         </div>
+                                </div>
+                            </div>
+                            <textarea
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="Describe the issue..."
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[120px] resize-none"
+                                autoFocus
+                            />
+                        </div>
                     </div>
 
                     <div className="p-5 flex gap-3 pb-8">
@@ -347,15 +391,133 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                         <button 
                             onClick={handleSubmit}
                             disabled={isSubmitDisabled}
-                            className="flex-1 py-3.5 rounded-[20px] font-bold text-white bg-primary hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                            className="flex-1 py-3.5 rounded-[20px] font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                         >
                             {isEditing ? 'Save Changes' : 'Save Item'}
                         </button>
                     </div>
                 </div>
             </div>
-        </div>,
+            
+            {editingPhotoIndex !== null && (
+                <ImageEditor 
+                    imageUrl={photos[editingPhotoIndex].url}
+                    onSave={handleSaveEditedImage}
+                    onCancel={() => setEditingPhotoIndex(null)}
+                />
+            )}
+        </>,
         document.body
+    );
+};
+
+// --- In-Place Editable Issue Card ---
+const EditableIssueCard: React.FC<{
+    issue: Issue;
+    index: number;
+    onUpdate: (updated: Issue) => void;
+    onDelete: () => void;
+    onEditImage: (idx: number, url: string) => void;
+}> = ({ issue, index, onUpdate, onDelete, onEditImage }) => {
+    // Local state for immediate feedback
+    const [description, setDescription] = useState(issue.description);
+    
+    // Sync if props update externally
+    useEffect(() => {
+        setDescription(issue.description);
+    }, [issue.description]);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleBlur = () => {
+        if (description.trim() !== issue.description) {
+            onUpdate({ ...issue, description });
+        }
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            try {
+                const compressed = await compressImage(e.target.files[0]);
+                const newPhotos = [...issue.photos, { url: compressed, description: '' }];
+                onUpdate({ ...issue, photos: newPhotos });
+            } catch (err) {
+                console.error("Image compression failed", err);
+            }
+        }
+    };
+
+    const handleDeletePhoto = (photoIndex: number) => {
+        const newPhotos = issue.photos.filter((_, i) => i !== photoIndex);
+        onUpdate({ ...issue, photos: newPhotos });
+    };
+
+    return (
+        <div className="w-full bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border border-slate-200 dark:border-slate-800 p-5 relative pb-14">
+            <div className="flex gap-3 items-start">
+                {/* Item Number aligned with top of text area */}
+                <div className="w-8 h-8 rounded-full bg-primary dark:bg-slate-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0 mt-1">
+                    {index + 1}
+                </div>
+
+                <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    onBlur={handleBlur}
+                    className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[80px] resize-none mb-4 text-sm transition-all"
+                    placeholder="Description..."
+                />
+            </div>
+
+            <div className="space-y-3 pl-11">
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide pt-3">
+                    {issue.photos.map((photo, idx) => (
+                            <div key={idx} className="relative shrink-0 group w-20 h-20">
+                                <img 
+                                src={photo.url} 
+                                alt="Issue" 
+                                className="w-full h-full rounded-xl object-cover border border-slate-200 dark:border-slate-700 cursor-pointer hover:opacity-90 transition-opacity" 
+                                onClick={() => onEditImage(idx, photo.url)}
+                            />
+                                {/* Edit Icon Always Visible */}
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none rounded-xl">
+                                    <Edit2 size={16} className="text-white drop-shadow-md" />
+                                </div>
+                                <button 
+                                onClick={() => handleDeletePhoto(idx)}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform z-10"
+                            >
+                                <X size={12} />
+                            </button>
+                            </div>
+                    ))}
+                    <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-20 h-20 shrink-0 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary transition-colors active:scale-95"
+                    >
+                            <Camera size={20} />
+                            <span className="text-[9px] font-bold mt-1">Add</span>
+                    </button>
+                </div>
+                <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="environment" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        onChange={handlePhotoUpload} 
+                    />
+            </div>
+
+            {/* Delete Button Moved to Bottom Right */}
+            <button 
+                onClick={onDelete}
+                className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center transition-colors shadow-sm"
+                title="Delete Item"
+            >
+                <Trash2 size={18} />
+            </button>
+        </div>
     );
 };
 
@@ -374,9 +536,7 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     onUpdateIssue, 
     onDeleteIssue 
 }) => {
-    // ... [LocationDetail code unchanged]
     const [isAddIssueOpen, setIsAddIssueOpen] = useState(false);
-    const [issueToEdit, setIssueToEdit] = useState<Issue | null>(null);
     const [issueToDelete, setIssueToDelete] = useState<string | null>(null);
     const [editingImage, setEditingImage] = useState<{ issueId: string, photoIndex: number, url: string } | null>(null);
 
@@ -406,12 +566,12 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-dialog-enter">
                     
                     <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 z-10">
-                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full truncate mr-4">
+                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl truncate mr-4">
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white truncate">{location.name}</h3>
                         </div>
                         <button 
                             onClick={onBack} 
-                            className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 transition-colors shrink-0"
+                            className="p-2 bg-slate-100 dark:bg-slate-700 rounded-2xl text-slate-500 hover:text-slate-800 dark:text-slate-400 transition-colors shrink-0"
                         >
                             <X size={20} />
                         </button>
@@ -423,63 +583,21 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                             onClick={() => setIsAddIssueOpen(true)}
                             className="w-full py-4 rounded-[24px] border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 text-slate-400 hover:text-primary dark:hover:text-white hover:border-primary/50 dark:hover:border-slate-500 bg-slate-50/50 dark:bg-slate-900/50 transition-all group active:scale-[0.99]"
                         >
-                            <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+                            <div className="w-10 h-10 rounded-2xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
                                 <Plus size={20} />
                             </div>
                             <span className="font-bold">Add New Item</span>
                         </button>
 
                         {location.issues.map((issue, index) => (
-                            <div 
-                                key={issue.id} 
-                                onClick={() => setIssueToEdit(issue)}
-                                className="bg-white dark:bg-slate-900 rounded-[24px] p-5 shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-primary/50 transition-all active:scale-[0.99] group/card"
-                            >
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="w-8 h-8 rounded-full bg-primary dark:bg-slate-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shadow-slate-200 dark:shadow-none">
-                                        {index + 1}
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-2">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); setIssueToEdit(issue); }}
-                                            className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-primary dark:hover:text-blue-400 transition-colors"
-                                        >
-                                            <Edit2 size={16} />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); setIssueToDelete(issue.id); }}
-                                            className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mb-4">
-                                    <p className="text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
-                                        {issue.description}
-                                    </p>
-                                </div>
-
-                                {issue.photos.length > 0 && (
-                                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                                        {issue.photos.map((photo, idx) => (
-                                            <div key={idx} className="relative shrink-0 group">
-                                                <img 
-                                                    src={photo.url} 
-                                                    alt="Evidence" 
-                                                    className="w-24 h-24 rounded-xl object-cover border border-slate-100 dark:border-slate-800 cursor-pointer"
-                                                    onClick={(e) => { e.stopPropagation(); setEditingImage({ issueId: issue.id, photoIndex: idx, url: photo.url }); }}
-                                                />
-                                                <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                                    <Edit2 size={16} className="text-white" />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                            <EditableIssueCard 
+                                key={issue.id}
+                                issue={issue}
+                                index={index}
+                                onUpdate={onUpdateIssue}
+                                onDelete={() => setIssueToDelete(issue.id)}
+                                onEditImage={(idx, url) => setEditingImage({ issueId: issue.id, photoIndex: idx, url })}
+                            />
                         ))}
                         
                         {location.issues.length === 0 && (
@@ -498,17 +616,6 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 />
             )}
             
-            {issueToEdit && (
-                <AddIssueForm
-                    onClose={() => setIssueToEdit(null)}
-                    onSubmit={(updatedIssue) => {
-                        onUpdateIssue(updatedIssue);
-                        setIssueToEdit(null);
-                    }}
-                    initialIssue={issueToEdit}
-                />
-            )}
-
             {issueToDelete && (
                 <DeleteConfirmationModal 
                     onConfirm={() => {

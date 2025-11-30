@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#fdfcff" />
     
+    <!-- Netlify Identity Widget -->
+    <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+    
     <!-- PWA Install Prompt Capture: Must run before other scripts -->
     <script>
       window.deferredPrompt = null;
@@ -29,8 +32,6 @@
             var meta = document.querySelector('meta[name="theme-color"]');
             if (meta) meta.setAttribute('content', '#020617');
           }
-          
-          // Note: Color theme is now handled by App.tsx for dynamic Hex support
         } catch (e) {}
       })();
     </script>
@@ -71,17 +72,20 @@
               'gentle': 'cubic-bezier(0.2, 0, 0, 1)',
             },
             animation: {
-              'fade-in': 'fadeIn 0.3s ease-out',
+              'fade-in': 'fadeIn 0.3s ease-out forwards',
               'slow-fade-in': 'slowFadeIn 2s ease-out forwards',
-              'fade-out': 'fadeOut 0.5s ease-out forwards',
+              'fade-out': 'fadeOut 0.3s ease-in forwards',
               'fade-in-up': 'fadeInUp 0.7s ease-out forwards',
               'fade-in-scale': 'fadeInScale 1.5s cubic-bezier(0.2, 0, 0, 1) forwards',
+              'scale-out': 'scaleOut 0.5s cubic-bezier(0.2, 0, 0, 1) forwards',
               'expand-horizontal': 'expandHorizontal 1.5s cubic-bezier(0.2, 0, 0, 1) forwards',
               'collapse-horizontal': 'collapseHorizontal 1.5s cubic-bezier(0.2, 0, 0, 1) forwards',
-              'slide-up': 'slideUp 0.4s cubic-bezier(0.2, 0.0, 0, 1.0)',
-              'slide-down': 'slideDown 1s cubic-bezier(0.2, 0.0, 0, 1.0) forwards',
               'expand-sections': 'expandSections 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards 1.0s',
-              'dialog-enter': 'dialogEnter 0.4s cubic-bezier(0.05, 0.7, 0.1, 1.0)',
+              'slide-up': 'slideUp 0.8s cubic-bezier(0.2, 0.0, 0, 1.0) both',
+              'slide-down': 'slideDown 1s cubic-bezier(0.2, 0.0, 0, 1.0) forwards',
+              'slide-down-exit': 'slideDownExit 0.6s cubic-bezier(0.2, 0.0, 0, 1.0) forwards',
+              'dialog-enter': 'dialogEnter 0.4s cubic-bezier(0.05, 0.7, 0.1, 1.0) forwards',
+              'dialog-exit': 'dialogExit 0.3s cubic-bezier(0.3, 0.0, 0.8, 0.15) forwards',
               'slide-in-right': 'slideInRight 0.3s ease-out forwards',
               'slide-in-from-right': 'slideInFromRight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
               'slide-in-left': 'slideInLeft 0.3s ease-out forwards',
@@ -115,6 +119,10 @@
                 '0%': { opacity: '0', transform: 'scale(0.8)' },
                 '100%': { opacity: '1', transform: 'scale(1)' },
               },
+              scaleOut: {
+                '0%': { opacity: '1', transform: 'scale(1)' },
+                '100%': { opacity: '0', transform: 'scale(0.95)' },
+              },
               expandHorizontal: {
                 '0%': { maxWidth: '0' },
                 '100%': { maxWidth: '600px' },
@@ -128,16 +136,24 @@
                 '100%': { opacity: '1', maxHeight: '2000px', transform: 'translateY(0)' },
               },
               slideUp: {
-                '0%': { transform: 'translateY(20px)', opacity: '0' },
+                '0%': { transform: 'translateY(40px)', opacity: '0' },
                 '100%': { transform: 'translateY(0)', opacity: '1' },
               },
               slideDown: {
                 '0%': { transform: 'translateY(-20px)', opacity: '0' },
                 '100%': { transform: 'translateY(0)', opacity: '1' },
               },
+              slideDownExit: {
+                '0%': { transform: 'translateY(0)', opacity: '1' },
+                '100%': { transform: 'translateY(40px)', opacity: '0' },
+              },
               dialogEnter: {
                 '0%': { opacity: '0', transform: 'scale(0.95) translateY(20px)' },
                 '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+              },
+              dialogExit: {
+                '0%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+                '100%': { opacity: '0', transform: 'scale(0.95) translateY(20px)' },
               },
               slideInRight: {
                 '0%': { transform: 'translateX(50px)', opacity: '0' },
@@ -254,22 +270,5 @@
   <body class="transition-colors duration-300 dark:bg-slate-950">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
-    <script>
-      // TEMPORARILY DISABLED SERVICE WORKER TO FLUSH CACHE
-      if ('serviceWorker' in navigator) {
-         try {
-             navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
-                    try {
-                        registration.unregister();
-                    } catch(e) {}
-                } 
-             }).catch(function(e) {
-                 // Suppress errors about invalid state during load
-                 console.log("SW cleanup skipped");
-             });
-         } catch(e) {}
-      }
-    </script>
   </body>
 </html>
