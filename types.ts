@@ -9,10 +9,16 @@ export interface ProjectField {
   icon: string; // 'User' | 'MapPin' | 'Phone' | 'Mail' | 'Calendar' | 'FileText' | 'Hash' etc.
 }
 
+export interface Point {
+    x: number;
+    y: number;
+}
+
 export interface ProjectDetails {
   fields: ProjectField[];
-  signOffImage?: string; // Base64 string of the signed document
-  reportPreviewImage?: string; // Base64 string of the marked-up report
+  signOffImage?: string; // Base64 string of the signed document thumbnail
+  reportPreviewImage?: string; // Base64 string of the marked-up report thumbnail
+  signOffStrokes?: Point[][]; // Array of strokes (each stroke is an array of points)
 }
 
 export interface IssuePhoto {

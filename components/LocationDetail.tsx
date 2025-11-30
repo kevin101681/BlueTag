@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
 import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles } from 'lucide-react';
@@ -54,23 +55,23 @@ const compressImage = (file: File): Promise<string> => {
 };
 
 // --- Delete Confirmation Modal ---
-const DeleteConfirmationModal = ({ onConfirm, onCancel }: { onConfirm: () => void, onCancel: () => void }) => createPortal(
+export const DeleteConfirmationModal = ({ onConfirm, onCancel, title = "Delete Item?", message = "This action cannot be undone. The item and its photos will be permanently removed." }: { onConfirm: () => void, onCancel: () => void, title?: string, message?: string }) => createPortal(
     <div 
         className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
         onClick={onCancel}
     >
         <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl w-full max-w-sm p-6 border border-white/10 ring-1 ring-black/5 dark:ring-white/10 flex flex-col items-center text-center animate-dialog-enter"
+            className="bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl w-full max-w-sm p-6 border-2 border-red-500/50 animate-pulse-border-red flex flex-col items-center text-center animate-dialog-enter"
         >
             <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4 shadow-sm">
                 <Trash2 size={32} strokeWidth={2} />
             </div>
             <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full mb-2">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Item?</h3>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
             </div>
             <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed max-w-[260px]">
-                This action cannot be undone. The item and its photos will be permanently removed.
+                {message}
             </p>
             <div className="flex gap-3 w-full">
                 <button 
@@ -106,6 +107,7 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     availableLocations,
     initialIssue
 }) => {
+    // ... [AddIssueForm code unchanged]
     const [description, setDescription] = useState(initialIssue?.description || "");
     const [photos, setPhotos] = useState<IssuePhoto[]>(initialIssue?.photos || []);
     
@@ -122,7 +124,6 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
         };
     }, []);
 
-    // Force scroll to top on open
     useLayoutEffect(() => {
         if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = 0;
@@ -237,11 +238,9 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     const isSubmitDisabled = !description.trim();
     const isEditing = !!initialIssue;
 
-    // Use createPortal to ensure the modal is top-level and not affected by parent transforms
     return createPortal(
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-dialog-enter">
-                {/* Header */}
                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 z-10">
                     <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
                         <h3 className="text-lg font-bold text-slate-800 dark:text-white">
@@ -250,10 +249,8 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                     </div>
                 </div>
 
-                {/* Scrollable Content + Footer Buttons inside */}
                 <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
                     <div className="p-6 space-y-6">
-                         {/* Photos */}
                          <div>
                              <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">Photos</label>
                              <div className="grid grid-cols-2 gap-3">
@@ -297,12 +294,10 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                              />
                          </div>
 
-                         {/* Description */}
                          <div>
                              <div className="flex justify-between items-center mb-2">
                                  <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Description</label>
                                  <div className="flex items-center gap-3">
-                                    {/* Analyze Button */}
                                     {photos.length > 0 && (
                                          <button
                                             onClick={analyzeLastPhoto}
@@ -324,7 +319,6 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                                          </button>
                                     )}
                                     
-                                    {/* Voice Button */}
                                     <button 
                                        onClick={toggleListening}
                                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
@@ -343,7 +337,6 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                          </div>
                     </div>
 
-                    {/* Footer Buttons - Moved inside scrollable area for mobile keyboard friendliness */}
                     <div className="p-5 flex gap-3 pb-8">
                         <button 
                             onClick={onClose}
@@ -381,12 +374,12 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     onUpdateIssue, 
     onDeleteIssue 
 }) => {
+    // ... [LocationDetail code unchanged]
     const [isAddIssueOpen, setIsAddIssueOpen] = useState(false);
     const [issueToEdit, setIssueToEdit] = useState<Issue | null>(null);
     const [issueToDelete, setIssueToDelete] = useState<string | null>(null);
     const [editingImage, setEditingImage] = useState<{ issueId: string, photoIndex: number, url: string } | null>(null);
 
-    // Body scroll lock
     useEffect(() => {
         document.body.style.overflow = 'hidden';
         return () => {
@@ -406,16 +399,12 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
         setEditingImage(null);
     };
 
-    // Portal the entire detail view to the body to avoid clipping/containment by the carousel
     return createPortal(
         <>
-            {/* Main Modal Backdrop - Center Alignment */}
             <div className="fixed inset-0 z-[50] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
                 
-                {/* Modal Card */}
                 <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-dialog-enter">
                     
-                    {/* Header */}
                     <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 z-10">
                         <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full truncate mr-4">
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white truncate">{location.name}</h3>
@@ -428,10 +417,8 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                         </button>
                     </div>
 
-                    {/* Scrollable List */}
                     <div className="p-6 overflow-y-auto flex-1 space-y-4">
                         
-                        {/* Add Item Button */}
                         <button
                             onClick={() => setIsAddIssueOpen(true)}
                             className="w-full py-4 rounded-[24px] border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 text-slate-400 hover:text-primary dark:hover:text-white hover:border-primary/50 dark:hover:border-slate-500 bg-slate-50/50 dark:bg-slate-900/50 transition-all group active:scale-[0.99]"
@@ -442,9 +429,12 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                             <span className="font-bold">Add New Item</span>
                         </button>
 
-                        {/* Issues */}
                         {location.issues.map((issue, index) => (
-                            <div key={issue.id} className="bg-white dark:bg-slate-900 rounded-[24px] p-5 shadow-sm border border-slate-100 dark:border-slate-800">
+                            <div 
+                                key={issue.id} 
+                                onClick={() => setIssueToEdit(issue)}
+                                className="bg-white dark:bg-slate-900 rounded-[24px] p-5 shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-primary/50 transition-all active:scale-[0.99] group/card"
+                            >
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="w-8 h-8 rounded-full bg-primary dark:bg-slate-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shadow-slate-200 dark:shadow-none">
                                         {index + 1}
@@ -452,13 +442,13 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                                     
                                     <div className="flex items-center gap-2">
                                         <button 
-                                            onClick={() => setIssueToEdit(issue)}
+                                            onClick={(e) => { e.stopPropagation(); setIssueToEdit(issue); }}
                                             className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-primary dark:hover:text-blue-400 transition-colors"
                                         >
                                             <Edit2 size={16} />
                                         </button>
                                         <button 
-                                            onClick={() => setIssueToDelete(issue.id)}
+                                            onClick={(e) => { e.stopPropagation(); setIssueToDelete(issue.id); }}
                                             className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                         >
                                             <Trash2 size={16} />
@@ -466,7 +456,6 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                                     </div>
                                 </div>
                                 
-                                {/* Description styled as text box */}
                                 <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mb-4">
                                     <p className="text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
                                         {issue.description}
@@ -481,7 +470,7 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                                                     src={photo.url} 
                                                     alt="Evidence" 
                                                     className="w-24 h-24 rounded-xl object-cover border border-slate-100 dark:border-slate-800 cursor-pointer"
-                                                    onClick={() => setEditingImage({ issueId: issue.id, photoIndex: idx, url: photo.url })}
+                                                    onClick={(e) => { e.stopPropagation(); setEditingImage({ issueId: issue.id, photoIndex: idx, url: photo.url }); }}
                                                 />
                                                 <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                                                     <Edit2 size={16} className="text-white" />
@@ -502,7 +491,6 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 </div>
             </div>
 
-            {/* Modals - Rendered outside to ensure correct stacking */}
             {isAddIssueOpen && (
                 <AddIssueForm 
                     onClose={() => setIsAddIssueOpen(false)}
