@@ -28,8 +28,10 @@ const getEnv = (key: string) => {
 };
 
 // Use environment variables if available, otherwise fall back to placeholders
+// NOTE: Hardcoded keys have been removed to prevent deployment security flags.
+// Please ensure VITE_FIREBASE_API_KEY is set in your environment variables.
 const firebaseConfig = {
-  apiKey: getEnv("VITE_FIREBASE_API_KEY") || "AIzaSyCsCKeVfNtHk4lwT9vX262pVGHgW22TFAc",
+  apiKey: getEnv("VITE_FIREBASE_API_KEY") || "REPLACE_WITH_YOUR_API_KEY",
   authDomain: getEnv("VITE_FIREBASE_AUTH_DOMAIN") || "bluetag-34398.firebaseapp.com",
   projectId: getEnv("VITE_FIREBASE_PROJECT_ID") || "bluetag-34398",
   storageBucket: getEnv("VITE_FIREBASE_STORAGE_BUCKET") || "bluetag-34398.firebasestorage.app",

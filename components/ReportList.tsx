@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react';
 import { Report, ColorTheme, ProjectDetails, LocationGroup, Issue, SignOffTemplate } from '../types';
-import { FileText, Trash2, Calendar, MapPin, Settings, Sun, Moon, Monitor, Download, User as UserIcon, LogOut, Image as ImageIcon, X, ChevronRight, ChevronUp, Palette, Check, Plus, ChevronLeft, PenTool, Share2, Mail, Send, Copy, Phone, Hash, Briefcase, Layers } from 'lucide-react';
+import { FileText, Trash2, Calendar, MapPin, Settings, Sun, Moon, Monitor, Download, User as UserIcon, LogOut, Image as ImageIcon, X, ChevronRight, ChevronUp, Palette, Check, Plus, ChevronLeft, PenTool, Share2, Mail, Send, Copy, Phone, Hash, Briefcase, Layers, ChevronDown } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { loginWithGoogle, logoutUser } from '../services/firebase';
 import { BlueTagLogo } from './Logo';
@@ -432,353 +432,6 @@ const EmailMenuModal: React.FC<EmailMenuModalProps> = ({
     );
 };
 
-interface SettingsModalProps {
-    onClose: () => void;
-    currentTheme: ThemeOption;
-    onThemeChange: (theme: ThemeOption) => void;
-    colorTheme: ColorTheme;
-    onColorThemeChange: (theme: ColorTheme) => void;
-    user: User | null;
-    onLogin: () => void;
-    currentLogo?: string;
-    onUpdateLogo: (logo: string) => void;
-    currentPartnerLogo?: string;
-    onUpdatePartnerLogo: (logo: string) => void;
-    installAvailable?: boolean;
-    onInstall?: () => void;
-    isIOS?: boolean;
-    isStandalone?: boolean;
-}
-
-const SettingsModal: React.FC<SettingsModalProps> = ({ 
-    onClose, 
-    currentTheme,
-    onThemeChange,
-    colorTheme,
-    onColorThemeChange,
-    user,
-    onLogin,
-    currentLogo,
-    onUpdateLogo,
-    currentPartnerLogo,
-    onUpdatePartnerLogo,
-    installAvailable,
-    onInstall,
-    isIOS,
-    isStandalone
-}) => {
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const partnerFileInputRef = useRef<HTMLInputElement>(null);
-    const [logoError, setLogoError] = useState(false);
-    const [partnerLogoError, setPartnerLogoError] = useState(false);
-    const [showColorPicker, setShowColorPicker] = useState(false);
-
-    useEffect(() => {
-        document.body.style.overflow = 'hidden';
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, []);
-
-    useEffect(() => {
-        setLogoError(false);
-    }, [currentLogo]);
-
-    useEffect(() => {
-        setPartnerLogoError(false);
-    }, [currentPartnerLogo]);
-
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                onUpdateLogo(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handlePartnerLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                onUpdatePartnerLogo(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleInstallClick = () => {
-        if (installAvailable && onInstall) {
-            onInstall();
-        }
-    };
-
-    const colors = [
-        { label: 'Ocean', color: '#60a5fa' },
-        { label: 'Forest', color: '#4ade80' },
-        { label: 'Royal', color: '#a78bfa' },
-        { label: 'Sunset', color: '#fb923c' },
-        { label: 'Rose', color: '#fb7185' },
-    ];
-
-    const isCustomColor = !colors.some(c => c.color.toLowerCase() === colorTheme.toLowerCase());
-
-    return createPortal(
-        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex justify-end items-end p-4 animate-fade-in">
-             <div className="bg-white dark:bg-slate-800 rounded-[24px] w-full max-w-md shadow-2xl border border-white/20 ring-1 ring-black/5 dark:ring-white/10 overflow-hidden max-h-[90vh] flex flex-col animate-dialog-enter origin-bottom-right">
-                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 z-10">
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full flex items-center gap-2">
-                        <Settings size={20} className="text-slate-500 dark:text-slate-300" />
-                        <h3 className="font-bold text-lg text-slate-800 dark:text-white">
-                            Settings
-                        </h3>
-                    </div>
-                 </div>
-                 
-                 <div className="p-6 space-y-8 overflow-y-auto flex-1">
-                     
-                     {!isStandalone && installAvailable && (
-                        <div>
-                            <button
-                                onClick={handleInstallClick}
-                                className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 p-4 rounded-[20px] font-bold flex items-center justify-center gap-3 shadow-md hover:shadow-lg transition-all active:scale-95"
-                            >
-                                <Download size={20} />
-                                <span>Install App</span>
-                            </button>
-                        </div>
-                     )}
-
-                     <div>
-                         <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3">Account</label>
-                         {user ? (
-                             <div className="bg-primary-container/30 dark:bg-blue-900/20 p-4 rounded-xl flex items-center justify-between border border-primary-container dark:border-blue-900/50">
-                                 <div className="flex items-center gap-3">
-                                     {user.photoURL ? (
-                                         <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full border border-white/50" />
-                                     ) : (
-                                         <div className="w-10 h-10 rounded-full bg-primary/20 dark:bg-blue-800 flex items-center justify-center text-primary dark:text-blue-300">
-                                             <UserIcon size={20} />
-                                         </div>
-                                     )}
-                                     <div>
-                                         <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{user.displayName || 'User'}</p>
-                                         <p className="text-xs text-slate-500 dark:text-slate-400">{user.email}</p>
-                                     </div>
-                                 </div>
-                                 <button 
-                                    onClick={() => { logoutUser(); onClose(); }}
-                                    className="p-2 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 transition-colors"
-                                    title="Sign Out"
-                                 >
-                                     <LogOut size={20} />
-                                 </button>
-                             </div>
-                         ) : (
-                             <button
-                                onClick={() => { onLogin(); onClose(); }}
-                                className="w-full bg-primary hover:bg-primary/90 dark:bg-slate-600 dark:hover:bg-slate-500 text-white p-4 rounded-[20px] font-bold flex items-center justify-center gap-3 shadow-md hover:shadow-lg transition-all active:scale-95"
-                             >
-                                 <UserIcon size={20} />
-                                 <span>Sign In with Google</span>
-                             </button>
-                         )}
-                     </div>
-
-                     {/* Logos Section */}
-                     <div className="space-y-4">
-                         <div>
-                            <div className="flex justify-between items-center mb-3">
-                                <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Company Logo</label>
-                            </div>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group text-left shadow-sm"
-                            >
-                                <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 flex items-center justify-center p-2 shrink-0 overflow-hidden group-hover:border-primary dark:group-hover:border-slate-500 transition-colors">
-                                    {currentLogo && !logoError ? (
-                                        <img 
-                                            src={currentLogo} 
-                                            alt="Logo" 
-                                            className="w-full h-full object-contain" 
-                                            onError={() => setLogoError(true)}
-                                        />
-                                    ) : (
-                                        <ImageIcon className="text-slate-300 dark:text-slate-500" size={32} />
-                                    )}
-                                </div>
-                                <div className="flex-1">
-                                    <span className="block text-sm font-bold text-primary dark:text-slate-300 mb-1">
-                                        Upload New Logo
-                                    </span>
-                                    <p className="text-xs text-slate-400">Recommended: PNG with transparent background</p>
-                                </div>
-                            </button>
-                            <input 
-                                ref={fileInputRef}
-                                type="file" 
-                                accept="image/*" 
-                                className="hidden" 
-                                onChange={handleLogoUpload}
-                            />
-                         </div>
-
-                         <div>
-                            <div className="flex justify-between items-center mb-3">
-                                <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Partner / Co-Brand Logo</label>
-                            </div>
-                            <button
-                                onClick={() => partnerFileInputRef.current?.click()}
-                                className="w-full bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group text-left shadow-sm"
-                            >
-                                <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 flex items-center justify-center p-2 shrink-0 overflow-hidden group-hover:border-primary dark:group-hover:border-slate-500 transition-colors">
-                                    {currentPartnerLogo && !partnerLogoError ? (
-                                        <img 
-                                            src={currentPartnerLogo} 
-                                            alt="Partner Logo" 
-                                            className="w-full h-full object-contain" 
-                                            onError={() => setPartnerLogoError(true)}
-                                        />
-                                    ) : (
-                                        <ImageIcon className="text-slate-300 dark:text-slate-500" size={32} />
-                                    )}
-                                </div>
-                                <div className="flex-1">
-                                    <span className="block text-sm font-bold text-primary dark:text-slate-300 mb-1">
-                                        Upload Partner Logo
-                                    </span>
-                                    <p className="text-xs text-slate-400">Renders next to main logo</p>
-                                </div>
-                            </button>
-                            <input 
-                                ref={partnerFileInputRef}
-                                type="file" 
-                                accept="image/*" 
-                                className="hidden" 
-                                onChange={handlePartnerLogoUpload}
-                            />
-                         </div>
-                     </div>
-
-                     <div>
-                        <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3">Theme Mode</label>
-                        <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700">
-                            {[
-                                { id: 'light', label: 'Light', icon: Sun },
-                                { id: 'dark', label: 'Dark', icon: Moon },
-                                { id: 'system', label: 'System', icon: Monitor }
-                            ].map((option) => {
-                                const Icon = option.icon;
-                                const isActive = currentTheme === option.id;
-                                return (
-                                    <button
-                                        key={option.id}
-                                        onClick={() => onThemeChange(option.id as ThemeOption)}
-                                        className={`py-3 px-2 rounded-xl text-sm font-bold transition-all flex flex-col items-center gap-2 ${
-                                            isActive 
-                                            ? 'bg-white dark:bg-slate-700 text-primary dark:text-white shadow-sm' 
-                                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                        }`}
-                                    >
-                                        <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                                        <span>{option.label}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                     </div>
-
-                     <div>
-                        <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3">Accent Color</label>
-                        
-                        {/* Material 3 Expressive Grid Layout */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {colors.map((c) => {
-                                const isSelected = colorTheme.toLowerCase() === c.color.toLowerCase();
-                                return (
-                                    <button
-                                        key={c.color}
-                                        onClick={() => onColorThemeChange(c.color)}
-                                        className={`h-16 rounded-[20px] relative overflow-hidden transition-all group ${isSelected ? 'ring-2 ring-slate-800 dark:ring-white scale-[1.02] shadow-md' : 'hover:scale-[1.02] hover:shadow-sm'}`}
-                                    >
-                                        {/* Background Fill with opacity */}
-                                        <div 
-                                            className="absolute inset-0 opacity-20 dark:opacity-30 transition-colors" 
-                                            style={{ backgroundColor: c.color }} 
-                                        />
-                                        
-                                        <div className="relative h-full flex items-center px-4 gap-3">
-                                            <div 
-                                                className="w-8 h-8 rounded-full shadow-sm flex items-center justify-center shrink-0" 
-                                                style={{ backgroundColor: c.color }}
-                                            >
-                                                {isSelected && <Check size={16} className="text-white drop-shadow-md" strokeWidth={3} />}
-                                            </div>
-                                            <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">
-                                                {c.label}
-                                            </span>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-
-                            {/* Custom Color Card */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowColorPicker(true)}
-                                    className={`w-full h-16 rounded-[20px] relative overflow-hidden transition-all group flex items-center px-4 gap-3 bg-slate-50 dark:bg-slate-900 border-2 border-dashed ${isCustomColor ? 'border-slate-800 dark:border-white shadow-md' : 'border-slate-300 dark:border-slate-600 hover:border-slate-400'}`}
-                                >
-                                    <div 
-                                        className="w-8 h-8 rounded-full shadow-sm flex items-center justify-center shrink-0 bg-gradient-to-br from-pink-500 via-purple-500 to-blue-500"
-                                    >
-                                        {isCustomColor ? (
-                                             <div className="w-full h-full rounded-full border-2 border-white flex items-center justify-center" style={{ backgroundColor: colorTheme }}>
-                                                 <Check size={14} className="text-white drop-shadow-md" strokeWidth={3} />
-                                             </div>
-                                        ) : (
-                                            <Palette size={16} className="text-white" />
-                                        )}
-                                    </div>
-                                    <span className={`font-bold text-sm ${isCustomColor ? 'text-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
-                                        Custom
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                     </div>
-                 </div>
-                 
-                 {/* Footer with Close Button */}
-                 <div className="p-5 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex gap-3 shrink-0">
-                    <div className="flex-1 flex items-center">
-                         <p className="text-xs text-slate-400 dark:text-slate-500 font-medium font-mono">
-                            BlueTag v1.4.7
-                        </p>
-                    </div>
-                    <button 
-                        onClick={onClose}
-                        className="px-8 py-3 rounded-full font-bold text-white bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors shadow-sm"
-                    >
-                        Close
-                    </button>
-                 </div>
-             </div>
-             
-             {showColorPicker && (
-                 <ColorPickerModal 
-                    initialColor={colorTheme} 
-                    onChange={onColorThemeChange} 
-                    onClose={() => setShowColorPicker(false)} 
-                 />
-             )}
-        </div>,
-        document.body
-    );
-};
-
 interface ReportCardProps {
     report: Report;
     onClick: (id: string) => void;
@@ -1056,29 +709,6 @@ const SwipePill = ({ className = "", onClick, isDesktop = false }: { className?:
     </div>
 );
 
-const MoreReportsPill = ({ onClick, count, isExiting = false, className = "" }: { onClick: () => void, count: number, isExiting?: boolean, className?: string }) => (
-    <div className={`snap-center h-full flex flex-col justify-center pt-0 origin-center ${isExiting ? 'animate-fade-out opacity-0 pointer-events-none' : ''} ${className}`}>
-        <button 
-            onClick={onClick}
-            className="group relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-sm rounded-[24px] w-[80px] h-full py-6 flex flex-col items-center justify-center gap-4 hover:bg-white dark:hover:bg-slate-800 transition-all hover:scale-[1.05] active:scale-95 hover:shadow-md"
-        >
-            <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-full text-slate-400 group-hover:text-primary dark:group-hover:text-white transition-colors">
-                <ChevronRight size={24} strokeWidth={3} />
-            </div>
-            <div className="h-px w-8 bg-slate-200 dark:bg-slate-700" />
-            <div className="flex flex-col items-center gap-0.5">
-                <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    More
-                </span>
-                <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
-                    ({count})
-                </span>
-            </div>
-            <div className="absolute inset-0 rounded-[24px] ring-2 ring-primary/0 group-hover:ring-primary/20 transition-all" />
-        </button>
-    </div>
-);
-
 const CollapsePill = ({ onClick, onDeleteOld, hasOldReports }: { onClick: () => void, onDeleteOld?: () => void, hasOldReports?: boolean }) => (
     <div className="snap-center h-full flex flex-col justify-center pt-0 animate-fade-in-scale origin-center">
         <div className="group relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-sm rounded-[24px] w-[80px] h-auto py-6 flex flex-col items-center justify-center gap-4 hover:bg-white dark:hover:bg-slate-800 transition-all hover:shadow-md">
@@ -1112,6 +742,223 @@ const CollapsePill = ({ onClick, onDeleteOld, hasOldReports }: { onClick: () => 
         </div>
     </div>
 );
+
+const SettingsModal: React.FC<SettingsModalProps> = ({
+    onClose,
+    currentTheme,
+    onThemeChange,
+    colorTheme,
+    onColorThemeChange,
+    user,
+    onLogin,
+    currentLogo,
+    onUpdateLogo,
+    currentPartnerLogo,
+    onUpdatePartnerLogo,
+    installAvailable,
+    onInstall,
+    isIOS,
+    isStandalone
+}) => {
+    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+    
+    // File upload handler
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, isPartner: boolean) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    if (isPartner) onUpdatePartnerLogo(ev.target.result as string);
+                    else onUpdateLogo(ev.target.result as string);
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[32px] shadow-2xl p-6 border border-white/20 ring-1 ring-black/5 dark:ring-white/10 flex flex-col max-h-[90vh] overflow-y-auto animate-dialog-enter" onClick={e => e.stopPropagation()}>
+                
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">Settings</h3>
+                     <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                         <X size={24} className="text-slate-500 dark:text-slate-400" />
+                     </button>
+                </div>
+
+                {/* Account Section */}
+                <div className="mb-8">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Account</h4>
+                    {user ? (
+                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex items-center justify-between border border-slate-100 dark:border-slate-700">
+                            <div className="flex items-center gap-3">
+                                {user.photoURL ? (
+                                    <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full" />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                                        {user.email?.[0]?.toUpperCase()}
+                                    </div>
+                                )}
+                                <div className="overflow-hidden">
+                                    <p className="font-bold text-slate-800 dark:text-white truncate">{user.displayName || 'User'}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => logoutUser()} 
+                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                                title="Sign Out"
+                            >
+                                <LogOut size={20} />
+                            </button>
+                        </div>
+                    ) : (
+                        <button 
+                            onClick={onLogin}
+                            className="w-full bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center justify-center gap-3 transition-colors group"
+                        >
+                            <UserIcon size={20} className="text-slate-400 group-hover:text-primary transition-colors" />
+                            <span className="font-bold text-slate-600 dark:text-slate-300 group-hover:text-slate-800 dark:group-hover:text-white">Sign in with Google</span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Appearance Section */}
+                <div className="mb-8">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Appearance</h4>
+                    
+                    {/* Theme Toggle */}
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-2 flex mb-4 border border-slate-100 dark:border-slate-700">
+                        {(['light', 'dark', 'system'] as ThemeOption[]).map((t) => (
+                            <button
+                                key={t}
+                                onClick={() => onThemeChange(t)}
+                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${currentTheme === t ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                            >
+                                <div className="flex items-center justify-center gap-2">
+                                    {t === 'light' && <Sun size={16} />}
+                                    {t === 'dark' && <Moon size={16} />}
+                                    {t === 'system' && <Monitor size={16} />}
+                                    <span className="capitalize">{t}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Color Theme */}
+                    <button 
+                        onClick={() => setIsColorPickerOpen(true)}
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex items-center justify-between border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group"
+                    >
+                        <span className="font-bold text-slate-700 dark:text-slate-300">Accent Color</span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm font-mono text-slate-400 uppercase">{colorTheme}</span>
+                            <div 
+                                className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-700 shadow-sm"
+                                style={{ backgroundColor: colorTheme }}
+                            />
+                        </div>
+                    </button>
+                </div>
+
+                {/* Branding Section */}
+                <div className="mb-8">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Branding</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* Company Logo */}
+                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-3 relative group">
+                            <div className="w-16 h-16 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-700">
+                                {currentLogo ? (
+                                    <img src={currentLogo} alt="Logo" className="w-full h-full object-contain" />
+                                ) : (
+                                    <ImageIcon size={24} className="text-slate-300" />
+                                )}
+                            </div>
+                            <span className="text-xs font-bold text-slate-500">Your Logo</span>
+                            <label className="absolute inset-0 cursor-pointer opacity-0">
+                                <input type="file" accept="image/*" onChange={(e) => handleLogoUpload(e, false)} />
+                            </label>
+                            {currentLogo && (
+                                <button 
+                                    onClick={(e) => { e.preventDefault(); onUpdateLogo(""); }}
+                                    className="absolute top-2 right-2 p-1 bg-white dark:bg-slate-800 rounded-full text-slate-400 hover:text-red-500 shadow-sm z-10"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Partner Logo */}
+                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-3 relative group">
+                            <div className="w-16 h-16 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-700">
+                                {currentPartnerLogo ? (
+                                    <img src={currentPartnerLogo} alt="Partner" className="w-full h-full object-contain" />
+                                ) : (
+                                    <ImageIcon size={24} className="text-slate-300" />
+                                )}
+                            </div>
+                            <span className="text-xs font-bold text-slate-500">Partner Logo</span>
+                            <label className="absolute inset-0 cursor-pointer opacity-0">
+                                <input type="file" accept="image/*" onChange={(e) => handleLogoUpload(e, true)} />
+                            </label>
+                            {currentPartnerLogo && (
+                                <button 
+                                    onClick={(e) => { e.preventDefault(); onUpdatePartnerLogo(""); }}
+                                    className="absolute top-2 right-2 p-1 bg-white dark:bg-slate-800 rounded-full text-slate-400 hover:text-red-500 shadow-sm z-10"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* App Info & Install */}
+                <div>
+                     <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">About</h4>
+                     <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+                         <div className="flex items-center justify-between mb-4">
+                             <div className="flex items-center gap-3">
+                                 <BlueTagLogo size="sm" />
+                                 <div>
+                                     <p className="font-bold text-slate-800 dark:text-white">BlueTag</p>
+                                     <p className="text-xs text-slate-500">Version 1.1.0</p>
+                                 </div>
+                             </div>
+                         </div>
+                         
+                         {installAvailable && !isStandalone && (
+                             <button 
+                                onClick={onInstall}
+                                className="w-full bg-primary text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-lg active:scale-95"
+                             >
+                                 <Download size={18} />
+                                 Install App
+                             </button>
+                         )}
+                         
+                         {isIOS && !isStandalone && (
+                             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 rounded-xl text-sm leading-relaxed">
+                                 To install on iOS: Tap <span className="font-bold">Share</span> <Share2 size={14} className="inline" /> and select <span className="font-bold">Add to Home Screen</span> <Plus size={14} className="inline" />.
+                             </div>
+                         )}
+                     </div>
+                </div>
+
+            </div>
+
+            {isColorPickerOpen && (
+                <ColorPickerModal 
+                    initialColor={colorTheme}
+                    onChange={onColorThemeChange}
+                    onClose={() => setIsColorPickerOpen(false)}
+                />
+            )}
+        </div>
+    );
+};
 
 // Memoized Wrapper for Dashboard to stabilize handlers and prevent re-renders on parent state change
 const DashboardWrapper = React.memo((props: any) => {
@@ -1589,7 +1436,7 @@ export const ReportList: React.FC<ReportListProps> = ({
 
     const hasMore = sortedReports.length > 5;
     const hasReports = sortedReports.length > 0;
-    const moreCount = sortedReports.length - 1; // Count for the pill
+    const moreCount = sortedReports.length - 1; // Count for the pill (excluding the active one)
 
     // Derived state for title text animation
     const titleModeAll = (showAll) || isTransitioningToAll;
@@ -1649,8 +1496,19 @@ export const ReportList: React.FC<ReportListProps> = ({
                         
                         {/* Swipe/Click Pill - Top Position */}
                         {!showAll && hasReports && (
-                            <div className={`${deletingId && deletingId === activeEmbeddedReport?.id ? 'opacity-0 duration-1000' : 'opacity-100 duration-500'} transition-opacity mx-auto max-w-3xl`}>
-                                <SwipePill className="mb-6 justify-center" onClick={onCreateNew} isDesktop={isDesktop} />
+                            <div className={`flex flex-col items-center gap-3 ${deletingId && deletingId === activeEmbeddedReport?.id ? 'opacity-0 duration-1000' : 'opacity-100 duration-500'} transition-opacity mx-auto max-w-3xl`}>
+                                <SwipePill className="justify-center" onClick={onCreateNew} isDesktop={isDesktop} />
+                                
+                                {/* More Reports Trigger Pill - Shown when collapsed and has more items */}
+                                {!isExpanded && moreCount > 0 && (
+                                     <button 
+                                        onClick={() => setIsExpanded(true)}
+                                        className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 transition-all shadow-sm border border-slate-200/50 dark:border-slate-700/50 flex items-center gap-2 mb-4 animate-fade-in"
+                                     >
+                                        <span>View {moreCount} More</span>
+                                        <ChevronDown size={14} />
+                                     </button>
+                                )}
                             </div>
                         )}
 
@@ -1695,11 +1553,8 @@ export const ReportList: React.FC<ReportListProps> = ({
                                         const isExpanding = isExpanded && index > 0;
                                         const isExiting = report.id === effectiveExitingId;
                                         
-                                        // Condition to show "Attached" More Reports Pill (Desktop Only)
-                                        const showAttachedPill = isDesktop && index === 0 && !isExpanded && moreCount > 0 && !showAll;
-                                        
-                                        // When pill is attached, we increase the container max-width to accommodate both
-                                        const maxWidthClass = showAttachedPill ? 'sm:max-w-[900px]' : 'sm:max-w-[600px]';
+                                        // Standard width constraint for all cards
+                                        const maxWidthClass = 'sm:max-w-[600px]';
 
                                         return (
                                         <div 
@@ -1747,11 +1602,9 @@ export const ReportList: React.FC<ReportListProps> = ({
                                                 }`}
                                                 style={isNew && !isFirstReportCreation ? { opacity: 0 } : {}}
                                             >
-                                                {/* Top Row: Report Card (+ Attached Pill on Desktop) */}
+                                                {/* Top Row: Report Card */}
                                                 <div className="flex gap-4 items-stretch w-full">
-                                                    {/* If pill is attached, enforce a minimum width on the report card to prevent it from compressing.
-                                                        The parent container has enough max-width (900px) to fit both. */}
-                                                    <div className={`flex-1 min-w-0 ${showAttachedPill ? 'sm:min-w-[600px]' : ''}`}>
+                                                    <div className={`flex-1 min-w-0`}>
                                                         <ReportCard 
                                                             report={report}
                                                             onClick={() => setInternalSelectedId(report.id)}
@@ -1772,22 +1625,6 @@ export const ReportList: React.FC<ReportListProps> = ({
                                                             onEmailSignOff={handleEmailSignOff}
                                                         />
                                                     </div>
-
-                                                    {/* Desktop Attached Pill - Same Height */}
-                                                    {showAttachedPill && (
-                                                        <div className={`w-[80px] shrink-0 ${
-                                                            isPillExiting 
-                                                                ? 'animate-fade-out opacity-0' 
-                                                                : (isNew ? '' : 'animate-expand-horizontal origin-left')
-                                                        }`}>
-                                                            <MoreReportsPill 
-                                                                onClick={() => setIsExpanded(true)} 
-                                                                count={moreCount}
-                                                                isExiting={isPillExiting}
-                                                                className="h-full"
-                                                            />
-                                                        </div>
-                                                    )}
                                                 </div>
                                                 
                                                 {/* EMBEDDED DASHBOARD - Explicit Key to prevent remount */}
@@ -1811,15 +1648,6 @@ export const ReportList: React.FC<ReportListProps> = ({
                                             </div>
                                         </div>
                                     )})}
-                                    
-                                    {/* Mobile/Carousel More Reports Pill (Hidden on Desktop when not expanded) */}
-                                    {!isDesktop && !isExpanded && !showAll && !effectiveExitingId && !effectiveNewlyAddedId && ((moreCount > 0) || isPillExiting) && (
-                                        <MoreReportsPill 
-                                            onClick={() => setIsExpanded(true)} 
-                                            count={moreCount}
-                                            isExiting={isPillExiting}
-                                        />
-                                    )}
 
                                     {/* Collapse Pill */}
                                     {isExpanded && (
