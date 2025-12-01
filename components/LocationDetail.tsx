@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
-import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save } from 'lucide-react';
+import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check } from 'lucide-react';
 import { PREDEFINED_LOCATIONS, generateUUID } from '../constants';
 import { ImageEditor } from './ImageEditor';
 import { analyzeDefectImage } from '../services/geminiService';
@@ -57,17 +57,19 @@ export const DeleteConfirmationModal = ({
     onCancel, 
     title = "Delete Item?", 
     message = "This action cannot be undone. The item and its photos will be permanently removed.",
-    targetRect
+    targetRect,
+    isExiting = false
 }: { 
     onConfirm: () => void, 
     onCancel: () => void, 
     title?: string, 
     message?: string,
-    targetRect?: DOMRect | null
+    targetRect?: DOMRect | null,
+    isExiting?: boolean
 }) => createPortal(
     <div 
-        className="fixed inset-0 z-[250] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
-        onClick={onCancel}
+        className={`fixed inset-0 z-[250] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300 ${isExiting ? 'opacity-0' : 'animate-fade-in'}`}
+        onClick={isExiting ? undefined : onCancel}
     >
         <div 
             onClick={(e) => e.stopPropagation()}
@@ -80,7 +82,7 @@ export const DeleteConfirmationModal = ({
                 margin: 0,
                 transform: 'none'
             } : {}}
-            className={`bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl border-2 border-red-500/50 animate-pulse-border-red flex flex-col items-center text-center animate-dialog-enter overflow-hidden ${targetRect ? 'justify-center p-2 box-border' : 'w-full max-w-sm p-6'}`}
+            className={`bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl border-2 border-red-500/50 animate-pulse-border-red flex flex-col items-center text-center overflow-hidden transition-all duration-300 ${isExiting ? 'scale-95 opacity-0' : 'animate-dialog-enter'} ${targetRect ? 'justify-center p-2 box-border' : 'w-full max-w-sm p-6'}`}
         >
             <div className={`w-full h-full flex flex-col items-center justify-center ${targetRect ? 'p-2' : ''}`}>
                 
@@ -103,12 +105,14 @@ export const DeleteConfirmationModal = ({
                 <div className="flex gap-3 w-full max-w-[300px]">
                     <button 
                         onClick={onCancel}
+                        disabled={isExiting}
                         className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                     >
                         Cancel
                     </button>
                     <button 
                         onClick={onConfirm}
+                        disabled={isExiting}
                         className="flex-1 py-3 rounded-[20px] font-bold text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg hover:shadow-xl active:scale-95"
                     >
                         Delete
@@ -137,6 +141,7 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
 }) => {
     const [description, setDescription] = useState(initialIssue?.description || "");
     const [photos, setPhotos] = useState<IssuePhoto[]>(initialIssue?.photos || []);
+    const [showSuccessToast, setShowSuccessToast] = useState(false);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isListening, setIsListening] = useState(false);
@@ -266,7 +271,17 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
         };
         
         onSubmit(newIssue);
-        onClose();
+
+        if (initialIssue) {
+            // Editing mode - close modal
+            onClose();
+        } else {
+            // Adding mode - reset for next item
+            setDescription("");
+            setPhotos([]);
+            setShowSuccessToast(true);
+            setTimeout(() => setShowSuccessToast(false), 2000);
+        }
     };
 
     const isSubmitDisabled = !description.trim();
@@ -386,14 +401,25 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                             onClick={onClose}
                             className="flex-1 py-3.5 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                         >
-                            Cancel
+                            {isEditing ? 'Cancel' : 'Done'}
                         </button>
                         <button 
                             onClick={handleSubmit}
                             disabled={isSubmitDisabled}
-                            className="flex-1 py-3.5 rounded-[20px] font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                            className={`flex-1 py-3.5 rounded-[20px] font-bold transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 ${
+                                showSuccessToast 
+                                ? 'bg-green-500 text-white' 
+                                : isEditing ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-white'
+                            }`}
                         >
-                            {isEditing ? 'Save Changes' : 'Save Item'}
+                            {showSuccessToast ? (
+                                <>
+                                    <Check size={20} />
+                                    Added!
+                                </>
+                            ) : (
+                                isEditing ? 'Save Changes' : 'Save Item'
+                            )}
                         </button>
                     </div>
                 </div>
@@ -411,111 +437,50 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     );
 };
 
-// --- In-Place Editable Issue Card ---
-const EditableIssueCard: React.FC<{
+// --- Summary Issue Card (Opens Modal) ---
+const IssueCard: React.FC<{
     issue: Issue;
     index: number;
-    onUpdate: (updated: Issue) => void;
-    onDelete: () => void;
-    onEditImage: (idx: number, url: string) => void;
-}> = ({ issue, index, onUpdate, onDelete, onEditImage }) => {
-    // Local state for immediate feedback
-    const [description, setDescription] = useState(issue.description);
-    
-    // Sync if props update externally
-    useEffect(() => {
-        setDescription(issue.description);
-    }, [issue.description]);
-
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleBlur = () => {
-        if (description.trim() !== issue.description) {
-            onUpdate({ ...issue, description });
-        }
-    };
-
-    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            try {
-                const compressed = await compressImage(e.target.files[0]);
-                const newPhotos = [...issue.photos, { url: compressed, description: '' }];
-                onUpdate({ ...issue, photos: newPhotos });
-            } catch (err) {
-                console.error("Image compression failed", err);
-            }
-        }
-    };
-
-    const handleDeletePhoto = (photoIndex: number) => {
-        const newPhotos = issue.photos.filter((_, i) => i !== photoIndex);
-        onUpdate({ ...issue, photos: newPhotos });
-    };
-
+    onClick: () => void;
+    onDelete: (e: React.MouseEvent) => void;
+}> = ({ issue, index, onClick, onDelete }) => {
     return (
-        <div className="w-full bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border border-slate-200 dark:border-slate-800 p-5 relative pb-14">
+        <div 
+            onClick={onClick}
+            className="w-full bg-white dark:bg-slate-900 rounded-[24px] shadow-sm border border-slate-200 dark:border-slate-800 p-5 relative cursor-pointer hover:border-primary/50 hover:shadow-md transition-all active:scale-[0.99] group"
+        >
             <div className="flex gap-3 items-start">
-                {/* Item Number aligned with top of text area */}
                 <div className="w-8 h-8 rounded-full bg-primary dark:bg-slate-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0 mt-1">
                     {index + 1}
                 </div>
 
-                <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    onBlur={handleBlur}
-                    className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[80px] resize-none mb-4 text-sm transition-all"
-                    placeholder="Description..."
-                />
-            </div>
-
-            <div className="space-y-3 pl-11">
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide pt-3">
-                    {issue.photos.map((photo, idx) => (
-                            <div key={idx} className="relative shrink-0 group w-20 h-20">
-                                <img 
-                                src={photo.url} 
-                                alt="Issue" 
-                                className="w-full h-full rounded-xl object-cover border border-slate-200 dark:border-slate-700 cursor-pointer hover:opacity-90 transition-opacity" 
-                                onClick={() => onEditImage(idx, photo.url)}
-                            />
-                                {/* Edit Icon Always Visible */}
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none rounded-xl">
-                                    <Edit2 size={16} className="text-white drop-shadow-md" />
+                <div className="flex-1 min-w-0">
+                    <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
+                        {issue.description}
+                    </p>
+                    
+                    {issue.photos.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide pt-3 mt-1">
+                            {issue.photos.map((photo, idx) => (
+                                <div key={idx} className="w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                                    <img 
+                                        src={photo.url} 
+                                        alt="Thumbnail" 
+                                        className="w-full h-full object-cover" 
+                                    />
                                 </div>
-                                <button 
-                                onClick={() => handleDeletePhoto(idx)}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-sm hover:scale-110 transition-transform z-10"
-                            >
-                                <X size={12} />
-                            </button>
-                            </div>
-                    ))}
-                    <button 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-20 h-20 shrink-0 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary transition-colors active:scale-95"
-                    >
-                            <Camera size={20} />
-                            <span className="text-[9px] font-bold mt-1">Add</span>
-                    </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
-                <input 
-                        type="file" 
-                        accept="image/*" 
-                        capture="environment" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        onChange={handlePhotoUpload} 
-                    />
             </div>
 
-            {/* Delete Button Moved to Bottom Right */}
             <button 
-                onClick={onDelete}
-                className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center transition-colors shadow-sm"
+                onClick={(e) => { e.stopPropagation(); onDelete(e); }}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100"
                 title="Delete Item"
             >
-                <Trash2 size={18} />
+                <Trash2 size={16} />
             </button>
         </div>
     );
@@ -538,7 +503,7 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
 }) => {
     const [isAddIssueOpen, setIsAddIssueOpen] = useState(false);
     const [issueToDelete, setIssueToDelete] = useState<string | null>(null);
-    const [editingImage, setEditingImage] = useState<{ issueId: string, photoIndex: number, url: string } | null>(null);
+    const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -547,16 +512,9 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
         };
     }, []);
 
-    const handleSaveEditedImage = (newUrl: string) => {
-        if (editingImage) {
-            const issue = location.issues.find(i => i.id === editingImage.issueId);
-            if (issue) {
-                const updatedPhotos = [...issue.photos];
-                updatedPhotos[editingImage.photoIndex] = { ...updatedPhotos[editingImage.photoIndex], url: newUrl };
-                onUpdateIssue({ ...issue, photos: updatedPhotos });
-            }
-        }
-        setEditingImage(null);
+    const handleEditSave = (updatedIssue: Issue) => {
+        onUpdateIssue(updatedIssue);
+        // Editing modal closes automatically inside AddIssueForm when initialIssue is present
     };
 
     return createPortal(
@@ -590,13 +548,12 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                         </button>
 
                         {location.issues.map((issue, index) => (
-                            <EditableIssueCard 
+                            <IssueCard 
                                 key={issue.id}
                                 issue={issue}
                                 index={index}
-                                onUpdate={onUpdateIssue}
+                                onClick={() => setEditingIssue(issue)}
                                 onDelete={() => setIssueToDelete(issue.id)}
-                                onEditImage={(idx, url) => setEditingImage({ issueId: issue.id, photoIndex: idx, url })}
                             />
                         ))}
                         
@@ -616,6 +573,14 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 />
             )}
             
+            {editingIssue && (
+                <AddIssueForm 
+                    onClose={() => setEditingIssue(null)}
+                    onSubmit={handleEditSave}
+                    initialIssue={editingIssue}
+                />
+            )}
+
             {issueToDelete && (
                 <DeleteConfirmationModal 
                     onConfirm={() => {
@@ -623,14 +588,6 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                         setIssueToDelete(null);
                     }}
                     onCancel={() => setIssueToDelete(null)}
-                />
-            )}
-
-            {editingImage && (
-                <ImageEditor 
-                    imageUrl={editingImage.url}
-                    onSave={handleSaveEditedImage}
-                    onCancel={() => setEditingImage(null)}
                 />
             )}
         </>,

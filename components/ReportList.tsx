@@ -38,6 +38,8 @@ interface ReportListProps {
   onAddIssueGlobal: (locationName: string, issue: Issue) => void;
   onLogin?: () => void;
   onLogout?: () => void;
+  deletingReportId?: string | null;
+  isDeleting?: boolean;
 }
 
 // Helper to check active
@@ -106,10 +108,14 @@ const SettingsModal = ({
     useEffect(() => {
         if (isOpen) {
             setShouldRender(true);
+            document.body.style.overflow = 'hidden';
             setTimeout(() => setIsVisible(true), 10);
         } else {
             setIsVisible(false);
-            setTimeout(() => setShouldRender(false), 300);
+            setTimeout(() => {
+                setShouldRender(false);
+                document.body.style.overflow = '';
+            }, 300);
         }
     }, [isOpen]);
 
@@ -117,7 +123,7 @@ const SettingsModal = ({
 
     return createPortal(
         <div className={`fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-            <div className={`bg-white dark:bg-slate-800 w-full max-w-md rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden transition-all duration-300 ${isVisible ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}>
+            <div className={`bg-white dark:bg-slate-800 w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] h-auto overflow-hidden rounded-[32px] transition-all duration-300 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
                 <SettingsContent 
                     onClose={onClose}
                     isDarkMode={isDarkMode}
@@ -222,7 +228,10 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
                                         Sign in to verify account status
                                     </div>
                                     <button 
-                                        onClick={onLogin}
+                                        onClick={() => {
+                                            if (onLogin) onLogin();
+                                            onClose();
+                                        }}
                                         className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/30 hover:bg-primary/90 transition-all"
                                     >
                                         Sign In
@@ -366,13 +375,17 @@ const ReportSelectionModal = ({
     reports, 
     onSelect, 
     onClose, 
-    onDelete 
+    onDelete,
+    deletingReportId,
+    isDeleting 
 }: { 
     isOpen: boolean,
     reports: Report[], 
     onSelect: (id: string) => void, 
     onClose: () => void, 
-    onDelete: (id: string, rect?: DOMRect) => void 
+    onDelete: (id: string, rect?: DOMRect) => void,
+    deletingReportId?: string | null,
+    isDeleting?: boolean
 }) => {
     const [search, setSearch] = useState("");
     const [isVisible, setIsVisible] = useState(false);
@@ -424,7 +437,7 @@ const ReportSelectionModal = ({
                     ) : (
                         <div className="space-y-4">
                             {filteredReports.map(report => (
-                                <div key={report.id} className="animate-slide-up">
+                                <div key={report.id} className={`${(deletingReportId === report.id && isDeleting) ? 'animate-scale-out' : 'animate-slide-up'}`}>
                                     <ReportCard 
                                         project={report.project}
                                         issueCount={report.locations.reduce((acc, l) => acc + l.issues.length, 0)}
@@ -462,7 +475,9 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         reports, 
         onCreateNew, 
         onSelectReport, 
-        isCreating
+        isCreating,
+        deletingReportId,
+        isDeleting
     } = props;
 
     const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
@@ -527,7 +542,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                 
                 {/* Center Pill: Client Name (Only if active report exists) */}
                 {activeReport && (
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
+                    <div className="hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
                         <div className="bg-slate-100 dark:bg-slate-800 pl-2 pr-4 py-2.5 rounded-2xl flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
                             <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--color-primary),0.6)] shrink-0" />
                             <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[120px] sm:max-w-[200px]">
@@ -554,6 +569,18 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     </button>
                 </div>
             </div>
+
+            {/* Mobile Title Pill */}
+             {activeReport && (
+                <div className="md:hidden flex justify-center pb-2 px-6 relative z-10">
+                    <div className="bg-slate-100 dark:bg-slate-800 pl-2 pr-4 py-2.5 rounded-2xl flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
+                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--color-primary),0.6)] shrink-0" />
+                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[200px]">
+                            {clientName || "New Report"}
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content Area */}
             <div className="flex-1 relative">
@@ -604,6 +631,8 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                 onSelect={handleLocalSelect}
                 onClose={() => setIsSearchOpen(false)}
                 onDelete={(id, rect) => props.onDeleteReport(id, rect)}
+                deletingReportId={deletingReportId}
+                isDeleting={isDeleting}
             />
         </div>
     );

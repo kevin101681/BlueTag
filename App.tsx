@@ -83,7 +83,7 @@ const SplashScreen = ({ onAnimationComplete, onRevealApp }: { onAnimationComplet
                 className="absolute transition-all duration-[800ms] cubic-bezier(0.2, 0, 0, 1)"
                 style={{
                     top: animating ? '16px' : '50%',
-                    left: animating ? '22px' : '50%', // Adjusted slightly left to match perceived alignment
+                    left: animating ? '22px' : '50%', 
                     transform: animating ? 'translate(0, 0)' : 'translate(-50%, -50%)',
                 }}
             >
@@ -180,6 +180,7 @@ export default function App() {
   
   const lastCreationRef = useRef(0);
   const [isCreating, setIsCreating] = useState(false);
+  const [isDeleteExiting, setIsDeleteExiting] = useState(false);
 
   const [theme, setTheme] = useState<ThemeOption>(() => {
     if (typeof window !== 'undefined') {
@@ -475,20 +476,26 @@ export default function App() {
       if (!reportToDelete) return;
       const id = reportToDelete;
       
-      setSavedReports(prev => prev.filter(r => r.id !== id));
-      if (activeReportId === id) { setActiveReportId(null); }
+      setIsDeleteExiting(true); // Trigger exit animation for modal and report card
       
-      try {
-          const currentString = localStorage.getItem(STORAGE_KEY);
-          if (currentString) {
-              const currentList: Report[] = JSON.parse(currentString);
-              const updatedList = currentList.filter(r => r.id !== id);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-          }
-      } catch(e) { console.error("Failed to delete locally", e); }
-      
-      setReportToDelete(null);
-      setDeleteModalRect(null);
+      // Wait for animations to complete before updating state
+      setTimeout(() => {
+          setSavedReports(prev => prev.filter(r => r.id !== id));
+          if (activeReportId === id) { setActiveReportId(null); }
+          
+          try {
+              const currentString = localStorage.getItem(STORAGE_KEY);
+              if (currentString) {
+                  const currentList: Report[] = JSON.parse(currentString);
+                  const updatedList = currentList.filter(r => r.id !== id);
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+              }
+          } catch(e) { console.error("Failed to delete locally", e); }
+          
+          setReportToDelete(null);
+          setDeleteModalRect(null);
+          setIsDeleteExiting(false);
+      }, 400); // 400ms matches dialog-exit and scale-out duration roughly
   };
 
   const handleDeleteOldReports = async () => {
@@ -604,6 +611,8 @@ export default function App() {
               onAddIssueGlobal={handleAddIssueGlobal}
               onLogin={handleLogin}
               onLogout={handleLogout}
+              deletingReportId={reportToDelete}
+              isDeleting={isDeleteExiting}
             />
             
             {activeLocationId && (
@@ -625,10 +634,13 @@ export default function App() {
                     message="Are you sure you want to delete this report? This action cannot be undone."
                     onConfirm={handleConfirmDeleteReport}
                     onCancel={() => {
+                        // Prevent cancelling during exit animation
+                        if (isDeleteExiting) return;
                         setReportToDelete(null);
                         setDeleteModalRect(null);
                     }}
                     targetRect={deleteModalRect}
+                    isExiting={isDeleteExiting}
                 />
             )}
         </div>

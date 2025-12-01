@@ -14,11 +14,16 @@ export interface Point {
     y: number;
 }
 
+export interface SignOffStroke {
+    points: Point[];
+    type: 'ink' | 'erase';
+}
+
 export interface ProjectDetails {
   fields: ProjectField[];
   signOffImage?: string; // Base64 string of the signed document thumbnail
   reportPreviewImage?: string; // Base64 string of the marked-up report thumbnail
-  signOffStrokes?: Point[][]; // Array of strokes (each stroke is an array of points)
+  signOffStrokes?: (Point[] | SignOffStroke)[]; // Array of strokes (legacy Point[] or new SignOffStroke)
   reportMarks?: Record<string, ('check' | 'x')[]>; // Persist report preview markups
 }
 

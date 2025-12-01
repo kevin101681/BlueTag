@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
-import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point } from '../types';
-import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers } from 'lucide-react';
+import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
+import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
 import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
 import { AddIssueForm } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
@@ -367,7 +367,7 @@ const PDFCanvasPreview = ({
     }
 
     return (
-        <div className="w-full min-h-full flex flex-col items-center pt-8 pb-8">
+        <div className="w-full min-h-full flex flex-col items-center">
             {pages.map((page, index) => {
                 const pageIndex = index + 1;
                 let overlays: React.ReactNode = null;
@@ -510,8 +510,12 @@ export const LocationManagerModal = ({ locations, onUpdate, onClose }: { locatio
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 dark:text-white">Manage Locations</h3>
-                    <button onClick={onClose}><X size={20} className="text-slate-500" /></button>
+                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
+                         <h3 className="font-bold text-slate-800 dark:text-white">Manage Locations</h3>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors">
+                        <X size={20} />
+                    </button>
                 </div>
                 <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
                     <div className="flex gap-2">
@@ -539,8 +543,12 @@ export const ClientInfoEditModal = ({ project, onUpdate, onClose }: { project: P
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 dark:text-white">Edit Client Info</h3>
-                    <button onClick={onClose}><X size={20} className="text-slate-500" /></button>
+                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
+                        <h3 className="font-bold text-slate-800 dark:text-white">Edit Client Info</h3>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors">
+                        <X size={20} />
+                    </button>
                 </div>
                 <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
                     {fields.map((field, i) => (
@@ -553,7 +561,12 @@ export const ClientInfoEditModal = ({ project, onUpdate, onClose }: { project: P
                     <button onClick={() => setFields([...fields, { id: generateUUID(), label: 'New Field', value: '', icon: 'FileText' }])} className="w-full p-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-bold text-slate-600 dark:text-slate-300 mt-2">+ Add Field</button>
                 </div>
                 <div className="p-4 border-t border-slate-100 dark:border-slate-700">
-                    <button onClick={handleSave} className="w-full bg-primary text-white p-3 rounded-xl font-bold">Save Changes</button>
+                    <button 
+                        onClick={handleSave} 
+                        className="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white py-3.5 rounded-[20px] font-bold shadow-sm hover:shadow-md transition-all active:scale-95"
+                    >
+                        Save Changes
+                    </button>
                 </div>
             </div>
         </div>, document.body
@@ -639,7 +652,8 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose, o
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-auto bg-slate-200 dark:bg-slate-950 p-4 relative">
+                {/* Removed p-4 for full width */}
+                <div className="flex-1 overflow-auto bg-slate-200 dark:bg-slate-950 relative">
                      {url ? (
                         <PDFCanvasPreview 
                             pdfUrl={url} 
@@ -705,8 +719,8 @@ export const TemplateEditorModal = ({ templates, onUpdate, onClose }: any) => {
 export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, templates, onUpdateTemplates }: any) => {
     const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-    const [mode, setMode] = useState<'scroll' | 'ink'>('scroll');
-    const [strokes, setStrokes] = useState<Point[][]>(project.signOffStrokes || []);
+    const [mode, setMode] = useState<'scroll' | 'ink' | 'erase'>('scroll');
+    const [strokes, setStrokes] = useState<(Point[] | SignOffStroke)[]>(project.signOffStrokes || []);
     const [resizeTrigger, setResizeTrigger] = useState(0);
     
     // Canvas Refs
@@ -732,9 +746,10 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     const [isDrawing, setIsDrawing] = useState(false);
 
     const startDraw = (e: React.PointerEvent) => {
-        if (mode !== 'ink') return;
+        if (mode === 'scroll') return;
         if (!e.isPrimary) return; 
-        
+
+        // Capture pointer to track movement even if it leaves canvas boundaries
         const canvas = canvasRef.current;
         if (canvas) {
              canvas.setPointerCapture(e.pointerId);
@@ -746,7 +761,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     };
 
     const moveDraw = (e: React.PointerEvent) => {
-        if (!isDrawing || mode !== 'ink') return;
+        if (!isDrawing || mode === 'scroll') return;
         if (!e.isPrimary) return;
 
         e.preventDefault(); 
@@ -757,14 +772,25 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         if (ctx) {
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-            ctx.lineWidth = 2; 
-            ctx.strokeStyle = 'black';
+            
+            if (mode === 'ink') {
+                 ctx.lineWidth = 2; 
+                 ctx.strokeStyle = 'black';
+                 ctx.globalCompositeOperation = 'source-over';
+            } else if (mode === 'erase') {
+                 ctx.lineWidth = 30; // Increased eraser size for better usability
+                 ctx.strokeStyle = 'rgba(0,0,0,1)'; 
+                 ctx.globalCompositeOperation = 'destination-out';
+            }
             
             const prev = currentStroke.current[currentStroke.current.length - 2];
             ctx.beginPath();
             ctx.moveTo(prev.x, prev.y);
             ctx.lineTo(p.x, p.y);
             ctx.stroke();
+            
+            // Reset composite operation to default
+            ctx.globalCompositeOperation = 'source-over';
         }
     };
 
@@ -776,8 +802,15 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
         if (!isDrawing) return;
         setIsDrawing(false);
-        setStrokes(prev => [...prev, currentStroke.current]);
-        onUpdateProject({ ...project, signOffStrokes: [...strokes, currentStroke.current] });
+        
+        const newStroke: SignOffStroke = { 
+            points: currentStroke.current, 
+            type: mode === 'erase' ? 'erase' : 'ink' 
+        };
+        
+        const newStrokes = [...strokes, newStroke];
+        setStrokes(newStrokes);
+        onUpdateProject({ ...project, signOffStrokes: newStrokes });
     };
 
     useLayoutEffect(() => {
@@ -800,17 +833,32 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                      ctx.scale(dpr, dpr);
                      ctx.lineCap = 'round';
                      ctx.lineJoin = 'round';
-                     ctx.lineWidth = 2;
-                     ctx.strokeStyle = 'black';
                      
-                     strokes.forEach(stroke => {
-                        if (stroke.length < 2) return;
+                     strokes.forEach(s => {
+                        // Handle legacy Point[] format vs new SignOffStroke format
+                        const isV1 = Array.isArray(s);
+                        const points = isV1 ? s : s.points;
+                        const type = isV1 ? 'ink' : s.type;
+                        
+                        if (points.length < 2) return;
+
                         ctx.beginPath();
-                        ctx.moveTo(stroke[0].x, stroke[0].y);
-                        for (let i = 1; i < stroke.length; i++) {
-                            ctx.lineTo(stroke[i].x, stroke[i].y);
+                        ctx.moveTo(points[0].x, points[0].y);
+                        for (let i = 1; i < points.length; i++) {
+                            ctx.lineTo(points[i].x, points[i].y);
+                        }
+                        
+                        if (type === 'erase') {
+                             ctx.lineWidth = 30; // Matches drawing eraser size
+                             ctx.globalCompositeOperation = 'destination-out';
+                        } else {
+                             ctx.lineWidth = 2;
+                             ctx.strokeStyle = 'black';
+                             ctx.globalCompositeOperation = 'source-over';
                         }
                         ctx.stroke();
+                        // Reset
+                        ctx.globalCompositeOperation = 'source-over';
                     });
                  }
             }
@@ -846,10 +894,16 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                         <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl">
                             <h3 className="font-bold text-slate-800 dark:text-white">Sign Off</h3>
                         </div>
-                        <button onClick={() => setIsTemplateEditorOpen(true)} className="absolute right-4 p-2 bg-slate-100 dark:bg-slate-700 rounded-2xl"><Settings size={20}/></button>
+                        <button 
+                            onClick={() => setIsTemplateEditorOpen(true)} 
+                            className="absolute right-4 p-2 bg-slate-100 dark:bg-slate-700 rounded-2xl text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                        >
+                            <Settings size={20} className="text-slate-500 dark:text-slate-400" />
+                        </button>
                     </div>
 
-                    <div ref={overlayRef} style={mode === 'ink' ? { touchAction: 'none' } : {}} className={`flex-1 ${mode === 'ink' ? 'overflow-hidden' : 'overflow-auto'} bg-slate-200 dark:bg-slate-950 p-4 relative`}>
+                    {/* Removed p-4 for full width */}
+                    <div ref={overlayRef} style={mode !== 'scroll' ? { touchAction: 'none' } : {}} className={`flex-1 ${mode === 'scroll' ? 'overflow-auto' : 'overflow-hidden'} bg-slate-200 dark:bg-slate-950 relative`}>
                          {pdfUrl ? (
                             <div className="relative min-h-full">
                                 <PDFCanvasPreview pdfUrl={pdfUrl} onAllPagesRendered={() => setResizeTrigger(prev => prev + 1)} />
@@ -860,8 +914,8 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                                         top: 0,
                                         left: 0,
                                         zIndex: 50,
-                                        cursor: mode === 'ink' ? 'crosshair' : 'default',
-                                        pointerEvents: mode === 'ink' ? 'auto' : 'none',
+                                        cursor: mode !== 'scroll' ? 'crosshair' : 'default',
+                                        pointerEvents: mode !== 'scroll' ? 'auto' : 'none',
                                         touchAction: 'none' 
                                     }}
                                     onPointerDown={startDraw} 
@@ -881,7 +935,8 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                                 onClick={onClose}
                                 className="px-6 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                             >
-                                Cancel
+                                <span className="md:hidden"><X size={20} /></span>
+                                <span className="hidden md:inline">Cancel</span>
                             </button>
                         </div>
                         
@@ -889,15 +944,24 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                              <div className="bg-slate-100 dark:bg-slate-700 p-1 rounded-full flex shadow-inner">
                                 <button 
                                     onClick={() => setMode('scroll')}
-                                    className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${mode === 'scroll' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary dark:text-white' : 'text-slate-400'}`}
+                                    className={`px-3 md:px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center justify-center ${mode === 'scroll' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary dark:text-white' : 'text-slate-400'}`}
                                 >
-                                    Scroll
+                                    <span className="md:hidden"><Move size={18} /></span>
+                                    <span className="hidden md:inline">Scroll</span>
                                 </button>
                                 <button 
                                     onClick={() => setMode('ink')}
-                                    className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${mode === 'ink' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary dark:text-white' : 'text-slate-400'}`}
+                                    className={`px-3 md:px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center justify-center ${mode === 'ink' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary dark:text-white' : 'text-slate-400'}`}
                                 >
-                                    Ink
+                                    <span className="md:hidden"><PenTool size={18} /></span>
+                                    <span className="hidden md:inline">Ink</span>
+                                </button>
+                                <button 
+                                    onClick={() => setMode('erase')}
+                                    className={`px-3 md:px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center justify-center ${mode === 'erase' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary dark:text-white' : 'text-slate-400'}`}
+                                >
+                                    <span className="md:hidden"><Eraser size={18} /></span>
+                                    <span className="hidden md:inline">Erase</span>
                                 </button>
                              </div>
                         </div>
@@ -907,7 +971,8 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                                 onClick={handleSave}
                                 className="px-6 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
                             >
-                                Save
+                                <span className="md:hidden"><Check size={20} /></span>
+                                <span className="hidden md:inline">Save</span>
                             </button>
                         </div>
                     </div>
@@ -1105,8 +1170,8 @@ export const Dashboard = React.memo<DashboardProps>(({
                                 <Pencil size={20} />
                             </button>
                             
-                            {/* Title Center */}
-                            <div className="bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-2xl">
+                            {/* Title Center - Updated to Rounded Full (Pill) */}
+                            <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2.5 rounded-full">
                                 <h2 className="text-lg font-bold text-slate-600 dark:text-slate-300">Client Information</h2>
                             </div>
 
@@ -1154,9 +1219,10 @@ export const Dashboard = React.memo<DashboardProps>(({
                         animationFillMode: isCreating || isExiting ? 'both' : undefined
                     }}
                 >
-                    <div className="flex flex-col sm:flex-row sm:items-center mb-4 gap-3 relative z-30">
+                    {/* Locations Header Row */}
+                    <div className="flex items-center justify-between mb-6 relative z-30">
                         <div className="flex items-center gap-3 w-full justify-center relative">
-                            {/* Manage Locations Left - Absolutely Positioned */}
+                            {/* Manage Locations Left */}
                             <button
                                 onClick={() => setIsManageLocationsOpen(true)}
                                 className="absolute left-0 p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors shrink-0 z-10"
@@ -1165,8 +1231,25 @@ export const Dashboard = React.memo<DashboardProps>(({
                                 <Pencil size={20} />
                             </button>
 
-                            {/* Center Search */}
-                            <div className="w-full max-w-md px-14 relative">
+                            {/* Title Center - Updated to Rounded Full (Pill) */}
+                            <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2.5 rounded-full">
+                                <h2 className="text-lg font-bold text-slate-600 dark:text-slate-300">Report Items</h2>
+                            </div>
+
+                            {/* Collapse Right */}
+                            <button 
+                                onClick={() => setIsLocationsCollapsed(!isLocationsCollapsed)}
+                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 z-10"
+                            >
+                                 {isLocationsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className={`transition-all duration-500 ease-in-out overflow-hidden pt-2 ${isLocationsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[5000px] opacity-100'}`}>
+                        {/* Search Row */}
+                        <div className="flex justify-center mb-6 relative z-20 px-2">
+                            <div className="w-full max-w-md relative">
                                 <input
                                     type="text"
                                     value={locationSearch}
@@ -1189,14 +1272,11 @@ export const Dashboard = React.memo<DashboardProps>(({
                                         }
                                     }}
                                     placeholder="Start typing to add a location"
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 pl-12 text-sm text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-center"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 text-left text-sm text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                                 />
-                                <div className="absolute left-16 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                                    <Plus size={20} />
-                                </div>
                                 
                                 {showLocationSuggestions && (
-                                    <div className="absolute top-full left-14 right-14 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl max-h-48 overflow-y-auto z-[100] animate-fade-in text-left">
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl max-h-48 overflow-y-auto z-[100] animate-fade-in text-left">
                                         {filteredLocationSuggestions.length > 0 ? (
                                             filteredLocationSuggestions.map(loc => (
                                                 <button
@@ -1218,18 +1298,8 @@ export const Dashboard = React.memo<DashboardProps>(({
                                     </div>
                                 )}
                             </div>
-
-                            {/* Collapse Right - Absolutely Positioned */}
-                            <button 
-                                onClick={() => setIsLocationsCollapsed(!isLocationsCollapsed)}
-                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 z-10"
-                            >
-                                 {isLocationsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                            </button>
                         </div>
-                    </div>
-                    
-                    <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isLocationsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[5000px] opacity-100'}`}>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1">
                             {visibleLocations.map(loc => (
                                 <LocationCard 
@@ -1277,7 +1347,11 @@ export const Dashboard = React.memo<DashboardProps>(({
                         const targetLoc = pendingLocation || locationName;
                         if (targetLoc) {
                             onAddIssueGlobal(targetLoc, issue);
-                            setPendingLocation(""); 
+                            // We don't close here if we want continuous adding, but global add usually implies specific location selection which we just did.
+                            // The form itself handles continuous entry now if we implement it.
+                            // If AddIssueForm calls onSubmit multiple times, we handle it.
+                            // However, AddIssueForm will handle the loop internally or via specific callback props. 
+                            // For global add, we likely want to keep the location context until closed.
                         }
                     }}
                     showLocationSelect={false} 

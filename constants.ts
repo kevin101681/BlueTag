@@ -87,6 +87,12 @@ export const DEFAULT_SIGN_OFF_TEMPLATES: SignOffTemplate[] = [
                 title: "Acknowledgements",
                 body: "Buyer(s) agree, other than noted on the Builder’s New Home Completion List, the home has been found in satisfactory condition and understand damage to any surfaces, after closing, are excluded from the builder’s limited warranty.\nBuyer(s) acknowledge that they have inspected the entire home and accept the home, subject to the items noted on the builder's new home completion list.",
                 type: 'signature'
+            },
+            {
+                id: 'sign_off',
+                title: "Sign Off",
+                body: "", // Custom layout handled in code
+                type: 'signature'
             }
         ]
     }

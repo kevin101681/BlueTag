@@ -171,7 +171,8 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
         doc.line(x + s*0.2, y + s*0.8, x + s*0.8, y + s*0.8);
         doc.rect(x + s*0.1, y, s*0.8, s, 'S');
         doc.stroke();
-    } else if (t === 'pen' || t === 'pentool') {
+    } else if (t === 'pen') {
+        // Diagonal Pen (Standard Pen)
         const tipLen = s * 0.25;
         doc.moveTo(x, y + s); 
         doc.lineTo(x + tipLen, y + s - tipLen);
@@ -189,7 +190,8 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
     } else if (t === 'handshake') {
          doc.roundedRect(x, y + 1.5, 3.5, 2.5, 0.6, 0.6, 'S');
          doc.roundedRect(x + 2, y + 0.5, 3.5, 2.5, 0.6, 0.6, 'S');
-    } else if (t === 'pen-tip') {
+    } else if (t === 'pen-tip' || t === 'pentool') {
+         // Fountain Pen Tip (Nib) - Matching Lucide 'PenTool'
          doc.moveTo(cx - s*0.35, y); 
          doc.lineTo(cx + s*0.35, y); 
          doc.curveTo(cx + s*0.35, y + s*0.4, cx + s*0.15, y + s*0.8, cx, y + s); 
@@ -204,14 +206,14 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
          // Use custom color if provided, otherwise default blue
          const c = customColor || [14, 165, 233];
          doc.setFillColor(c[0], c[1], c[2]); 
-         doc.circle(x + rn, y + rn - (s*0.3), rn, 'F');
+         doc.circle(x + rn, y + rn, rn, 'F');
          
          // Use custom text color if provided, otherwise white
          const tc = textColor || [255, 255, 255];
          doc.setTextColor(tc[0], tc[1], tc[2]);
          doc.setFontSize(8);
          doc.setFont("helvetica", "bold");
-         doc.text(numberValue || "", x + rn, y + rn - (s*0.3) + 1.1, { align: 'center' });
+         doc.text(numberValue || "", x + rn, y + rn + 1.1, { align: 'center' });
     } else {
         // Default Circle
         doc.circle(cx, cy, s*0.4, 'S');
@@ -349,6 +351,91 @@ const drawCardHeader = (doc: jsPDF, y: number, title: string, cardHeight: number
 };
 
 const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): number => {
+    // Custom handling for "Sign Off" section
+    if (section.title === "Sign Off") {
+        // Calculate height for custom Sign Off layout
+        const headerH = TITLE_HEIGHT;
+        const initialSpacing = 16;
+        const text1H = 8; // "The following..."
+        const text2H = 12; // "MY SIGNATURE..." (all caps, likely multi-line or distinct)
+        const sigRow1H = 10;
+        const text3H = 8; // "Item numbers..."
+        const boxH = 18;
+        const text4H = 8; // "All items..."
+        const sigRow2H = 10;
+        const gaps = 30;
+        
+        const cardHeight = headerH + initialSpacing + text1H + text2H + sigRow1H + text3H + boxH + text4H + sigRow2H + gaps + CARD_PADDING;
+
+        if (startY + cardHeight > 280) {
+            doc.addPage();
+            drawVerticalGradient(doc, 0, 0, 210, 35, [226, 232, 240], [255, 255, 255]);
+            startY = 20; 
+        }
+
+        drawCardHeader(doc, startY, section.title, cardHeight, 'pentool');
+
+        let currentY = startY + TITLE_HEIGHT + initialSpacing;
+        const leftX = CARD_X + CARD_PADDING;
+        const width = CARD_WIDTH - (CARD_PADDING * 2);
+
+        doc.setFontSize(10);
+        doc.setTextColor(51, 65, 85);
+        doc.setFont("helvetica", "normal");
+        
+        // 1. "The following..."
+        doc.text("The following is to be signed at the \"rewalk\" (typically the date of closing)", leftX, currentY);
+        currentY += 8;
+
+        // 2. "MY SIGNATURE..."
+        doc.setFont("helvetica", "bold");
+        const disclaimer = "MY SIGNATURE CERTIFIES THE ACCEPTABLE COMPLETION OF ALL ITEMS LISTED ON THE BUILDER’S NEW HOME COMPLETION LIST:";
+        const splitDisclaimer = doc.splitTextToSize(disclaimer, width);
+        doc.text(splitDisclaimer, leftX, currentY);
+        currentY += (splitDisclaimer.length * 5) + 6;
+
+        // 3. Signature Row 1
+        doc.setFont("helvetica", "normal");
+        doc.text("Homebuyer", leftX, currentY + 5);
+        const sigBoxX = leftX + 22;
+        const sigBoxW = 80;
+        const sigBoxH = 8;
+        drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
+        
+        const dateLabelX = sigBoxX + sigBoxW + 5;
+        doc.text("Date", dateLabelX, currentY + 5);
+        const dateBoxX = dateLabelX + 10;
+        const dateBoxW = 30;
+        drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
+        currentY += sigBoxH + 8;
+
+        // 4. "Item numbers..."
+        doc.text("Item numbers not complete on the date of acceptance/closing:", leftX, currentY);
+        currentY += 6;
+
+        // 5. Big Box
+        drawModernBox(doc, leftX, currentY, width, 18, 'initial');
+        currentY += 18 + 6;
+
+        // 6. "All items..."
+        doc.text("All items on the builder's new home completion list have been completed.", leftX, currentY);
+        currentY += 8;
+
+        // 7. Signature Row 2
+        doc.text("Homebuyer", leftX, currentY + 5);
+        drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
+        doc.text("Date", dateLabelX, currentY + 5);
+        drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
+
+        return startY + cardHeight;
+    }
+
+    // Default Section Handling
+    const isSignatureType = section.type === 'signature' || 
+                           /acknowledg(e)?ment/i.test(section.title) ||
+                           /sign\s?off/i.test(section.title) ||
+                           /signature/i.test(section.title);
+
     const paragraphs = section.body.split('\n').filter(p => p.trim().length > 0);
     let lineCounter = 1;
 
@@ -384,19 +471,18 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
              height = textHeight + 4; 
         }
         
-        return { lines, height, type: currentType };
+        return { lines, height, type: currentType, textHeight };
     });
 
-    const signatureBlockHeight = section.type === 'signature' ? 24 : 0;
+    const signatureBlockHeight = isSignatureType ? 28 : 0;
     const totalContentHeight = contentItems.reduce((acc, item) => acc + item.height + 4, 0) + signatureBlockHeight; 
     const cardHeight = TITLE_HEIGHT + totalContentHeight + CARD_PADDING;
 
-    // Use 'pentool' for signature related sections as requested
     let icon = 'paper';
     const titleLower = section.title.toLowerCase();
-    if (section.type === 'signature') icon = 'pentool';
+    
+    if (isSignatureType) icon = 'pentool';
     else if (section.type === 'initials') icon = 'check';
-    else if (titleLower.includes('acknowledgement') || titleLower.includes('acknowledgment') || titleLower.includes('sign off')) icon = 'pentool';
     else if (titleLower.includes('warranty')) icon = 'paper';
     else if (titleLower.includes('warning') || titleLower.includes('note')) icon = 'alert';
 
@@ -425,11 +511,10 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
 
             const iconSize = 7;
             const centerY = boxY + (item.height / 2);
-            let offset = 2.1;
-            if (item.lines.length === 1) offset += 0.75;
-
-            const iconY = centerY - (iconSize / 2) + offset;
-
+            
+            // Adjust Icon Vertical Center
+            const iconY = centerY - (iconSize / 2); 
+            
             drawSimpleIcon(doc, 'number', boxX + 4, iconY, iconSize, lineCounter.toString(), [207, 216, 220], [51, 65, 85]);
             lineCounter++;
             leftMargin = 16;
@@ -440,20 +525,32 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         doc.setFont("helvetica", "normal");
         
         const textX = boxX + leftMargin + (item.type === 'initials' ? 4 : 0);
-        let textY;
+        
         if (section.title === "Warranty Procedures") {
-             const textBlockH = item.lines.length * 5.5;
-             const centerY = boxY + (item.height / 2);
-             textY = centerY - (textBlockH / 2) + 4; 
+            // Manually render lines to ensure perfect vertical centering within the box
+            // The box height is calculated as: lines.length * 5.5 + 4
+            // We draw lines with 5.5 spacing.
+            // Start Y is calculated to center the block visually.
+            // boxY + 7 provides an approx 3mm top padding to cap height, balancing the 4mm padding allocated.
+            const startTextY = boxY + 7;
+            const lineHeight = 5.5;
+            
+            if (Array.isArray(item.lines)) {
+                item.lines.forEach((line, i) => {
+                    doc.text(line, textX, startTextY + (i * lineHeight));
+                });
+            } else {
+                doc.text(item.lines, textX, startTextY);
+            }
         } else {
-             textY = currentY + 5;
+            const textY = currentY + 5;
+            doc.text(item.lines, textX, textY);
         }
         
-        doc.text(item.lines, textX, textY);
         currentY += item.height + 4; 
     });
 
-    if (section.type === 'signature') {
+    if (isSignatureType) {
          const leftX = CARD_X + CARD_PADDING;
          doc.setFontSize(11);
          doc.setTextColor(51, 65, 85);
@@ -484,7 +581,7 @@ export const generateSignOffPDF = async (
     project: ProjectDetails, 
     title: string, 
     template: SignOffTemplate, 
-    companyLogo?: string,
+    companyLogo?: string, 
     signatureImage?: string
 ): Promise<string> => {
     let doc: jsPDF;
@@ -602,14 +699,20 @@ export const generatePDFWithMetadata = async (
   const cardEndY = drawProjectCard(doc, project, 35);
   
   const disclaimerY = cardEndY + 10;
+  const splitDisclaimer = doc.splitTextToSize(REPORT_DISCLAIMER, 170); 
+  const disclaimerHeight = splitDisclaimer.length * 4; 
+  
+  // Draw Background for Disclaimer
+  doc.setFillColor(241, 245, 249); // Slate-100
+  doc.setDrawColor(226, 232, 240); // Slate-200
+  // Even padding of 6 units on all sides
+  doc.roundedRect(14, disclaimerY - 6, 182, disclaimerHeight + 4, 3, 3, 'FD');
+
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139); 
-
-  const splitDisclaimer = doc.splitTextToSize(REPORT_DISCLAIMER, 170); 
   doc.text(splitDisclaimer, 105, disclaimerY, { align: 'center' });
 
-  const disclaimerHeight = splitDisclaimer.length * 4; 
-  let currentY = Math.max(disclaimerY + disclaimerHeight + 10, 115); 
+  let currentY = Math.max(disclaimerY + disclaimerHeight + 14, 115); 
   let issueCounter = 1;
 
   for (const loc of locations) {
@@ -662,7 +765,7 @@ export const generatePDFWithMetadata = async (
 
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
-        const descriptionLines = doc.splitTextToSize(issue.description, 153);
+        const descriptionLines = doc.splitTextToSize(issue.description, 148);
         const textHeight = (Array.isArray(descriptionLines) ? descriptionLines.length : 1) * 4;
         
         const photoSize = 32;
@@ -714,7 +817,15 @@ export const generatePDFWithMetadata = async (
         }
 
         doc.setTextColor(38, 50, 56);
-        doc.text(descriptionLines, 28, currentY + 3.5);
+        doc.setFontSize(10);
+        
+        // Use Number Icon instead of plain text, same style as Sign Off "Warranty Procedures"
+        // Icon center Y approx currentY + 4
+        drawSimpleIcon(doc, 'number', boxX + 8, currentY + 1.25, 5.5, issueCounter.toString(), [207, 216, 220], [51, 65, 85]);
+        
+        // Shift description to the right of the icon (boxX 14 + 8 = 22, + size 5.5 = 27.5. Start text at 30)
+        // Align text vertically with the icon center (currentY + 4) -> Text Y at currentY + 4.0
+        doc.text(descriptionLines, 30, currentY + 4.0);
 
         let nextY = currentY + Math.max(textHeight, 8) + 4;
 

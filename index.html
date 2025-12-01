@@ -239,6 +239,11 @@
         position: relative;
         overflow: hidden;
       }
+      
+      /* Force Netlify Identity to be on top of app modals */
+      #netlify-modal {
+        z-index: 10000 !important;
+      }
     </style>
     
     <!-- Load PDF.js from CDN globally to avoid build/module resolution issues -->
