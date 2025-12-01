@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
@@ -874,13 +873,48 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         return () => observer.disconnect();
     }, [strokes, resizeTrigger]); 
 
-    const handleSave = () => {
-        if (pdfUrl) {
-            const link = document.createElement('a');
-            link.href = pdfUrl;
-            link.download = "SignOff_Document.pdf";
-            link.click();
+    const handleSave = async () => {
+        const overlay = overlayRef.current;
+        // Capture the width to allow mapping points from screen coords to PDF coords
+        // Fallback to 800 if ref missing, but checking overlay exists
+        const containerWidth = overlay ? overlay.scrollWidth : 800;
+
+        // Measure first page height and gap to be precise for mapping
+        let pageHeight = undefined;
+        let gapHeight = 16; // default 16px (mb-4)
+
+        if (overlay) {
+            // Updated selector to target the canvas specifically for accurate height measurement
+            const canvasEl = overlay.querySelector('.pdf-page-canvas'); 
+            if (canvasEl) {
+                // clientHeight includes padding but no border/margin
+                pageHeight = canvasEl.clientHeight; 
+                if (canvasEl.parentElement) {
+                     const style = window.getComputedStyle(canvasEl.parentElement);
+                     const mb = parseFloat(style.marginBottom);
+                     if (!isNaN(mb)) gapHeight = mb;
+                }
+            }
         }
+
+        // Generate the final PDF including strokes
+        const finalPdfUrl = await generateSignOffPDF(
+            project, 
+            SIGN_OFF_TITLE, 
+            templates[0], 
+            companyLogo, 
+            undefined, 
+            strokes, 
+            containerWidth,
+            pageHeight,
+            gapHeight
+        );
+
+        const link = document.createElement('a');
+        link.href = finalPdfUrl;
+        link.download = "SignOff_Document.pdf";
+        link.click();
+        
         onClose();
     };
 

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
 import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check } from 'lucide-react';
@@ -213,7 +214,8 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
         if (e.target.files && e.target.files[0]) {
             try {
                 const compressed = await compressImage(e.target.files[0]);
-                setPhotos(prev => [...prev, { url: compressed, description: '' }]);
+                // Add unique ID for the new photo
+                setPhotos(prev => [...prev, { id: generateUUID(), url: compressed, description: '' }]);
             } catch (err) {
                 console.error("Image compression failed", err);
             }
@@ -232,6 +234,7 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
         if (editingPhotoIndex !== null) {
             setPhotos(prev => {
                 const newPhotos = [...prev];
+                // Preserve ID when updating image
                 newPhotos[editingPhotoIndex] = { ...newPhotos[editingPhotoIndex], url: newUrl };
                 return newPhotos;
             });
@@ -262,11 +265,17 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     const handleSubmit = () => {
         if (!description.trim()) return;
         
+        // Ensure all photos have IDs (migrating old data lazily)
+        const finalPhotos = photos.map(p => ({
+            ...p,
+            id: p.id || generateUUID()
+        }));
+
         const newIssue: Issue = {
             id: initialIssue?.id || generateUUID(),
             description,
             severity: initialIssue?.severity || 'Low',
-            photos,
+            photos: finalPhotos,
             timestamp: initialIssue?.timestamp || Date.now()
         };
         

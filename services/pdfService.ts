@@ -1,6 +1,7 @@
 
+
 import { jsPDF } from 'jspdf';
-import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField } from '../types';
+import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 
 // --- CONFIGURATION ---
 
@@ -213,6 +214,7 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
          doc.setTextColor(tc[0], tc[1], tc[2]);
          doc.setFontSize(8);
          doc.setFont("helvetica", "bold");
+         // No vertical offset, allowing proper centering by caller or defaults
          doc.text(numberValue || "", x + rn, y + rn + 1.1, { align: 'center' });
     } else {
         // Default Circle
@@ -484,7 +486,7 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
     if (isSignatureType) icon = 'pentool';
     else if (section.type === 'initials') icon = 'check';
     else if (titleLower.includes('warranty')) icon = 'paper';
-    else if (titleLower.includes('warning') || titleLower.includes('note')) icon = 'alert';
+    else if (titleLower.includes('note')) icon = 'alert';
 
     if (startY + cardHeight > 280) {
         doc.addPage();
@@ -577,12 +579,88 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
     return startY + cardHeight;
 };
 
+const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], containerWidth: number, pageHeight?: number, gapHeight?: number) => {
+    // PDF Specs
+    const pdfW = 210;
+    // Scale factor: Convert screen pixels (containerWidth) to PDF mm
+    const scale = pdfW / containerWidth;
+
+    // Screen Page Height mapping
+    // If pageHeight provided (measured from DOM), use it. Otherwise approximate using A4 ratio.
+    const screenPageH = pageHeight || (containerWidth * (297 / 210));
+    const screenGap = gapHeight !== undefined ? gapHeight : 16; // Default to 16px if not provided (Tailwind mb-4)
+    const pageTotalH = screenPageH + screenGap;
+
+    const totalPages = doc.getNumberOfPages();
+
+    strokes.forEach(stroke => {
+        const points = Array.isArray(stroke) ? stroke : stroke.points;
+        const type = Array.isArray(stroke) ? 'ink' : stroke.type;
+        
+        if (points.length < 2) return;
+
+        // Draw segment by segment to handle page breaks
+        for (let i = 0; i < points.length - 1; i++) {
+            const p1 = points[i];
+            const p2 = points[i+1];
+
+            // Determine which page p1 belongs to
+            const pageIndex1 = Math.floor(p1.y / pageTotalH);
+            const pageIndex2 = Math.floor(p2.y / pageTotalH); 
+            
+            // Skip segments that cross the gap between pages
+            if (pageIndex1 !== pageIndex2) continue;
+
+            const relY1 = p1.y % pageTotalH;
+
+            // If the point falls in the gap between pages, skip
+            if (relY1 > screenPageH) continue;
+
+            const targetPage = pageIndex1 + 1;
+
+            // Ensure the page exists
+            if (targetPage > totalPages) continue;
+
+            // Switch page context if needed
+            if (doc.getCurrentPageInfo().pageNumber !== targetPage) {
+                 doc.setPage(targetPage);
+            }
+            
+            // Apply style for every segment/page-switch to ensure it persists across page changes
+            doc.setLineCap('round');
+            doc.setLineJoin('round');
+
+            if (type === 'erase') {
+                doc.setDrawColor(255, 255, 255);
+                doc.setLineWidth(6); // Thicker line for eraser
+            } else {
+                doc.setDrawColor(0, 0, 0);
+                doc.setLineWidth(0.5); // Thin line for ink
+            }
+
+            // Convert to PDF coordinates
+            const x1 = p1.x * scale;
+            const y1 = relY1 * scale;
+            const x2 = p2.x * scale;
+            
+            const relY2 = p2.y % pageTotalH;
+            const y2 = relY2 * scale;
+
+            doc.line(x1, y1, x2, y2);
+        }
+    });
+};
+
 export const generateSignOffPDF = async (
     project: ProjectDetails, 
     title: string, 
     template: SignOffTemplate, 
     companyLogo?: string, 
-    signatureImage?: string
+    signatureImage?: string,
+    strokes?: (Point[] | SignOffStroke)[],
+    containerWidth?: number,
+    pageHeight?: number,
+    gapHeight?: number
 ): Promise<string> => {
     let doc: jsPDF;
     try {
@@ -634,6 +712,11 @@ export const generateSignOffPDF = async (
              currentY = drawSectionCard(doc, currentY, section);
              currentY += 4;
         }
+    }
+
+    // Draw Strokes if provided
+    if (strokes && containerWidth && strokes.length > 0) {
+        drawStrokesOnPDF(doc, strokes, containerWidth, pageHeight, gapHeight);
     }
 
     return doc.output('bloburl').toString();
@@ -698,7 +781,7 @@ export const generatePDFWithMetadata = async (
 
   const cardEndY = drawProjectCard(doc, project, 35);
   
-  const disclaimerY = cardEndY + 10;
+  const disclaimerY = cardEndY + 12; 
   const splitDisclaimer = doc.splitTextToSize(REPORT_DISCLAIMER, 170); 
   const disclaimerHeight = splitDisclaimer.length * 4; 
   
@@ -706,7 +789,7 @@ export const generatePDFWithMetadata = async (
   doc.setFillColor(241, 245, 249); // Slate-100
   doc.setDrawColor(226, 232, 240); // Slate-200
   // Even padding of 6 units on all sides
-  doc.roundedRect(14, disclaimerY - 6, 182, disclaimerHeight + 4, 3, 3, 'FD');
+  doc.roundedRect(14, disclaimerY - 4, 182, disclaimerHeight + 4, 3, 3, 'FD');
 
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139); 
@@ -838,13 +921,16 @@ export const generatePDFWithMetadata = async (
                       py += photoRowHeight + photoGap;
                   }
                   const photo = issue.photos[i];
+                  // Use unique ID for photo, fallback to index-based if missing (for legacy data)
+                  const photoId = photo.id || `${issue.id}_img_${i}`;
+                  
                   try {
                       const format = getImageFormat(photo.url);
                       doc.addImage(photo.url, format, px, py, photoSize, photoSize);
                       imageMap.push({
                           pageIndex: doc.getNumberOfPages(),
                           x: px, y: py, w: photoSize, h: photoSize,
-                          id: issue.id
+                          id: photoId
                       });
                       
                       if (photo.description && photo.description.trim()) {
@@ -862,7 +948,7 @@ export const generatePDFWithMetadata = async (
                       }
 
                       // Render Solid Red X if marked
-                      if (marks && marks[issue.id]?.includes('x')) {
+                      if (marks && marks[photoId]?.includes('x')) {
                           doc.saveGraphicsState();
                           // Solid Red-600
                           doc.setDrawColor(220, 38, 38);

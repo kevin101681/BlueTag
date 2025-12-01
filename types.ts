@@ -1,4 +1,5 @@
 
+
 export type Severity = 'Low' | 'Medium' | 'High' | 'Critical';
 export type ColorTheme = string;
 
@@ -28,6 +29,7 @@ export interface ProjectDetails {
 }
 
 export interface IssuePhoto {
+    id?: string;
     url: string;
     description: string;
 }
