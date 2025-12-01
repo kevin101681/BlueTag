@@ -80,13 +80,8 @@ export const ReportCard: React.FC<ReportCardProps> = ({
     const cardRef = useRef<HTMLDivElement>(null);
     
     // Header Logic
-    // Field 0: Client Name (Now in App Header)
-    // Field 1: Subtitle (Lot #)
     const subtitle = fields[1]?.value || "";
-    
-    // Remaining fields for list display (skip first 2)
     const detailFields = fields.slice(2);
-    // Check if there is actual data to show in the box
     const hasContactInfo = detailFields.some(f => f.value && f.value.trim() !== "");
 
     const getLinkProps = (field: ProjectField) => {
@@ -117,7 +112,6 @@ export const ReportCard: React.FC<ReportCardProps> = ({
         >
             {/* Header Row: Flex for continuous line */}
             <div className="flex items-center gap-2 mb-4 relative min-h-[40px]">
-                 
                  {/* Left: Project Number Pill */}
                  <div className={`shrink-0 px-3 py-1.5 rounded-2xl flex items-center gap-2 border transition-colors ${subtitle ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 border-dashed'}`}>
                     <Hash size={12} className={`${subtitle ? 'text-slate-400' : 'text-slate-300 dark:text-slate-600'} shrink-0`} />
@@ -143,7 +137,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                          <Trash2 size={14} />
                      </button>
                  ) : (
-                     <div className="w-8" /> // Spacer
+                     <div className="w-8" /> 
                  )}
             </div>
 
@@ -180,7 +174,6 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                 </div>
             )}
 
-            {/* Spacer if no content, to keep layout nice */}
             {!hasContactInfo && <div className="mb-4"></div>}
             
             {/* Footer Row: 3-Column Grid for perfect centering */}
@@ -192,7 +185,6 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                             {issueCount} Items
                         </span>
                     </div>
-                    {/* Line Left */}
                     <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800 min-w-[10px]" />
                 </div>
 
@@ -229,9 +221,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                 
                 {/* Right: Line + Date */}
                 <div className="flex items-center justify-end gap-2 overflow-hidden">
-                    {/* Line Right */}
                     <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800 min-w-[10px]" />
-
                     <div className="shrink-0 bg-slate-100 dark:bg-slate-800 rounded-2xl px-3 py-1 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 h-6">
                         <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                             {dateStr}
@@ -249,7 +239,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
     );
 };
 
-// ... (Rest of PDF Components) ...
+// ... (PDF Components) ...
 const PDFPageCanvas: React.FC<{ 
     page: any, 
     pageIndex: number,
@@ -421,7 +411,7 @@ const PDFCanvasPreview = ({
                                             height: `${(img.h / PDF_H) * 100}%`,
                                             pointerEvents: 'none'
                                         }}
-                                        className="text-red-500/70 opacity-80 flex items-center justify-center"
+                                        className="text-red-600 flex items-center justify-center"
                                     >
                                         <X strokeWidth={4} className="w-full h-full" />
                                     </div>
@@ -486,12 +476,12 @@ const LocationCard = React.memo(({ location, onClick }: { location: LocationGrou
             className="relative px-4 py-3 rounded-[20px] text-left transition-all duration-300 group overflow-hidden bg-white dark:bg-slate-700/30 border-2 border-slate-200 dark:border-slate-600 shadow-sm hover:shadow-xl hover:border-primary/50 dark:hover:border-slate-500/50 hover:-translate-y-1 w-full flex flex-row items-center justify-between gap-3 min-h-[60px]"
         >
             <div className="flex items-center gap-3 min-w-0 flex-1">
-                <span className="bg-primary dark:bg-slate-600 text-white text-sm font-bold px-2.5 py-0.5 rounded-full shadow-sm shadow-slate-200 dark:shadow-none shrink-0 min-w-[24px] text-center h-6 flex items-center justify-center">
+                <span className="bg-primary dark:bg-slate-600 text-white text-sm font-bold px-2.5 py-0.5 rounded-2xl shadow-sm shadow-slate-200 dark:shadow-none shrink-0 min-w-[24px] text-center h-6 flex items-center justify-center">
                     {issueCount}
                 </span>
 
                 {photoCount > 0 && (
-                    <span className="bg-primary dark:bg-slate-600 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center justify-center gap-1 shrink-0 h-6 min-w-[24px] shadow-sm">
+                    <span className="bg-primary dark:bg-slate-600 text-white text-xs font-bold px-2 py-0.5 rounded-2xl flex items-center justify-center gap-1 shrink-0 h-6 min-w-[24px] shadow-sm">
                         <Camera size={10} />
                         {photoCount}
                     </span>
@@ -570,10 +560,11 @@ export const ClientInfoEditModal = ({ project, onUpdate, onClose }: { project: P
     );
 };
 
-export const ReportPreviewModal = ({ project, locations, companyLogo, onClose }: any) => {
+export const ReportPreviewModal = ({ project, locations, companyLogo, onClose, onUpdateProject }: any) => {
     const [url, setUrl] = useState<string>("");
     const [maps, setMaps] = useState<{ imageMap: ImageLocation[], checkboxMap: CheckboxLocation[] } | undefined>(undefined);
-    const [marks, setMarks] = useState<Record<string, ('check' | 'x')[]>>({});
+    // Initialize marks from persistent project state
+    const [marks, setMarks] = useState<Record<string, ('check' | 'x')[]>>(project.reportMarks || {});
 
     useEffect(() => {
         // DO NOT pass marks here, preventing duplicated burn-in lines
@@ -621,6 +612,9 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose }:
 
     const handleSave = async () => {
         try {
+            // Save current marks to project state first
+            onUpdateProject({ ...project, reportMarks: marks });
+
             // Generate WITH marks for final download
             const res = await generatePDFWithMetadata({ project, locations }, companyLogo, marks);
             res.doc.save("PunchList_Report.pdf");
@@ -630,8 +624,14 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose }:
         onClose();
     };
 
+    const handleClose = () => {
+        // Persist marks when closing without downloading
+        onUpdateProject({ ...project, reportMarks: marks });
+        onClose();
+    }
+
     return createPortal(
-        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={handleClose}>
              <div className="bg-white dark:bg-slate-800 w-full max-w-4xl h-[90vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center shrink-0">
                     <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl">
@@ -654,7 +654,7 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose }:
 
                 <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex gap-3 shrink-0 bg-white dark:bg-slate-800">
                     <button 
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                     >
                         Cancel
@@ -1107,7 +1107,7 @@ export const Dashboard = React.memo<DashboardProps>(({
                             
                             {/* Title Center */}
                             <div className="bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-2xl">
-                                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-200">Client Information</h2>
+                                <h2 className="text-lg font-bold text-slate-600 dark:text-slate-300">Client Information</h2>
                             </div>
 
                              {/* Collapse Right */}

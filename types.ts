@@ -19,6 +19,7 @@ export interface ProjectDetails {
   signOffImage?: string; // Base64 string of the signed document thumbnail
   reportPreviewImage?: string; // Base64 string of the marked-up report thumbnail
   signOffStrokes?: Point[][]; // Array of strokes (each stroke is an array of points)
+  reportMarks?: Record<string, ('check' | 'x')[]>; // Persist report preview markups
 }
 
 export interface IssuePhoto {
