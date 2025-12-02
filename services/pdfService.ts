@@ -30,9 +30,7 @@ export interface CheckboxLocation {
     w: number; 
     h: number; 
     id: string;
-    textX: number; 
-    textY: number; 
-    textW: number; 
+    strikethroughLines?: { x: number, y: number, w: number }[];
 }
 
 export interface PDFGenerationResult {
@@ -851,7 +849,7 @@ export const generatePDFWithMetadata = async (
         const descriptionLines = doc.splitTextToSize(issue.description, 148);
         const textHeight = (Array.isArray(descriptionLines) ? descriptionLines.length : 1) * 4;
         
-        const photoSize = 32;
+        const photoSize = 40; // Increased size
         const photoGap = 4;
         const descGap = 6; 
         
@@ -885,6 +883,24 @@ export const generatePDFWithMetadata = async (
         doc.setFillColor(255, 255, 255);
         doc.roundedRect(boxX, currentY + 1, boxSize, boxSize, 1, 1, 'FD');
         
+        // Calculate strikethrough lines for metadata (used for preview)
+        const linesData: { x: number, y: number, w: number }[] = [];
+        const lineHeight = 4;
+        const textStartX = 30;
+        const textStartY = currentY + 4.0;
+        
+        if (Array.isArray(descriptionLines)) {
+            descriptionLines.forEach((line, i) => {
+                const lw = doc.getTextWidth(line);
+                const lineY = textStartY + (i * lineHeight) - 1.2;
+                linesData.push({ x: textStartX, y: lineY, w: lw });
+            });
+        } else if (typeof descriptionLines === 'string') {
+             const lw = doc.getTextWidth(descriptionLines);
+             const lineY = textStartY - 1.2;
+             linesData.push({ x: textStartX, y: lineY, w: lw });
+        }
+
         checkboxMap.push({
             pageIndex: doc.getNumberOfPages(),
             x: boxX,
@@ -892,10 +908,13 @@ export const generatePDFWithMetadata = async (
             w: boxSize,
             h: boxSize,
             id: issue.id,
-            textX: 0, textY: 0, textW: 0
+            strikethroughLines: linesData
         });
 
-        if (marks && marks[issue.id]?.includes('check')) {
+        // Check if item is completed/marked
+        const isChecked = marks && marks[issue.id]?.includes('check');
+
+        if (isChecked) {
              drawSimpleIcon(doc, 'check-mark-thick', boxX - 1, currentY, 8);
         }
 
@@ -909,6 +928,18 @@ export const generatePDFWithMetadata = async (
         // Shift description to the right of the icon (boxX 14 + 8 = 22, + size 5.5 = 27.5. Start text at 30)
         // Align text vertically with the icon center (currentY + 4) -> Text Y at currentY + 4.0
         doc.text(descriptionLines, 30, currentY + 4.0);
+
+        // Strike-through logic
+        if (isChecked) {
+            doc.saveGraphicsState();
+            doc.setDrawColor(50, 50, 50); // Dark Gray Strike
+            doc.setLineWidth(0.3);
+            
+            linesData.forEach(line => {
+                doc.line(line.x, line.y, line.x + line.w, line.y);
+            });
+            doc.restoreGraphicsState();
+        }
 
         let nextY = currentY + Math.max(textHeight, 8) + 4;
 
@@ -924,14 +955,35 @@ export const generatePDFWithMetadata = async (
                   // Use unique ID for photo, fallback to index-based if missing (for legacy data)
                   const photoId = photo.id || `${issue.id}_img_${i}`;
                   
+                  // Render Photo with Rounded Corners and Number Label
                   try {
                       const format = getImageFormat(photo.url);
+                      
+                      // 1. Draw Image with Rounded Clip
+                      doc.saveGraphicsState();
+                      // Create rounded clipping path: Pass null for style to just add path without stroking
+                      doc.roundedRect(px, py, photoSize, photoSize, 3, 3, null);
+                      doc.clip();
                       doc.addImage(photo.url, format, px, py, photoSize, photoSize);
+                      doc.restoreGraphicsState();
+
                       imageMap.push({
                           pageIndex: doc.getNumberOfPages(),
                           x: px, y: py, w: photoSize, h: photoSize,
                           id: photoId
                       });
+
+                      // 2. Draw Number Label Overlay (e.g., "1.1")
+                      const photoLabel = `${issueCounter}.${i + 1}`;
+                      doc.saveGraphicsState();
+                      // Small pill background at top-left
+                      doc.setFillColor(51, 65, 85); // Slate-700
+                      doc.roundedRect(px + 1, py + 1, 9, 5, 1.5, 1.5, 'F');
+                      doc.setTextColor(255, 255, 255);
+                      doc.setFontSize(8);
+                      doc.setFont("helvetica", "bold");
+                      doc.text(photoLabel, px + 5.5, py + 4.5, { align: 'center' });
+                      doc.restoreGraphicsState();
                       
                       if (photo.description && photo.description.trim()) {
                           const descY = py + photoSize + 1;

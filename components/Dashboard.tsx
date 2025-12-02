@@ -4,7 +4,6 @@ import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, Chevron
 import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
 import { AddIssueForm } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
-import { jsPDF } from 'jspdf';
 import { createPortal } from 'react-dom';
 
 export interface DashboardProps {
@@ -380,20 +379,38 @@ const PDFCanvasPreview = ({
                                 const isChecked = marks[box.id]?.includes('check');
                                 if (!isChecked) return null;
                                 return (
-                                    <div 
-                                        key={`chk-${box.id}`}
-                                        style={{
-                                            position: 'absolute',
-                                            left: `${(box.x / PDF_W) * 100}%`,
-                                            top: `${(box.y / PDF_H) * 100}%`,
-                                            width: `${(box.w / PDF_W) * 100}%`,
-                                            height: `${(box.h / PDF_H) * 100}%`,
-                                            pointerEvents: 'none'
-                                        }}
-                                        className="text-green-600/80 opacity-90"
-                                    >
-                                        <Check strokeWidth={6} className="w-full h-full" />
-                                    </div>
+                                    <React.Fragment key={`chk-grp-${box.id}`}>
+                                        <div 
+                                            key={`chk-${box.id}`}
+                                            style={{
+                                                position: 'absolute',
+                                                left: `${(box.x / PDF_W) * 100}%`,
+                                                top: `${(box.y / PDF_H) * 100}%`,
+                                                width: `${(box.w / PDF_W) * 100}%`,
+                                                height: `${(box.h / PDF_H) * 100}%`,
+                                                pointerEvents: 'none'
+                                            }}
+                                            className="text-green-600/80 opacity-90"
+                                        >
+                                            <Check strokeWidth={6} className="w-full h-full" />
+                                        </div>
+                                        {/* Strikethrough Overlay */}
+                                        {box.strikethroughLines?.map((line, idx) => (
+                                            <div 
+                                                key={`strike-${box.id}-${idx}`}
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: `${(line.x / PDF_W) * 100}%`,
+                                                    top: `${(line.y / PDF_H) * 100}%`, 
+                                                    width: `${(line.w / PDF_W) * 100}%`,
+                                                    height: '2px', // Approx 0.3mm (lineWidth in PDF) to pixels
+                                                    backgroundColor: 'rgba(50, 50, 50, 0.8)', // Dark Gray
+                                                    transform: 'translateY(-50%)',
+                                                    pointerEvents: 'none'
+                                                }}
+                                            />
+                                        ))}
+                                    </React.Fragment>
                                 );
                             })}
                             {maps.imageMap.filter(m => m.pageIndex === pageIndex).map(img => {
@@ -532,6 +549,88 @@ export const LocationManagerModal = ({ locations, onUpdate, onClose }: { locatio
                 </div>
             </div>
         </div>, document.body
+    );
+};
+
+export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: LocationGroup[], onUpdate: (locs: LocationGroup[]) => void, onClose: () => void }) => {
+    const [localLocations, setLocalLocations] = useState(locations);
+
+    const handleDescChange = (locId: string, issueId: string, val: string) => {
+        setLocalLocations(prev => prev.map(l => {
+            if (l.id !== locId) return l;
+            return {
+                ...l,
+                issues: l.issues.map(i => i.id !== issueId ? i : { ...i, description: val })
+            };
+        }));
+    };
+
+    const handleSave = () => {
+        onUpdate(localLocations);
+        onClose();
+    };
+    
+    const totalItems = localLocations.reduce((acc, l) => acc + l.issues.length, 0);
+
+    return createPortal(
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-800 w-full max-w-2xl h-[85vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 z-20">
+                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
+                        <h3 className="font-bold text-slate-800 dark:text-white">All Items ({totalItems})</h3>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
+                    <div className="pb-4">
+                        {localLocations.map(loc => {
+                            if (loc.issues.length === 0) return null;
+                            return (
+                                <div key={loc.id} className="relative">
+                                    <div className="sticky top-0 z-10 px-4 py-3 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-700">
+                                        <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">{loc.name}</h4>
+                                    </div>
+                                    <div className="space-y-3 px-4 py-3">
+                                        {loc.issues.map(issue => (
+                                            <div key={issue.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                                                <textarea 
+                                                    value={issue.description}
+                                                    onChange={(e) => handleDescChange(loc.id, issue.id, e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none resize-none text-slate-800 dark:text-slate-200 text-sm font-medium mb-3 min-h-[80px] focus:ring-2 focus:ring-primary/20 transition-all"
+                                                />
+                                                {issue.photos.length > 0 && (
+                                                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                                        {issue.photos.map(p => (
+                                                            <img key={p.id || generateUUID()} src={p.url} className="w-16 h-16 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0" />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {totalItems === 0 && (
+                            <div className="text-center text-slate-400 py-10">No items found.</div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20">
+                    <button 
+                        onClick={handleSave}
+                        className="w-full py-3.5 rounded-[20px] font-bold text-white bg-primary hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                    >
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
     );
 };
 
@@ -718,7 +817,6 @@ export const TemplateEditorModal = ({ templates, onUpdate, onClose }: any) => {
 export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, templates, onUpdateTemplates }: any) => {
     const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-    const [mode, setMode] = useState<'scroll' | 'ink' | 'erase'>('scroll');
     const [strokes, setStrokes] = useState<(Point[] | SignOffStroke)[]>(project.signOffStrokes || []);
     const [resizeTrigger, setResizeTrigger] = useState(0);
     
@@ -726,6 +824,13 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     const overlayRef = useRef<HTMLDivElement>(null);
     const currentStroke = useRef<Point[]>([]);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    
+    // Gesture State Refs
+    const activePointers = useRef<Map<number, {x: number, y: number}>>(new Map());
+    const currentTool = useRef<'ink' | 'erase' | null>(null);
+    const isPanning = useRef(false);
+    const lastPanPoint = useRef<{x: number, y: number} | null>(null);
+    const isDrawing = useRef(false);
 
     useEffect(() => {
         generateSignOffPDF(project, SIGN_OFF_TITLE, templates[0], companyLogo, undefined)
@@ -742,74 +847,151 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         };
     };
 
-    const [isDrawing, setIsDrawing] = useState(false);
-
-    const startDraw = (e: React.PointerEvent) => {
-        if (mode === 'scroll') return;
-        if (!e.isPrimary) return; 
-
-        // Capture pointer to track movement even if it leaves canvas boundaries
-        const canvas = canvasRef.current;
-        if (canvas) {
-             canvas.setPointerCapture(e.pointerId);
-        }
-
-        const p = getPoint(e);
-        currentStroke.current = [p];
-        setIsDrawing(true);
-    };
-
-    const moveDraw = (e: React.PointerEvent) => {
-        if (!isDrawing || mode === 'scroll') return;
-        if (!e.isPrimary) return;
-
-        e.preventDefault(); 
-        const p = getPoint(e);
-        currentStroke.current.push(p);
+    const endCurrentStroke = (e: React.PointerEvent) => {
+        if (!isDrawing.current || !currentTool.current) return;
         
-        const ctx = canvasRef.current?.getContext('2d');
-        if (ctx) {
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            
-            if (mode === 'ink') {
-                 ctx.lineWidth = 2; 
-                 ctx.strokeStyle = 'black';
-                 ctx.globalCompositeOperation = 'source-over';
-            } else if (mode === 'erase') {
-                 ctx.lineWidth = 30; // Increased eraser size for better usability
-                 ctx.strokeStyle = 'rgba(0,0,0,1)'; 
-                 ctx.globalCompositeOperation = 'destination-out';
-            }
-            
-            const prev = currentStroke.current[currentStroke.current.length - 2];
-            ctx.beginPath();
-            ctx.moveTo(prev.x, prev.y);
-            ctx.lineTo(p.x, p.y);
-            ctx.stroke();
-            
-            // Reset composite operation to default
-            ctx.globalCompositeOperation = 'source-over';
-        }
-    };
-
-    const endDraw = (e: React.PointerEvent) => {
-        const canvas = canvasRef.current;
-        if (canvas) {
-             canvas.releasePointerCapture(e.pointerId);
-        }
-
-        if (!isDrawing) return;
-        setIsDrawing(false);
+        isDrawing.current = false;
         
         const newStroke: SignOffStroke = { 
             points: currentStroke.current, 
-            type: mode === 'erase' ? 'erase' : 'ink' 
+            type: currentTool.current 
         };
         
         const newStrokes = [...strokes, newStroke];
         setStrokes(newStrokes);
         onUpdateProject({ ...project, signOffStrokes: newStrokes });
+        currentStroke.current = [];
+        currentTool.current = null;
+    };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        e.preventDefault();
+        
+        const canvas = canvasRef.current;
+        if (canvas) canvas.setPointerCapture(e.pointerId);
+        
+        activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        
+        // --- Input Logic ---
+        
+        // 1. Stylus or Mouse (Ink)
+        if (e.pointerType === 'pen' || e.pointerType === 'mouse') {
+            if (activePointers.current.size > 1) return; // Ignore if other touches active
+            currentTool.current = 'ink';
+            isDrawing.current = true;
+            const p = getPoint(e);
+            currentStroke.current = [p];
+            return;
+        }
+
+        // 2. Touch
+        if (e.pointerType === 'touch') {
+            const count = activePointers.current.size;
+            
+            if (count === 1) {
+                // Single Finger -> Erase
+                currentTool.current = 'erase';
+                isDrawing.current = true;
+                const p = getPoint(e);
+                currentStroke.current = [p];
+                isPanning.current = false;
+            } else if (count === 2) {
+                // Two Fingers -> Scroll (Pan)
+                
+                // If we were drawing/erasing with 1 finger, stop immediately
+                if (isDrawing.current) {
+                    endCurrentStroke(e);
+                }
+                
+                isPanning.current = true;
+                currentTool.current = null;
+                
+                const points = Array.from(activePointers.current.values()) as {x: number, y: number}[];
+                if (points.length >= 2) {
+                    const cx = (points[0].x + points[1].x) / 2;
+                    const cy = (points[0].y + points[1].y) / 2;
+                    lastPanPoint.current = { x: cx, y: cy };
+                }
+            }
+        }
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        e.preventDefault();
+        activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        const ctx = canvasRef.current?.getContext('2d');
+        if (!ctx) return;
+
+        // --- Panning Logic (2 Fingers) ---
+        if (isPanning.current && activePointers.current.size === 2) {
+             const points = Array.from(activePointers.current.values()) as {x: number, y: number}[];
+             
+             if (points.length >= 2) {
+                 const cx = (points[0].x + points[1].x) / 2;
+                 const cy = (points[0].y + points[1].y) / 2;
+                 
+                 if (lastPanPoint.current && overlayRef.current) {
+                     const dx = lastPanPoint.current.x - cx;
+                     const dy = lastPanPoint.current.y - cy;
+                     overlayRef.current.scrollLeft += dx;
+                     overlayRef.current.scrollTop += dy;
+                 }
+                 lastPanPoint.current = { x: cx, y: cy };
+             }
+             return;
+        }
+
+        // --- Drawing Logic ---
+        if (isDrawing.current && currentTool.current) {
+            // Only continue drawing if this pointer matches the tool type or is the primary one
+            // Simple check: if we are erasing (touch) or inking (pen)
+            
+            const p = getPoint(e);
+            currentStroke.current.push(p);
+            
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            if (currentTool.current === 'ink') {
+                 ctx.lineWidth = 2; 
+                 ctx.strokeStyle = 'black';
+                 ctx.globalCompositeOperation = 'source-over';
+            } else if (currentTool.current === 'erase') {
+                 ctx.lineWidth = 30;
+                 ctx.strokeStyle = 'rgba(0,0,0,1)'; 
+                 ctx.globalCompositeOperation = 'destination-out';
+            }
+            
+            const points = currentStroke.current;
+            if (points.length >= 2) {
+                const prev = points[points.length - 2];
+                ctx.beginPath();
+                ctx.moveTo(prev.x, prev.y);
+                ctx.lineTo(p.x, p.y);
+                ctx.stroke();
+            }
+            
+            // Reset composite operation
+            ctx.globalCompositeOperation = 'source-over';
+        }
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        activePointers.current.delete(e.pointerId);
+        const canvas = canvasRef.current;
+        if (canvas && canvas.hasPointerCapture(e.pointerId)) {
+            canvas.releasePointerCapture(e.pointerId);
+        }
+
+        if (isDrawing.current) {
+            endCurrentStroke(e);
+        }
+        
+        if (activePointers.current.size < 2) {
+            isPanning.current = false;
+            lastPanPoint.current = null;
+        }
     };
 
     useLayoutEffect(() => {
@@ -834,7 +1016,6 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                      ctx.lineJoin = 'round';
                      
                      strokes.forEach(s => {
-                        // Handle legacy Point[] format vs new SignOffStroke format
                         const isV1 = Array.isArray(s);
                         const points = isV1 ? s : s.points;
                         const type = isV1 ? 'ink' : s.type;
@@ -848,7 +1029,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                         }
                         
                         if (type === 'erase') {
-                             ctx.lineWidth = 30; // Matches drawing eraser size
+                             ctx.lineWidth = 30;
                              ctx.globalCompositeOperation = 'destination-out';
                         } else {
                              ctx.lineWidth = 2;
@@ -856,7 +1037,6 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                              ctx.globalCompositeOperation = 'source-over';
                         }
                         ctx.stroke();
-                        // Reset
                         ctx.globalCompositeOperation = 'source-over';
                     });
                  }
@@ -875,19 +1055,14 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
     const handleSave = async () => {
         const overlay = overlayRef.current;
-        // Capture the width to allow mapping points from screen coords to PDF coords
-        // Fallback to 800 if ref missing, but checking overlay exists
         const containerWidth = overlay ? overlay.scrollWidth : 800;
 
-        // Measure first page height and gap to be precise for mapping
         let pageHeight = undefined;
-        let gapHeight = 16; // default 16px (mb-4)
+        let gapHeight = 16; 
 
         if (overlay) {
-            // Updated selector to target the canvas specifically for accurate height measurement
             const canvasEl = overlay.querySelector('.pdf-page-canvas'); 
             if (canvasEl) {
-                // clientHeight includes padding but no border/margin
                 pageHeight = canvasEl.clientHeight; 
                 if (canvasEl.parentElement) {
                      const style = window.getComputedStyle(canvasEl.parentElement);
@@ -897,7 +1072,6 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
             }
         }
 
-        // Generate the final PDF including strokes
         const finalPdfUrl = await generateSignOffPDF(
             project, 
             SIGN_OFF_TITLE, 
@@ -913,7 +1087,9 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         const link = document.createElement('a');
         link.href = finalPdfUrl;
         link.download = "SignOff_Document.pdf";
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         
         onClose();
     };
@@ -936,8 +1112,15 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                         </button>
                     </div>
 
-                    {/* Removed p-4 for full width */}
-                    <div ref={overlayRef} style={mode !== 'scroll' ? { touchAction: 'none' } : {}} className={`flex-1 ${mode === 'scroll' ? 'overflow-auto' : 'overflow-hidden'} bg-slate-200 dark:bg-slate-950 relative`}>
+                    {/* Container for PDF and Canvas: 
+                        - overflow: hidden to disable native scroll 
+                        - touch-action: none to allow pointer events to capture gestures
+                    */}
+                    <div 
+                        ref={overlayRef} 
+                        style={{ overflow: 'hidden', touchAction: 'none' }} 
+                        className="flex-1 bg-slate-200 dark:bg-slate-950 relative"
+                    >
                          {pdfUrl ? (
                             <div className="relative min-h-full">
                                 <PDFCanvasPreview pdfUrl={pdfUrl} onAllPagesRendered={() => setResizeTrigger(prev => prev + 1)} />
@@ -948,14 +1131,14 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                                         top: 0,
                                         left: 0,
                                         zIndex: 50,
-                                        cursor: mode !== 'scroll' ? 'crosshair' : 'default',
-                                        pointerEvents: mode !== 'scroll' ? 'auto' : 'none',
+                                        cursor: 'crosshair',
                                         touchAction: 'none' 
                                     }}
-                                    onPointerDown={startDraw} 
-                                    onPointerMove={moveDraw} 
-                                    onPointerUp={endDraw} 
-                                    onPointerLeave={endDraw}
+                                    onPointerDown={handlePointerDown} 
+                                    onPointerMove={handlePointerMove} 
+                                    onPointerUp={handlePointerUp} 
+                                    onPointerCancel={handlePointerUp}
+                                    onPointerLeave={handlePointerUp}
                                 />
                             </div>
                          ) : (
@@ -963,58 +1146,74 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                          )}
                     </div>
 
-                    <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 grid grid-cols-3 items-center">
-                        <div className="flex justify-start">
-                             <button 
-                                onClick={onClose}
-                                className="px-6 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                            >
-                                <span className="md:hidden"><X size={20} /></span>
-                                <span className="hidden md:inline">Cancel</span>
-                            </button>
-                        </div>
+                    <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
+                        <button 
+                            onClick={onClose}
+                            className="px-6 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                        >
+                            Cancel
+                        </button>
                         
-                        <div className="flex justify-center">
-                             <div className="bg-slate-100 dark:bg-slate-700 p-1 rounded-full flex shadow-inner">
-                                <button 
-                                    onClick={() => setMode('scroll')}
-                                    className={`px-3 md:px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center justify-center ${mode === 'scroll' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary dark:text-white' : 'text-slate-400'}`}
-                                >
-                                    <span className="md:hidden"><Move size={18} /></span>
-                                    <span className="hidden md:inline">Scroll</span>
-                                </button>
-                                <button 
-                                    onClick={() => setMode('ink')}
-                                    className={`px-3 md:px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center justify-center ${mode === 'ink' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary dark:text-white' : 'text-slate-400'}`}
-                                >
-                                    <span className="md:hidden"><PenTool size={18} /></span>
-                                    <span className="hidden md:inline">Ink</span>
-                                </button>
-                                <button 
-                                    onClick={() => setMode('erase')}
-                                    className={`px-3 md:px-4 py-2 rounded-full text-sm font-bold transition-all flex items-center justify-center ${mode === 'erase' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary dark:text-white' : 'text-slate-400'}`}
-                                >
-                                    <span className="md:hidden"><Eraser size={18} /></span>
-                                    <span className="hidden md:inline">Erase</span>
-                                </button>
-                             </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+                           <span className="hidden sm:inline">2 Fingers to Scroll • Pen to Ink • 1 Finger to Erase</span>
                         </div>
 
-                        <div className="flex justify-end">
-                            <button 
-                                onClick={handleSave}
-                                className="px-6 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-                            >
-                                <span className="md:hidden"><Check size={20} /></span>
-                                <span className="hidden md:inline">Save</span>
-                            </button>
-                        </div>
+                        <button 
+                            onClick={handleSave}
+                            className="px-6 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                        >
+                            Save
+                        </button>
                     </div>
                 </div>
             )}
         </div>, document.body
     );
 };
+
+const EmailOptionsModal = ({ onClose }: { onClose: () => void }) => createPortal(
+    <div 
+        className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+        onClick={onClose}
+    >
+        <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl w-full max-w-sm p-6 animate-dialog-enter border border-slate-100 dark:border-slate-700"
+        >
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 text-center">Share Documents</h3>
+            <div className="space-y-3">
+                <button 
+                    onClick={() => { /* Email All */ onClose(); }}
+                    className="w-full py-4 rounded-2xl font-bold text-white bg-primary hover:bg-primary/90 flex items-center justify-center gap-2"
+                >
+                    <Mail size={20} />
+                    Email All Docs
+                </button>
+                <button 
+                    onClick={() => { /* Email Report */ onClose(); }}
+                    className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"
+                >
+                    <FileText size={20} />
+                    Email Report Only
+                </button>
+                <button 
+                     onClick={() => { /* Email Sign Off */ onClose(); }}
+                     className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"
+                 >
+                    <PenTool size={20} />
+                    Email Sign Off Only
+                </button>
+            </div>
+            <button 
+                onClick={onClose}
+                className="w-full mt-6 py-3 rounded-full font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+                Cancel
+            </button>
+        </div>
+    </div>,
+    document.body
+);
 
 // [Dashboard Component]
 export const Dashboard = React.memo<DashboardProps>(({ 
@@ -1040,6 +1239,7 @@ export const Dashboard = React.memo<DashboardProps>(({
   isExiting = false,
   onDelete
 }) => {
+    // ... [No changes needed in Dashboard main component logic for this request]
     const [shouldInitialExpand] = useState(initialExpand);
 
     const [isManageLocationsOpen, setIsManageLocationsOpen] = useState(false);
@@ -1052,11 +1252,12 @@ export const Dashboard = React.memo<DashboardProps>(({
     const [locationSearch, setLocationSearch] = useState("");
     const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
     const [isEmailOptionsOpen, setIsEmailOptionsOpen] = useState(false);
+    const [isAllItemsOpen, setIsAllItemsOpen] = useState(false);
 
     useEffect(() => {
-        const anyModalOpen = isManageLocationsOpen || showReportPreview || showSignOff || showGlobalAddIssue || isEditClientInfoOpen || isEmailOptionsOpen;
+        const anyModalOpen = isManageLocationsOpen || showReportPreview || showSignOff || showGlobalAddIssue || isEditClientInfoOpen || isEmailOptionsOpen || isAllItemsOpen;
         onModalStateChange(anyModalOpen);
-    }, [isManageLocationsOpen, showReportPreview, showSignOff, showGlobalAddIssue, isEditClientInfoOpen, isEmailOptionsOpen, onModalStateChange]);
+    }, [isManageLocationsOpen, showReportPreview, showSignOff, showGlobalAddIssue, isEditClientInfoOpen, isEmailOptionsOpen, isAllItemsOpen, onModalStateChange]);
 
     const [isDetailsCollapsed, setIsDetailsCollapsed] = useState(false);
     const [isLocationsCollapsed, setIsLocationsCollapsed] = useState(false);
@@ -1104,54 +1305,6 @@ export const Dashboard = React.memo<DashboardProps>(({
             onUpdateProject({ ...project, fields: newFields });
         }
     };
-
-    const handleEmailAll = async () => { /* ... */ };
-    const handleEmailPunchList = async () => { /* ... */ };
-    const handleEmailSignOff = async () => { /* ... */ };
-    
-    const EmailOptionsModal = ({ onClose }: { onClose: () => void }) => createPortal(
-        <div 
-            className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
-            onClick={onClose}
-        >
-            <div 
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl w-full max-w-sm p-6 animate-dialog-enter border border-slate-100 dark:border-slate-700"
-            >
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 text-center">Share Documents</h3>
-                <div className="space-y-3">
-                    <button 
-                        onClick={() => { handleEmailAll(); onClose(); }}
-                        className="w-full py-4 rounded-2xl font-bold text-white bg-primary hover:bg-primary/90 flex items-center justify-center gap-2"
-                    >
-                        <Mail size={20} />
-                        Email All Docs
-                    </button>
-                    <button 
-                        onClick={() => { handleEmailPunchList(); onClose(); }}
-                        className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"
-                    >
-                        <FileText size={20} />
-                        Email Report Only
-                    </button>
-                    <button 
-                         onClick={() => { handleEmailSignOff(); onClose(); }}
-                         className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"
-                     >
-                        <PenTool size={20} />
-                        Email Sign Off Only
-                    </button>
-                </div>
-                <button 
-                    onClick={onClose}
-                    className="w-full mt-6 py-3 rounded-full font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                >
-                    Cancel
-                </button>
-            </div>
-        </div>,
-        document.body
-    );
 
     const hasPunchList = !!project.reportPreviewImage;
     const hasSignOff = !!project.signOffImage;
@@ -1349,6 +1502,16 @@ export const Dashboard = React.memo<DashboardProps>(({
                                 </div>
                             )}
                         </div>
+
+                         <div className="mt-8 flex justify-center pb-2">
+                             <button 
+                                onClick={() => setIsAllItemsOpen(true)}
+                                className="px-12 bg-white/10 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-full font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center justify-center gap-2 active:scale-[0.99] backdrop-blur-sm"
+                            >
+                                <Layers size={18} />
+                                View All Items
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1411,6 +1574,14 @@ export const Dashboard = React.memo<DashboardProps>(({
                     onUpdateProject={onUpdateProject}
                     templates={signOffTemplates}
                     onUpdateTemplates={onUpdateTemplates}
+                />
+            )}
+
+            {isAllItemsOpen && (
+                <AllItemsModal 
+                    locations={locations}
+                    onUpdate={onUpdateLocations}
+                    onClose={() => setIsAllItemsOpen(false)}
                 />
             )}
         </div>
