@@ -1,3 +1,6 @@
+
+
+
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
@@ -390,9 +393,9 @@ const PDFCanvasPreview = ({
                                                 height: `${(box.h / PDF_H) * 100}%`,
                                                 pointerEvents: 'none'
                                             }}
-                                            className="text-green-600/80 opacity-90"
+                                            className="text-green-400 opacity-90" // Matched to PDF color
                                         >
-                                            <Check strokeWidth={6} className="w-full h-full" />
+                                            <Check strokeWidth={4} className="w-full h-full" />
                                         </div>
                                         {/* Strikethrough Overlay */}
                                         {box.strikethroughLines?.map((line, idx) => (
@@ -429,7 +432,7 @@ const PDFCanvasPreview = ({
                                         }}
                                         className="text-red-600 flex items-center justify-center"
                                     >
-                                        <X strokeWidth={4} className="w-full h-full" />
+                                        <X strokeWidth={3} className="w-full h-full" />
                                     </div>
                                 );
                             })}
@@ -866,6 +869,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
     const handlePointerDown = (e: React.PointerEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         
         const canvas = canvasRef.current;
         if (canvas) canvas.setPointerCapture(e.pointerId);
@@ -918,6 +922,8 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
     const handlePointerMove = (e: React.PointerEvent) => {
         e.preventDefault();
+        e.stopPropagation();
+        
         activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
         const ctx = canvasRef.current?.getContext('2d');
@@ -958,7 +964,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                  ctx.strokeStyle = 'black';
                  ctx.globalCompositeOperation = 'source-over';
             } else if (currentTool.current === 'erase') {
-                 ctx.lineWidth = 30;
+                 ctx.lineWidth = 40; // Increased for better usability
                  ctx.strokeStyle = 'rgba(0,0,0,1)'; 
                  ctx.globalCompositeOperation = 'destination-out';
             }
@@ -1029,7 +1035,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                         }
                         
                         if (type === 'erase') {
-                             ctx.lineWidth = 30;
+                             ctx.lineWidth = 40;
                              ctx.globalCompositeOperation = 'destination-out';
                         } else {
                              ctx.lineWidth = 2;
@@ -1118,8 +1124,8 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                     */}
                     <div 
                         ref={overlayRef} 
-                        style={{ overflow: 'hidden', touchAction: 'none' }} 
-                        className="flex-1 bg-slate-200 dark:bg-slate-950 relative"
+                        style={{ overflow: 'hidden' }} 
+                        className="flex-1 bg-slate-200 dark:bg-slate-950 relative touch-none"
                     >
                          {pdfUrl ? (
                             <div className="relative min-h-full">
@@ -1131,14 +1137,15 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                                         top: 0,
                                         left: 0,
                                         zIndex: 50,
-                                        cursor: 'crosshair',
-                                        touchAction: 'none' 
+                                        cursor: 'crosshair'
                                     }}
+                                    className="touch-none"
                                     onPointerDown={handlePointerDown} 
                                     onPointerMove={handlePointerMove} 
                                     onPointerUp={handlePointerUp} 
                                     onPointerCancel={handlePointerUp}
                                     onPointerLeave={handlePointerUp}
+                                    onPointerOut={handlePointerUp}
                                 />
                             </div>
                          ) : (

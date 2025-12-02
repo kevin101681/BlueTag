@@ -1,5 +1,6 @@
 
 
+
 import { jsPDF } from 'jspdf';
 import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 
@@ -159,7 +160,9 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
     } else if (t === 'check-mark-thick') {
         // Muted Green: #4ade80 [74, 222, 128]
         doc.setDrawColor(74, 222, 128); 
-        doc.setLineWidth(3); // Thicker line as requested
+        doc.setLineWidth(1.5); // Thinner line as requested (1.5)
+        doc.setLineCap('round');
+        doc.setLineJoin('round');
         doc.moveTo(x + s*0.15, y + s*0.55);
         doc.lineTo(x + s*0.4, y + s*0.8);
         doc.lineTo(x + s*0.9, y + s*0.2);
@@ -779,7 +782,7 @@ export const generatePDFWithMetadata = async (
 
   const cardEndY = drawProjectCard(doc, project, 35);
   
-  const disclaimerY = cardEndY + 12; 
+  const disclaimerY = cardEndY + 4; 
   const splitDisclaimer = doc.splitTextToSize(REPORT_DISCLAIMER, 170); 
   const disclaimerHeight = splitDisclaimer.length * 4; 
   
@@ -1004,9 +1007,14 @@ export const generatePDFWithMetadata = async (
                           doc.saveGraphicsState();
                           // Solid Red-600
                           doc.setDrawColor(220, 38, 38);
-                          doc.setLineWidth(3); 
-                          doc.line(px, py, px + photoSize, py + photoSize);
-                          doc.line(px + photoSize, py, px, py + photoSize);
+                          doc.setLineWidth(2); // Reduced width (2) for "not quite as fat"
+                          doc.setLineCap('round'); // Round caps
+                          doc.setLineJoin('round');
+                          
+                          // Add padding so it doesn't touch corners (20% padding)
+                          const padding = photoSize * 0.2; 
+                          doc.line(px + padding, py + padding, px + photoSize - padding, py + photoSize - padding);
+                          doc.line(px + photoSize - padding, py + padding, px + padding, py + photoSize - padding);
                           doc.restoreGraphicsState();
                       }
                   } catch (e) {}
