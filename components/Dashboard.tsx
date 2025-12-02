@@ -829,7 +829,8 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     const canvasRef = useRef<HTMLCanvasElement>(null);
     
     // Gesture State Refs
-    const activePointers = useRef<Map<number, {x: number, y: number}>>(new Map());
+    // Track pointer ID -> {x, y, type}
+    const activePointers = useRef<Map<number, {x: number, y: number, type: string}>>(new Map());
     const currentTool = useRef<'ink' | 'erase' | null>(null);
     const isPanning = useRef(false);
     const lastPanPoint = useRef<{x: number, y: number} | null>(null);
@@ -874,13 +875,28 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         const canvas = canvasRef.current;
         if (canvas) canvas.setPointerCapture(e.pointerId);
         
-        activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        // --- Exclusivity Logic & Ghost Pointer Cleanup ---
+        if (e.pointerType === 'pen') {
+            // Pen takes priority. Clear any existing pointers (fingers, ghosts).
+            // This prevents "stuck" fingers from interfering with pen or vice versa.
+            activePointers.current.clear();
+        } else if (e.pointerType === 'touch') {
+            // If we have a 'pen' pointer stuck, remove it. Pen should have cleared itself or been exclusive.
+            // Loop through and delete non-touch types.
+            for (const [id, data] of activePointers.current.entries()) {
+                if (data.type !== 'touch') {
+                    activePointers.current.delete(id);
+                }
+            }
+        }
+
+        activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
         
         // --- Input Logic ---
         
         // 1. Stylus or Mouse (Ink)
         if (e.pointerType === 'pen' || e.pointerType === 'mouse') {
-            if (activePointers.current.size > 1) return; // Ignore if other touches active
+            if (activePointers.current.size > 1) return; // Should be handled by clear above, but safe check.
             currentTool.current = 'ink';
             isDrawing.current = true;
             const p = getPoint(e);
@@ -924,12 +940,20 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         e.preventDefault();
         e.stopPropagation();
         
-        activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        // Preserve type when updating
+        const existing = activePointers.current.get(e.pointerId);
+        if (existing) {
+             activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: existing.type });
+        } else {
+             // Fallback if not tracked? Should not happen if captured.
+             activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
+        }
 
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
 
         // --- Panning Logic (2 Fingers) ---
+        // Ensure strictly 2 touch points for pan
         if (isPanning.current && activePointers.current.size === 2) {
              const points = Array.from(activePointers.current.values()) as {x: number, y: number}[];
              
@@ -950,9 +974,6 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
         // --- Drawing Logic ---
         if (isDrawing.current && currentTool.current) {
-            // Only continue drawing if this pointer matches the tool type or is the primary one
-            // Simple check: if we are erasing (touch) or inking (pen)
-            
             const p = getPoint(e);
             currentStroke.current.push(p);
             
@@ -964,7 +985,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                  ctx.strokeStyle = 'black';
                  ctx.globalCompositeOperation = 'source-over';
             } else if (currentTool.current === 'erase') {
-                 ctx.lineWidth = 40; // Increased for better usability
+                 ctx.lineWidth = 40; 
                  ctx.strokeStyle = 'rgba(0,0,0,1)'; 
                  ctx.globalCompositeOperation = 'destination-out';
             }
@@ -978,7 +999,6 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                 ctx.stroke();
             }
             
-            // Reset composite operation
             ctx.globalCompositeOperation = 'source-over';
         }
     };
@@ -991,6 +1011,8 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         }
 
         if (isDrawing.current) {
+            // Only stop drawing if the lifting pointer was likely the one drawing or we fell below threshold
+            // Simplified: Stop drawing anytime a pointer lifts to avoid stuck states.
             endCurrentStroke(e);
         }
         
@@ -1137,15 +1159,15 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                                         top: 0,
                                         left: 0,
                                         zIndex: 50,
-                                        cursor: 'crosshair'
+                                        cursor: 'crosshair',
+                                        touchAction: 'none' // Explicit CSS touch-action
                                     }}
                                     className="touch-none"
                                     onPointerDown={handlePointerDown} 
                                     onPointerMove={handlePointerMove} 
                                     onPointerUp={handlePointerUp} 
                                     onPointerCancel={handlePointerUp}
-                                    onPointerLeave={handlePointerUp}
-                                    onPointerOut={handlePointerUp}
+                                    onLostPointerCapture={handlePointerUp}
                                 />
                             </div>
                          ) : (
