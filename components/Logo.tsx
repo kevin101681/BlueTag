@@ -11,11 +11,11 @@ interface LogoProps {
 export const BlueTagLogo: React.FC<LogoProps> = ({ size = 'md', className = '', style }) => {
   // Dimension Configuration
   const config = {
-    sm: { w: 40, h: 40, p: 2, r: 'rounded-lg' },
-    md: { w: 54, h: 54, p: 3, r: 'rounded-2xl' }, // Resized to match buttons
-    header: { w: 96, h: 96, p: 4, r: 'rounded-3xl' },
-    lg: { w: 100, h: 100, p: 5, r: 'rounded-3xl' },
-    xl: { w: 160, h: 160, p: 8, r: 'rounded-[32px]' }
+    sm: { w: 40, h: 40, p: 8, r: 'rounded-lg' },
+    md: { w: 54, h: 54, p: 12, r: 'rounded-2xl' }, 
+    header: { w: 96, h: 96, p: 20, r: 'rounded-3xl' },
+    lg: { w: 100, h: 100, p: 24, r: 'rounded-3xl' },
+    xl: { w: 160, h: 160, p: 40, r: 'rounded-[32px]' }
   }[size];
 
   // We set width/height on the container div, allowing override via className/style.
@@ -31,16 +31,15 @@ export const BlueTagLogo: React.FC<LogoProps> = ({ size = 'md', className = '', 
             ...style 
         }}
     >
-      <img 
-        src="/dark.png" 
-        alt="BlueTag" 
-        className="w-full h-full object-contain block dark:hidden" 
-      />
-      <img 
-        src="/light.png" 
-        alt="BlueTag" 
-        className="w-full h-full object-contain hidden dark:block" 
-      />
+      <svg 
+        viewBox="0 0 24 24" 
+        fill="currentColor" 
+        className="w-full h-full text-primary"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+        <circle cx="7" cy="7" r="2" fill="white" />
+      </svg>
     </div>
   );
 };
