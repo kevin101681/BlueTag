@@ -1,5 +1,5 @@
 {
-  "name": "BlueTag",
+  "name": "BlueTag CBS",
   "description": "A professional construction defect tracking tool powered by Gemini AI. Create location-based punch lists, analyze defects with AI vision, and export comprehensive PDF reports.",
   "requestFramePermissions": [
     "camera"
