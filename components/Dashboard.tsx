@@ -1,11 +1,9 @@
 
-
-
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
 import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
-import { AddIssueForm } from './LocationDetail';
+import { AddIssueForm, LocationDetail } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
 import { createPortal } from 'react-dom';
 
@@ -393,7 +391,7 @@ const PDFCanvasPreview = ({
                                                 height: `${(box.h / PDF_H) * 100}%`,
                                                 pointerEvents: 'none'
                                             }}
-                                            className="text-green-400 opacity-90" // Matched to PDF color
+                                            className="text-green-400 opacity-90"
                                         >
                                             <Check strokeWidth={4} className="w-full h-full" />
                                         </div>
@@ -406,8 +404,8 @@ const PDFCanvasPreview = ({
                                                     left: `${(line.x / PDF_W) * 100}%`,
                                                     top: `${(line.y / PDF_H) * 100}%`, 
                                                     width: `${(line.w / PDF_W) * 100}%`,
-                                                    height: '2px', // Approx 0.3mm (lineWidth in PDF) to pixels
-                                                    backgroundColor: 'rgba(50, 50, 50, 0.8)', // Dark Gray
+                                                    height: '2px', 
+                                                    backgroundColor: 'rgba(50, 50, 50, 0.8)',
                                                     transform: 'translateY(-50%)',
                                                     pointerEvents: 'none'
                                                 }}
@@ -471,7 +469,7 @@ const DetailInput = ({ field, onChange }: { field: ProjectField, onChange: (val:
     };
     
     return (
-        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl px-4 py-3 border border-slate-100 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary/50 transition-all shadow-sm flex items-center gap-3 h-[60px] relative z-10">
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl px-4 py-3 border border-slate-100 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary/50 transition-all shadow-sm flex items-center justify-between gap-3 h-[60px] relative z-10">
             <Icon size={20} className="text-slate-400 shrink-0" />
             <input 
                 type="text"
@@ -578,13 +576,11 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
     return createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-white dark:bg-slate-800 w-full max-w-2xl h-[85vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0 z-20">
+                {/* Header with Title Centered and No X Button */}
+                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0 z-20">
                     <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
                         <h3 className="font-bold text-slate-800 dark:text-white">All Items ({totalItems})</h3>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors">
-                        <X size={20} />
-                    </button>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
@@ -593,10 +589,13 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                             if (loc.issues.length === 0) return null;
                             return (
                                 <div key={loc.id} className="relative">
-                                    <div className="sticky top-0 z-10 px-4 py-3 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-700">
-                                        <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">{loc.name}</h4>
+                                    {/* Clean Pill Header */}
+                                    <div className="sticky top-0 z-10 py-3 flex justify-center pointer-events-none">
+                                        <div className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 px-4 py-1.5 rounded-full shadow-sm pointer-events-auto">
+                                             <h4 className="font-bold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide">{loc.name}</h4>
+                                        </div>
                                     </div>
-                                    <div className="space-y-3 px-4 py-3">
+                                    <div className="space-y-3 px-4 pb-3">
                                         {loc.issues.map(issue => (
                                             <div key={issue.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                                                 <textarea 
@@ -623,10 +622,16 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20">
+                <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20 flex justify-center gap-3">
+                    <button 
+                        onClick={onClose}
+                        className="px-8 py-2.5 rounded-full font-bold text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    >
+                        Cancel
+                    </button>
                     <button 
                         onClick={handleSave}
-                        className="w-full py-3.5 rounded-[20px] font-bold text-white bg-primary hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                        className="px-8 py-2.5 rounded-full font-bold text-sm text-white bg-primary hover:bg-primary/90 transition-colors shadow-lg shadow-primary/30"
                     >
                         Save Changes
                     </button>
@@ -1268,7 +1273,6 @@ export const Dashboard = React.memo<DashboardProps>(({
   isExiting = false,
   onDelete
 }) => {
-    // ... [No changes needed in Dashboard main component logic for this request]
     const [shouldInitialExpand] = useState(initialExpand);
 
     const [isManageLocationsOpen, setIsManageLocationsOpen] = useState(false);
@@ -1334,10 +1338,23 @@ export const Dashboard = React.memo<DashboardProps>(({
             onUpdateProject({ ...project, fields: newFields });
         }
     };
+    
+    const handleUpdateLocationIssues = (updatedIssues: Issue[], locationId: string) => {
+        onUpdateLocations(locations.map(l => 
+            l.id === locationId ? { ...l, issues: updatedIssues } : l
+        ));
+    };
 
     const hasPunchList = !!project.reportPreviewImage;
     const hasSignOff = !!project.signOffImage;
     const hasDocs = hasPunchList || hasSignOff;
+    
+    // Find active location object if selected
+    // Note: activeLocationId is handled by parent App.tsx, but Dashboard receives onSelectLocation prop.
+    // Dashboard doesn't own "activeLocationId" state directly in typical structure but App passes it down via props
+    // Wait, Dashboard is rendered by ReportList wrapper or App. 
+    // App.tsx handles the location modal rendering. 
+    // Dashboard just renders the cards.
     
     return (
         <div 

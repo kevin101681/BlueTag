@@ -471,6 +471,15 @@ export default function App() {
       setActiveLocationId(id);
       window.history.pushState({ reportId: activeReportId, locationId: id }, '', '');
   };
+  
+  const handleUpdateLocation = (issues: Issue[]) => {
+      if (activeLocationId) {
+          setLocations(prev => prev.map(l => 
+              l.id === activeLocationId ? { ...l, issues } : l
+          ));
+          // Don't close modal here, let LocationDetail call onBack or have LocationDetail call this on Save
+      }
+  };
 
   const handleConfirmDeleteReport = async () => {
       if (!reportToDelete) return;
@@ -539,36 +548,6 @@ export default function App() {
       });
   };
 
-  const handleAddIssue = (issue: Issue) => {
-      if (!activeLocationId) return;
-      setLocations(prev => prev.map(l => {
-          if (l.id === activeLocationId) {
-              return { ...l, issues: [...l.issues, issue] };
-          }
-          return l;
-      }));
-  };
-
-  const handleUpdateIssue = (issue: Issue) => {
-      if (!activeLocationId) return;
-      setLocations(prev => prev.map(l => {
-          if (l.id === activeLocationId) {
-              return { ...l, issues: l.issues.map(i => i.id === issue.id ? issue : i) };
-          }
-          return l;
-      }));
-  };
-
-  const handleDeleteIssue = (issueId: string) => {
-      if (!activeLocationId) return;
-      setLocations(prev => prev.map(l => {
-          if (l.id === activeLocationId) {
-              return { ...l, issues: l.issues.filter(i => i.id !== issueId) };
-          }
-          return l;
-      }));
-  };
-
   return (
     <div className="w-full h-full min-h-screen overflow-hidden bg-slate-200 dark:bg-slate-950 relative">
       {showSplash && (
@@ -622,9 +601,7 @@ export default function App() {
                         setActiveLocationId(null);
                         window.history.back();
                     }}
-                    onAddIssue={handleAddIssue}
-                    onUpdateIssue={handleUpdateIssue}
-                    onDeleteIssue={handleDeleteIssue}
+                    onUpdateLocation={handleUpdateLocation}
                 />
             )}
             

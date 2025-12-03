@@ -1,6 +1,4 @@
 
-
-
 import { jsPDF } from 'jspdf';
 import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 
@@ -105,10 +103,8 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
     const cx = x + s/2;
     const cy = y + s/2;
     
-    // Normalize icon type to lower case for comparison
     const t = type.toLowerCase();
 
-    // Map common lucide names to internal drawing logic
     if (t === 'user' || t === 'users') {
         doc.circle(cx, y + s*0.3, s*0.2, 'S'); 
         doc.path([
@@ -158,9 +154,8 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
         doc.lineTo(x + s*0.9, y + s*0.2);
         doc.stroke();
     } else if (t === 'check-mark-thick') {
-        // Muted Green: #4ade80 [74, 222, 128]
         doc.setDrawColor(74, 222, 128); 
-        doc.setLineWidth(1.5); // Thinner line as requested (1.5)
+        doc.setLineWidth(1.5); 
         doc.setLineCap('round');
         doc.setLineJoin('round');
         doc.moveTo(x + s*0.15, y + s*0.55);
@@ -174,7 +169,6 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
         doc.rect(x + s*0.1, y, s*0.8, s, 'S');
         doc.stroke();
     } else if (t === 'pen') {
-        // Diagonal Pen (Standard Pen)
         const tipLen = s * 0.25;
         doc.moveTo(x, y + s); 
         doc.lineTo(x + tipLen, y + s - tipLen);
@@ -193,7 +187,6 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
          doc.roundedRect(x, y + 1.5, 3.5, 2.5, 0.6, 0.6, 'S');
          doc.roundedRect(x + 2, y + 0.5, 3.5, 2.5, 0.6, 0.6, 'S');
     } else if (t === 'pen-tip' || t === 'pentool') {
-         // Fountain Pen Tip (Nib) - Matching Lucide 'PenTool'
          doc.moveTo(cx - s*0.35, y); 
          doc.lineTo(cx + s*0.35, y); 
          doc.curveTo(cx + s*0.35, y + s*0.4, cx + s*0.15, y + s*0.8, cx, y + s); 
@@ -205,20 +198,16 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
          doc.line(cx, cy + s*0.25, cx, cy + s*0.25);
     } else if (t === 'number') {
          const rn = s / 2; 
-         // Use custom color if provided, otherwise default blue
          const c = customColor || [14, 165, 233];
          doc.setFillColor(c[0], c[1], c[2]); 
          doc.circle(x + rn, y + rn, rn, 'F');
          
-         // Use custom text color if provided, otherwise white
          const tc = textColor || [255, 255, 255];
          doc.setTextColor(tc[0], tc[1], tc[2]);
          doc.setFontSize(8);
          doc.setFont("helvetica", "bold");
-         // No vertical offset, allowing proper centering by caller or defaults
          doc.text(numberValue || "", x + rn, y + rn + 1.1, { align: 'center' });
     } else {
-        // Default Circle
         doc.circle(cx, cy, s*0.4, 'S');
     }
     
@@ -354,17 +343,15 @@ const drawCardHeader = (doc: jsPDF, y: number, title: string, cardHeight: number
 };
 
 const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): number => {
-    // Custom handling for "Sign Off" section
     if (section.title === "Sign Off") {
-        // Calculate height for custom Sign Off layout
         const headerH = TITLE_HEIGHT;
         const initialSpacing = 16;
-        const text1H = 8; // "The following..."
-        const text2H = 12; // "MY SIGNATURE..." (all caps, likely multi-line or distinct)
+        const text1H = 8; 
+        const text2H = 12; 
         const sigRow1H = 10;
-        const text3H = 8; // "Item numbers..."
+        const text3H = 8; 
         const boxH = 18;
-        const text4H = 8; // "All items..."
+        const text4H = 8; 
         const sigRow2H = 10;
         const gaps = 30;
         
@@ -386,18 +373,15 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         doc.setTextColor(51, 65, 85);
         doc.setFont("helvetica", "normal");
         
-        // 1. "The following..."
         doc.text("The following is to be signed at the \"rewalk\" (typically the date of closing)", leftX, currentY);
         currentY += 8;
 
-        // 2. "MY SIGNATURE..."
         doc.setFont("helvetica", "bold");
         const disclaimer = "MY SIGNATURE CERTIFIES THE ACCEPTABLE COMPLETION OF ALL ITEMS LISTED ON THE BUILDER’S NEW HOME COMPLETION LIST:";
         const splitDisclaimer = doc.splitTextToSize(disclaimer, width);
         doc.text(splitDisclaimer, leftX, currentY);
         currentY += (splitDisclaimer.length * 5) + 6;
 
-        // 3. Signature Row 1
         doc.setFont("helvetica", "normal");
         doc.text("Homebuyer", leftX, currentY + 5);
         const sigBoxX = leftX + 22;
@@ -412,19 +396,15 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
         currentY += sigBoxH + 8;
 
-        // 4. "Item numbers..."
         doc.text("Item numbers not complete on the date of acceptance/closing:", leftX, currentY);
         currentY += 6;
 
-        // 5. Big Box
         drawModernBox(doc, leftX, currentY, width, 18, 'initial');
         currentY += 18 + 6;
 
-        // 6. "All items..."
         doc.text("All items on the builder's new home completion list have been completed.", leftX, currentY);
         currentY += 8;
 
-        // 7. Signature Row 2
         doc.text("Homebuyer", leftX, currentY + 5);
         drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
         doc.text("Date", dateLabelX, currentY + 5);
@@ -433,7 +413,6 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         return startY + cardHeight;
     }
 
-    // Default Section Handling
     const isSignatureType = section.type === 'signature' || 
                            /acknowledg(e)?ment/i.test(section.title) ||
                            /sign\s?off/i.test(section.title) ||
@@ -514,8 +493,6 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
 
             const iconSize = 7;
             const centerY = boxY + (item.height / 2);
-            
-            // Adjust Icon Vertical Center
             const iconY = centerY - (iconSize / 2); 
             
             drawSimpleIcon(doc, 'number', boxX + 4, iconY, iconSize, lineCounter.toString(), [207, 216, 220], [51, 65, 85]);
@@ -530,11 +507,6 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         const textX = boxX + leftMargin + (item.type === 'initials' ? 4 : 0);
         
         if (section.title === "Warranty Procedures") {
-            // Manually render lines to ensure perfect vertical centering within the box
-            // The box height is calculated as: lines.length * 5.5 + 4
-            // We draw lines with 5.5 spacing.
-            // Start Y is calculated to center the block visually.
-            // boxY + 7 provides an approx 3mm top padding to cap height, balancing the 4mm padding allocated.
             const startTextY = boxY + 7;
             const lineHeight = 5.5;
             
@@ -581,17 +553,11 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
 };
 
 const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], containerWidth: number, pageHeight?: number, gapHeight?: number) => {
-    // PDF Specs
     const pdfW = 210;
-    // Scale factor: Convert screen pixels (containerWidth) to PDF mm
     const scale = pdfW / containerWidth;
-
-    // Screen Page Height mapping
-    // If pageHeight provided (measured from DOM), use it. Otherwise approximate using A4 ratio.
     const screenPageH = pageHeight || (containerWidth * (297 / 210));
-    const screenGap = gapHeight !== undefined ? gapHeight : 16; // Default to 16px if not provided (Tailwind mb-4)
+    const screenGap = gapHeight !== undefined ? gapHeight : 16; 
     const pageTotalH = screenPageH + screenGap;
-
     const totalPages = doc.getNumberOfPages();
 
     strokes.forEach(stroke => {
@@ -600,50 +566,40 @@ const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], cont
         
         if (points.length < 2) return;
 
-        // Draw segment by segment to handle page breaks
         for (let i = 0; i < points.length - 1; i++) {
             const p1 = points[i];
             const p2 = points[i+1];
 
-            // Determine which page p1 belongs to
             const pageIndex1 = Math.floor(p1.y / pageTotalH);
             const pageIndex2 = Math.floor(p2.y / pageTotalH); 
             
-            // Skip segments that cross the gap between pages
             if (pageIndex1 !== pageIndex2) continue;
 
             const relY1 = p1.y % pageTotalH;
 
-            // If the point falls in the gap between pages, skip
             if (relY1 > screenPageH) continue;
 
             const targetPage = pageIndex1 + 1;
-
-            // Ensure the page exists
             if (targetPage > totalPages) continue;
 
-            // Switch page context if needed
             if (doc.getCurrentPageInfo().pageNumber !== targetPage) {
                  doc.setPage(targetPage);
             }
             
-            // Apply style for every segment/page-switch to ensure it persists across page changes
             doc.setLineCap('round');
             doc.setLineJoin('round');
 
             if (type === 'erase') {
                 doc.setDrawColor(255, 255, 255);
-                doc.setLineWidth(6); // Thicker line for eraser
+                doc.setLineWidth(6); 
             } else {
                 doc.setDrawColor(0, 0, 0);
-                doc.setLineWidth(0.5); // Thin line for ink
+                doc.setLineWidth(0.5); 
             }
 
-            // Convert to PDF coordinates
             const x1 = p1.x * scale;
             const y1 = relY1 * scale;
             const x2 = p2.x * scale;
-            
             const relY2 = p2.y % pageTotalH;
             const y2 = relY2 * scale;
 
@@ -715,7 +671,6 @@ export const generateSignOffPDF = async (
         }
     }
 
-    // Draw Strokes if provided
     if (strokes && containerWidth && strokes.length > 0) {
         drawStrokesOnPDF(doc, strokes, containerWidth, pageHeight, gapHeight);
     }
@@ -782,19 +737,27 @@ export const generatePDFWithMetadata = async (
 
   const cardEndY = drawProjectCard(doc, project, 35);
   
-  const disclaimerY = cardEndY + 4; 
+  // Increased gap between card and disclaimer
+  const disclaimerY = cardEndY + 12; 
   const splitDisclaimer = doc.splitTextToSize(REPORT_DISCLAIMER, 170); 
-  const disclaimerHeight = splitDisclaimer.length * 4; 
   
-  // Draw Background for Disclaimer
-  doc.setFillColor(241, 245, 249); // Slate-100
-  doc.setDrawColor(226, 232, 240); // Slate-200
-  // Even padding of 6 units on all sides
-  doc.roundedRect(14, disclaimerY - 4, 182, disclaimerHeight + 4, 3, 3, 'FD');
+  // Adjusted height calculation for better vertical centering
+  const lineHeight = 4;
+  const textBlockHeight = splitDisclaimer.length * lineHeight;
+  const verticalPadding = 6;
+  const disclaimerHeight = textBlockHeight + (verticalPadding * 2);
+  
+  doc.setFillColor(241, 245, 249); 
+  doc.setDrawColor(226, 232, 240); 
+  doc.roundedRect(14, disclaimerY, 182, disclaimerHeight, 3, 3, 'FD');
 
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139); 
-  doc.text(splitDisclaimer, 105, disclaimerY, { align: 'center' });
+  
+  // Center text vertically within the box
+  // disclaimerY is top of box. 
+  // Add verticalPadding + ascent offset (~3 for size 9)
+  doc.text(splitDisclaimer, 105, disclaimerY + verticalPadding + 3, { align: 'center' });
 
   let currentY = Math.max(disclaimerY + disclaimerHeight + 14, 115); 
   let issueCounter = 1;
@@ -852,7 +815,7 @@ export const generatePDFWithMetadata = async (
         const descriptionLines = doc.splitTextToSize(issue.description, 148);
         const textHeight = (Array.isArray(descriptionLines) ? descriptionLines.length : 1) * 4;
         
-        const photoSize = 40; // Increased size
+        const photoSize = 40; 
         const photoGap = 4;
         const descGap = 6; 
         
@@ -886,21 +849,21 @@ export const generatePDFWithMetadata = async (
         doc.setFillColor(255, 255, 255);
         doc.roundedRect(boxX, currentY + 1, boxSize, boxSize, 1, 1, 'FD');
         
-        // Calculate strikethrough lines for metadata (used for preview)
         const linesData: { x: number, y: number, w: number }[] = [];
-        const lineHeight = 4;
+        const lineSpacing = 4;
         const textStartX = 30;
         const textStartY = currentY + 4.0;
         
         if (Array.isArray(descriptionLines)) {
             descriptionLines.forEach((line, i) => {
                 const lw = doc.getTextWidth(line);
-                const lineY = textStartY + (i * lineHeight) - 1.2;
+                // Offset calculation: baseline (textStartY + i*spacing) - 1.0mm (move down slightly from 1.2)
+                const lineY = textStartY + (i * lineSpacing) - 1.0;
                 linesData.push({ x: textStartX, y: lineY, w: lw });
             });
         } else if (typeof descriptionLines === 'string') {
              const lw = doc.getTextWidth(descriptionLines);
-             const lineY = textStartY - 1.2;
+             const lineY = textStartY - 1.0;
              linesData.push({ x: textStartX, y: lineY, w: lw });
         }
 
@@ -914,7 +877,6 @@ export const generatePDFWithMetadata = async (
             strikethroughLines: linesData
         });
 
-        // Check if item is completed/marked
         const isChecked = marks && marks[issue.id]?.includes('check');
 
         if (isChecked) {
@@ -924,20 +886,21 @@ export const generatePDFWithMetadata = async (
         doc.setTextColor(38, 50, 56);
         doc.setFontSize(10);
         
-        // Use Number Icon instead of plain text, same style as Sign Off "Warranty Procedures"
-        // Icon center Y approx currentY + 4
         drawSimpleIcon(doc, 'number', boxX + 8, currentY + 1.25, 5.5, issueCounter.toString(), [207, 216, 220], [51, 65, 85]);
         
-        // Shift description to the right of the icon (boxX 14 + 8 = 22, + size 5.5 = 27.5. Start text at 30)
-        // Align text vertically with the icon center (currentY + 4) -> Text Y at currentY + 4.0
-        doc.text(descriptionLines, 30, currentY + 4.0);
+        // Manual Text Drawing Loop to ensure strikethrough alignment matches text exactly
+        if (Array.isArray(descriptionLines)) {
+            descriptionLines.forEach((line, i) => {
+                doc.text(line, 30, textStartY + (i * lineSpacing));
+            });
+        } else {
+             doc.text(descriptionLines, 30, textStartY);
+        }
 
-        // Strike-through logic
         if (isChecked) {
             doc.saveGraphicsState();
-            doc.setDrawColor(50, 50, 50); // Dark Gray Strike
+            doc.setDrawColor(50, 50, 50); 
             doc.setLineWidth(0.3);
-            
             linesData.forEach(line => {
                 doc.line(line.x, line.y, line.x + line.w, line.y);
             });
@@ -955,19 +918,30 @@ export const generatePDFWithMetadata = async (
                       py += photoRowHeight + photoGap;
                   }
                   const photo = issue.photos[i];
-                  // Use unique ID for photo, fallback to index-based if missing (for legacy data)
                   const photoId = photo.id || `${issue.id}_img_${i}`;
                   
-                  // Render Photo with Rounded Corners and Number Label
                   try {
                       const format = getImageFormat(photo.url);
                       
-                      // 1. Draw Image with Rounded Clip
+                      // Explicit clipping path for rounded image
                       doc.saveGraphicsState();
-                      // Create rounded clipping path: Pass null for style to just add path without stroking
-                      doc.roundedRect(px, py, photoSize, photoSize, 3, 3, null);
-                      doc.clip();
+                      doc.roundedRect(px, py, photoSize, photoSize, 3, 3, null); // Add path
+                      doc.clip(); // Clip to path
                       doc.addImage(photo.url, format, px, py, photoSize, photoSize);
+                      doc.restoreGraphicsState();
+
+                      // Draw thicker white masking stroke to clean up square edges
+                      doc.saveGraphicsState();
+                      doc.setDrawColor(255, 255, 255); 
+                      doc.setLineWidth(3.0); 
+                      doc.roundedRect(px, py, photoSize, photoSize, 3, 3, 'S');
+                      doc.restoreGraphicsState();
+
+                      // Draw border stroke AFTER image to cover anti-aliasing artifacts
+                      doc.saveGraphicsState();
+                      doc.setDrawColor(226, 232, 240); 
+                      doc.setLineWidth(0.5); 
+                      doc.roundedRect(px, py, photoSize, photoSize, 3, 3, 'S');
                       doc.restoreGraphicsState();
 
                       imageMap.push({
@@ -976,11 +950,9 @@ export const generatePDFWithMetadata = async (
                           id: photoId
                       });
 
-                      // 2. Draw Number Label Overlay (e.g., "1.1")
                       const photoLabel = `${issueCounter}.${i + 1}`;
                       doc.saveGraphicsState();
-                      // Small pill background at top-left
-                      doc.setFillColor(51, 65, 85); // Slate-700
+                      doc.setFillColor(51, 65, 85); 
                       doc.roundedRect(px + 1, py + 1, 9, 5, 1.5, 1.5, 'F');
                       doc.setTextColor(255, 255, 255);
                       doc.setFontSize(8);
@@ -1002,22 +974,21 @@ export const generatePDFWithMetadata = async (
                           doc.setTextColor(38, 50, 56);
                       }
 
-                      // Render Solid Red X if marked
                       if (marks && marks[photoId]?.includes('x')) {
                           doc.saveGraphicsState();
-                          // Solid Red-600
                           doc.setDrawColor(220, 38, 38);
-                          doc.setLineWidth(2); // Reduced width (2) for "not quite as fat"
-                          doc.setLineCap('round'); // Round caps
+                          doc.setLineWidth(2);
+                          doc.setLineCap('round'); 
                           doc.setLineJoin('round');
                           
-                          // Add padding so it doesn't touch corners (20% padding)
                           const padding = photoSize * 0.2; 
                           doc.line(px + padding, py + padding, px + photoSize - padding, py + photoSize - padding);
                           doc.line(px + photoSize - padding, py + padding, px + padding, py + photoSize - padding);
                           doc.restoreGraphicsState();
                       }
-                  } catch (e) {}
+                  } catch (e) {
+                      console.warn("Failed to draw image", e);
+                  }
                   px += photoSize + photoGap;
              }
              nextY = py + photoRowHeight + 4;
