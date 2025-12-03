@@ -59,20 +59,25 @@ const SplashScreen = ({ onAnimationComplete, onRevealApp }: { onAnimationComplet
     const [animating, setAnimating] = useState(false);
     
     useEffect(() => {
-        // Start pause
+        // Start animation moves logo and fades splash background
         const timer1 = setTimeout(() => {
             setAnimating(true);
-            // Trigger app reveal slightly after animation starts so it's ready underneath
-            onRevealApp();
         }, 800);
 
-        // End animation (match duration)
+        // Reveal app content (header icons, list) AFTER logo has mostly arrived
+        // Standard animation is duration-1000, so 800 + 800 = 1600ms ensures it doesn't pop in early
+        const timerReveal = setTimeout(() => {
+            onRevealApp();
+        }, 1600);
+
+        // End splash component lifecycle
         const timer2 = setTimeout(() => {
             onAnimationComplete();
-        }, 2200); // Extended to ensure smooth transition completes
+        }, 2400); 
 
         return () => {
             clearTimeout(timer1);
+            clearTimeout(timerReveal);
             clearTimeout(timer2);
         };
     }, [onAnimationComplete, onRevealApp]);
@@ -80,7 +85,7 @@ const SplashScreen = ({ onAnimationComplete, onRevealApp }: { onAnimationComplet
     return (
         <div className={`fixed inset-0 z-[9999] bg-slate-200 dark:bg-slate-950 flex pointer-events-none transition-all duration-1000 ease-out ${animating ? 'bg-opacity-0' : 'bg-opacity-100'}`}>
             <div 
-                className="absolute transition-all duration-[1000ms] cubic-bezier(0.2, 0, 0, 1)"
+                className="absolute transition-all duration-1000 cubic-bezier(0.2, 0, 0, 1)"
                 style={{
                     top: animating ? '16px' : '50%',
                     left: animating ? '24px' : '50%', 
@@ -89,7 +94,7 @@ const SplashScreen = ({ onAnimationComplete, onRevealApp }: { onAnimationComplet
             >
                 <BlueTagLogo 
                     size='xl' 
-                    className={`transition-all duration-[1000ms] cubic-bezier(0.2, 0, 0, 1) ${
+                    className={`transition-all duration-1000 cubic-bezier(0.2, 0, 0, 1) ${
                         animating 
                         ? '!w-[54px] !h-[54px] !p-[6px] !rounded-2xl !shadow-sm !border !border-slate-100 dark:!border-slate-700' 
                         : 'shadow-2xl'
