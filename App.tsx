@@ -70,10 +70,10 @@ const SplashScreen = ({ onAnimationComplete, onRevealApp }: { onAnimationComplet
             onRevealApp();
         }, 1600);
 
-        // End splash component lifecycle
+        // End splash component lifecycle - extended to ensure app is fully opaque (2700ms)
         const timer2 = setTimeout(() => {
             onAnimationComplete();
-        }, 2400); 
+        }, 2700); 
 
         return () => {
             clearTimeout(timer1);
@@ -554,7 +554,10 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-full min-h-screen overflow-hidden bg-slate-200 dark:bg-slate-950 relative">
+    <div className="w-full h-full min-h-screen overflow-hidden relative">
+      {/* Background Layer: Always visible to prevent flash on splash fade-out */}
+      <div className="absolute inset-0 bg-slate-200 dark:bg-slate-950 z-0" />
+
       {showSplash && (
           <SplashScreen 
               onAnimationComplete={() => setShowSplash(false)} 
@@ -562,7 +565,8 @@ export default function App() {
           />
       )}
       
-      <div className={`fixed inset-0 overflow-y-auto bg-slate-200 dark:bg-slate-950 transition-opacity duration-1000 ease-out ${isAppVisible ? 'opacity-100' : 'opacity-0'}`}>
+      {/* Content Layer: Fades in over the background */}
+      <div className={`fixed inset-0 overflow-y-auto transition-opacity duration-1000 ease-out z-10 ${isAppVisible ? 'opacity-100' : 'opacity-0'}`}>
             <ReportList 
               reports={savedReports}
               onCreateNew={handleCreateNew}
