@@ -97,3 +97,15 @@ export const DEFAULT_SIGN_OFF_TEMPLATES: SignOffTemplate[] = [
         ]
     }
 ];
+
+// MANUAL BASE64 STRINGS - PASTE YOUR STRINGS HERE
+export const MANUAL_IMAGES = [
+    // Page 1
+    "",
+    // Page 2
+    "",
+    // Page 3
+    "",
+    // Page 4
+    ""
+];
