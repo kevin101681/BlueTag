@@ -63,17 +63,17 @@ interface ErrorBoundaryState {
 }
 
 // Error Boundary to catch runtime crashes and prevent white screen
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = { hasError: false, error: null };
+
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
   }
+  
   componentDidCatch(error: any, errorInfo: any) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
   }
+  
   render() {
     if (this.state.hasError) {
       return (
@@ -357,205 +357,184 @@ export default function App() {
           const cg = mix(rgb.g, 255, 0.9);
           const cb = mix(rgb.b, 255, 0.9);
           root.style.setProperty('--color-primary-container', `${cr} ${cg} ${cb}`);
-          const ocr = mix(rgb.r, 0, 0.6);
-          const ocg = mix(rgb.g, 0, 0.6);
-          const ocb = mix(rgb.b, 0, 0.6);
-          root.style.setProperty('--color-on-primary-container', `${ocr} ${ocg} ${ocb}`);
       }
+      
       localStorage.setItem(COLOR_THEME_KEY, colorTheme);
   }, [colorTheme]);
 
-  const handleUpdateLogo = (newLogo: string) => {
-      setCompanyLogo(newLogo);
-      localStorage.setItem(LOGO_KEY, newLogo);
-  };
-
-  const handleUpdatePartnerLogo = (newLogo: string) => {
-      setPartnerLogo(newLogo);
-      localStorage.setItem(PARTNER_LOGO_KEY, newLogo);
-  };
-
-  // Persist to LocalStorage Only
-  const persistReport = async (reportData: Report) => {
-      try {
-          const currentString = localStorage.getItem(STORAGE_KEY);
-          let currentList: Report[] = currentString ? JSON.parse(currentString) : [];
-          const idx = currentList.findIndex(r => r.id === reportData.id);
-          if (idx >= 0) {
-              currentList[idx] = reportData;
-          } else {
-              currentList.push(reportData);
-          }
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentList));
-      } catch (e: any) {
-          console.error("LocalStorage Save Failed:", e);
-      }
-  };
+  useEffect(() => {
+      localStorage.setItem(LOGO_KEY, companyLogo);
+  }, [companyLogo]);
 
   useEffect(() => {
-      if (!activeReportId || !isDataLoaded) return;
-      const reportData: Report = {
-          id: activeReportId,
-          project,
-          locations,
-          lastModified: Date.now()
-      };
-      // Auto-save debounced
-      const handler = setTimeout(() => {
-          setSavedReports(prev => {
-              const idx = prev.findIndex(r => r.id === activeReportId);
-              if (idx >= 0) {
-                  const newReports = [...prev];
-                  newReports[idx] = reportData;
-                  return newReports;
-              } else {
-                  return [...prev, reportData];
-              }
-          });
-          persistReport(reportData);
-      }, 500);
-      return () => clearTimeout(handler);
-  }, [project, locations, activeReportId, isDataLoaded]); 
+      localStorage.setItem(PARTNER_LOGO_KEY, partnerLogo);
+  }, [partnerLogo]);
 
-  // --- Handlers ---
+  // Sync to Storage
+  useEffect(() => {
+    if (isDataLoaded) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedReports));
+      } catch (e) {
+        console.error("Storage quota exceeded", e);
+        // Maybe notify user
+      }
+    }
+  }, [savedReports, isDataLoaded]);
+
+  // Handlers for List View
   const handleCreateNew = () => {
-      const now = Date.now();
-      if (now - lastCreationRef.current < 1000) return;
-      lastCreationRef.current = now;
-      
-      setIsCreating(true);
-      setTimeout(() => setIsCreating(false), 2000); 
+    const now = Date.now();
+    if (now - lastCreationRef.current < 1000) return; // Debounce
+    lastCreationRef.current = now;
 
-      const newId = generateUUID();
-      const newReport: Report = {
-          id: newId,
-          project: INITIAL_PROJECT_STATE,
-          locations: EMPTY_LOCATIONS.map(l => ({ ...l, id: generateUUID(), issues: [] })),
-          lastModified: Date.now()
-      };
+    // Start creation animation state
+    setIsCreating(true);
 
-      setSavedReports(prev => [newReport, ...prev]);
-      persistReport(newReport);
-  };
-
-  const handleUpdateReport = (updatedReport: Report) => {
-      setSavedReports(prev => {
-          const idx = prev.findIndex(r => r.id === updatedReport.id);
-          if (idx >= 0) {
-              const newReports = [...prev];
-              newReports[idx] = updatedReport;
-              return newReports;
-          }
-          return prev;
-      });
-      persistReport(updatedReport);
+    const newProject = INITIAL_PROJECT_STATE;
+    const newLocations = EMPTY_LOCATIONS.map(l => ({ ...l, id: generateUUID() }));
+    const newReport: Report = {
+        id: generateUUID(),
+        project: newProject,
+        locations: newLocations,
+        lastModified: Date.now()
+    };
+    
+    setProject(newProject);
+    setLocations(newLocations);
+    setSavedReports(prev => [newReport, ...prev]);
+    setActiveReportId(newReport.id);
+    
+    // Reset animation state after transition
+    setTimeout(() => {
+        setIsCreating(false);
+    }, 800);
   };
 
   const handleSelectReport = (id: string) => {
-      const report = savedReports.find(r => r.id === id);
-      if (report) {
-          setProject(migrateProjectData(report.project));
-          setLocations(report.locations);
-          setActiveReportId(id);
-          setActiveLocationId(null);
-          setScrollToLocations(false);
-          window.history.pushState({ reportId: id }, '', '');
-      }
+    const r = savedReports.find(rep => rep.id === id);
+    if (r) {
+        setActiveReportId(id);
+        // Note: project/locations state will sync via useEffect
+    }
   };
 
-  const handleSelectLocation = (id: string) => {
-      setActiveLocationId(id);
-      window.history.pushState({ reportId: activeReportId, locationId: id }, '', '');
-  };
-  
-  const handleUpdateLocation = (issues: Issue[]) => {
-      if (activeLocationId) {
-          setLocations(prev => prev.map(l => 
-              l.id === activeLocationId ? { ...l, issues } : l
-          ));
-      }
+  const handleDeleteReport = (id: string, rect?: DOMRect) => {
+      setReportToDelete(id);
+      setDeleteModalRect(rect || null);
   };
 
-  const handleConfirmDeleteReport = async () => {
-      if (!reportToDelete) return;
-      const id = reportToDelete;
-      
-      setIsDeleteExiting(true); // Trigger exit animation for modal and report card
-      
-      // Wait for animations to complete before updating state
-      setTimeout(() => {
-          setSavedReports(prev => prev.filter(r => r.id !== id));
-          if (activeReportId === id) { setActiveReportId(null); }
-          
-          try {
-              const currentString = localStorage.getItem(STORAGE_KEY);
-              if (currentString) {
-                  const currentList: Report[] = JSON.parse(currentString);
-                  const updatedList = currentList.filter(r => r.id !== id);
-                  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+  const confirmDeleteReport = () => {
+      if (reportToDelete) {
+          setIsDeleteExiting(true);
+          setTimeout(() => {
+              setSavedReports(prev => prev.filter(r => r.id !== reportToDelete));
+              if (activeReportId === reportToDelete) {
+                  setActiveReportId(null);
               }
-          } catch(e) { console.error("Failed to delete locally", e); }
-          
-          setReportToDelete(null);
-          setDeleteModalRect(null);
-          setIsDeleteExiting(false);
-      }, 400); 
+              setReportToDelete(null);
+              setDeleteModalRect(null);
+              setIsDeleteExiting(false);
+          }, 300);
+      }
   };
 
-  const handleDeleteOldReports = async () => {
+  const handleDeleteOldReports = () => {
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      const reportsToDelete = savedReports.filter(r => r.lastModified < thirtyDaysAgo);
-      if (reportsToDelete.length === 0) {
-          alert("No reports older than 30 days found.");
-          return;
-      }
-      try {
-          const currentString = localStorage.getItem(STORAGE_KEY);
-          if (currentString) {
-              const currentList: Report[] = JSON.parse(currentString);
-              const updatedList = currentList.filter(r => r.lastModified >= thirtyDaysAgo);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-              setSavedReports(updatedList);
-          }
-      } catch(e) {}
-      
-      if (activeReportId && reportsToDelete.find(r => r.id === activeReportId)) {
-          setActiveReportId(null);
-      }
+      setSavedReports(prev => prev.filter(r => r.lastModified > thirtyDaysAgo));
   };
   
+  const handleUpdateReport = (updatedReport: Report) => {
+      setSavedReports(prev => prev.map(r => r.id === updatedReport.id ? updatedReport : r));
+      // Local state sync
+      if (activeReportId === updatedReport.id) {
+          setProject(updatedReport.project);
+          setLocations(updatedReport.locations);
+      }
+  };
+
+  // Handlers for Dashboard
+  const handleSelectLocation = (id: string) => {
+    setActiveLocationId(id);
+    window.history.pushState({ reportId: activeReportId, locationId: id }, '', '');
+  };
+
+  const handleBackFromLocation = () => {
+    if (activeLocationId) {
+        // Find element to scroll to
+        const el = document.getElementById(`loc-card-${activeLocationId}`);
+        // Go back
+        window.history.back();
+        // Scroll will happen via popstate effect if needed, or we can trigger scroll here
+        setScrollToLocations(true);
+    } else {
+        window.history.back();
+    }
+  };
+
   const handleAddIssueGlobal = (locationName: string, issue: Issue) => {
       if (!activeReportId) return;
+
+      const report = savedReports.find(r => r.id === activeReportId);
+      if (!report) return;
+
+      const locIndex = report.locations.findIndex(l => l.name === locationName);
+      let newLocations = [...report.locations];
       
-      setLocations(prev => {
-          const locIndex = prev.findIndex(l => l.name.toLowerCase() === locationName.toLowerCase());
-          if (locIndex >= 0) {
-              const newLocs = [...prev];
-              newLocs[locIndex] = { ...newLocs[locIndex], issues: [...newLocs[locIndex].issues, issue] };
-              return newLocs;
-          } else {
-              return [...prev, {
-                  id: generateUUID(),
-                  name: locationName,
-                  issues: [issue]
-              }];
-          }
+      if (locIndex >= 0) {
+          const loc = newLocations[locIndex];
+          newLocations[locIndex] = { ...loc, issues: [...loc.issues, issue] };
+      } else {
+          // Add new location group if not exists
+          newLocations.push({
+              id: generateUUID(),
+              name: locationName,
+              issues: [issue]
+          });
+      }
+
+      handleUpdateReport({
+          ...report,
+          locations: newLocations,
+          lastModified: Date.now()
       });
+  };
+
+  const handleUpdateProject = (details: ProjectDetails) => {
+      if (activeReportId) {
+          const r = savedReports.find(rep => rep.id === activeReportId);
+          if (r) handleUpdateReport({ ...r, project: details, lastModified: Date.now() });
+      }
+  };
+  
+  const handleUpdateLocations = (locs: LocationGroup[]) => {
+      if (activeReportId) {
+           const r = savedReports.find(rep => rep.id === activeReportId);
+           if (r) handleUpdateReport({ ...r, locations: locs, lastModified: Date.now() });
+      }
   };
 
   return (
     <ErrorBoundary>
-        <div className="w-full h-full min-h-screen bg-slate-200 dark:bg-slate-950 overflow-hidden relative">
-            <div className="fixed inset-0 overflow-y-auto z-10">
-                <ReportList 
+      <div className="h-full bg-slate-200 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-300">
+        
+        {/* Main View Switcher */}
+        {activeLocationId ? (
+            <LocationDetail 
+                location={locations.find(l => l.id === activeLocationId) || locations[0]}
+                onBack={handleBackFromLocation}
+                onUpdateLocation={(issues) => {
+                    const newLocs = locations.map(l => l.id === activeLocationId ? { ...l, issues } : l);
+                    handleUpdateLocations(newLocs);
+                }}
+            />
+        ) : (
+            <ReportList 
                 reports={savedReports}
                 onCreateNew={handleCreateNew}
                 onSelectReport={handleSelectReport}
                 onSelectLocation={handleSelectLocation}
-                onDeleteReport={(id, rect) => {
-                    setReportToDelete(id);
-                    if (rect) setDeleteModalRect(rect);
-                }}
+                onDeleteReport={handleDeleteReport}
                 onDeleteOldReports={handleDeleteOldReports}
                 onUpdateReport={handleUpdateReport}
                 isDarkMode={isDarkMode}
@@ -564,52 +543,41 @@ export default function App() {
                 colorTheme={colorTheme}
                 onColorThemeChange={setColorTheme}
                 user={currentUser}
+                onLogin={handleLogin}
+                onLogout={handleLogout}
                 companyLogo={companyLogo}
-                onUpdateLogo={handleUpdateLogo}
+                onUpdateLogo={setCompanyLogo}
                 partnerLogo={partnerLogo}
-                onUpdatePartnerLogo={handleUpdatePartnerLogo}
+                onUpdatePartnerLogo={setPartnerLogo}
                 installAvailable={!!installPrompt}
                 onInstall={handleInstallApp}
                 isIOS={isIOS}
                 isStandalone={isStandalone}
-                isDashboardOpen={false} 
+                isDashboardOpen={!!activeReportId}
                 signOffTemplates={signOffTemplates}
                 onUpdateTemplates={handleUpdateTemplates}
                 isCreating={isCreating}
                 onAddIssueGlobal={handleAddIssueGlobal}
-                onLogin={handleLogin}
-                onLogout={handleLogout}
                 deletingReportId={reportToDelete}
                 isDeleting={isDeleteExiting}
-                />
-                
-                {activeLocationId && (
-                    <LocationDetail
-                        location={locations.find(l => l.id === activeLocationId)!}
-                        onBack={() => {
-                            setActiveLocationId(null);
-                            window.history.back();
-                        }}
-                        onUpdateLocation={handleUpdateLocation}
-                    />
-                )}
-                
-                {reportToDelete && (
-                    <DeleteConfirmationModal
-                        title="Delete Report?"
-                        message="Are you sure you want to delete this report? This action cannot be undone."
-                        onConfirm={handleConfirmDeleteReport}
-                        onCancel={() => {
-                            if (isDeleteExiting) return;
-                            setReportToDelete(null);
-                            setDeleteModalRect(null);
-                        }}
-                        targetRect={deleteModalRect}
-                        isExiting={isDeleteExiting}
-                    />
-                )}
-            </div>
-        </div>
+            />
+        )}
+        
+        {reportToDelete && (
+            <DeleteConfirmationModal 
+                title="Delete Report?"
+                message="This will permanently remove this report and all associated photos."
+                onConfirm={confirmDeleteReport}
+                onCancel={() => {
+                    setReportToDelete(null);
+                    setDeleteModalRect(null);
+                }}
+                targetRect={deleteModalRect}
+                isExiting={isDeleteExiting}
+            />
+        )}
+
+      </div>
     </ErrorBoundary>
   );
 }
