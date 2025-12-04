@@ -4,7 +4,6 @@ import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
-import { BlueTagLogo } from './components/Logo';
 
 // Global declaration for Netlify Identity
 declare global {
@@ -55,60 +54,8 @@ const migrateProjectData = (p: any): ProjectDetails => {
     };
 };
 
-const SplashScreen = ({ onAnimationComplete, onRevealApp }: { onAnimationComplete: () => void, onRevealApp: () => void }) => {
-    const [animating, setAnimating] = useState(false);
-    
-    useEffect(() => {
-        // Start animation moves logo and fades splash background
-        const timer1 = setTimeout(() => {
-            setAnimating(true);
-        }, 800);
-
-        // Reveal app content (header icons, list) AFTER logo has mostly arrived
-        // Standard animation is duration-1000, so 800 + 800 = 1600ms ensures it doesn't pop in early
-        const timerReveal = setTimeout(() => {
-            onRevealApp();
-        }, 1600);
-
-        // End splash component lifecycle - extended to ensure app is fully opaque (2700ms)
-        const timer2 = setTimeout(() => {
-            onAnimationComplete();
-        }, 2700); 
-
-        return () => {
-            clearTimeout(timer1);
-            clearTimeout(timerReveal);
-            clearTimeout(timer2);
-        };
-    }, [onAnimationComplete, onRevealApp]);
-
-    return (
-        <div className={`fixed inset-0 z-[9999] bg-slate-200 dark:bg-slate-950 flex pointer-events-none transition-all duration-1000 ease-out ${animating ? 'bg-opacity-0' : 'bg-opacity-100'}`}>
-            <div 
-                className="absolute transition-all duration-1000 cubic-bezier(0.2, 0, 0, 1)"
-                style={{
-                    top: animating ? '16px' : '50%',
-                    left: animating ? '24px' : '50%', 
-                    transform: animating ? 'translate(0, 0)' : 'translate(-50%, -50%)',
-                }}
-            >
-                <BlueTagLogo 
-                    size='xl' 
-                    className={`transition-all duration-1000 cubic-bezier(0.2, 0, 0, 1) ${
-                        animating 
-                        ? '!w-[54px] !h-[54px] !p-[6px] !rounded-2xl !shadow-sm !border !border-slate-100 dark:!border-slate-700' 
-                        : 'shadow-2xl'
-                    }`} 
-                />
-            </div>
-        </div>
-    );
-};
-
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [showSplash, setShowSplash] = useState(true);
-  const [isAppVisible, setIsAppVisible] = useState(false);
   
   // Netlify Identity Effect
   useEffect(() => {
@@ -554,19 +501,8 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-full min-h-screen overflow-hidden relative">
-      {/* Background Layer: Always visible to prevent flash on splash fade-out */}
-      <div className="absolute inset-0 bg-slate-200 dark:bg-slate-950 z-0" />
-
-      {showSplash && (
-          <SplashScreen 
-              onAnimationComplete={() => setShowSplash(false)} 
-              onRevealApp={() => setIsAppVisible(true)}
-          />
-      )}
-      
-      {/* Content Layer: Fades in over the background */}
-      <div className={`fixed inset-0 overflow-y-auto transition-opacity duration-1000 ease-out z-10 ${isAppVisible ? 'opacity-100' : 'opacity-0'}`}>
+    <div className="w-full h-full min-h-screen bg-slate-200 dark:bg-slate-950 overflow-hidden relative">
+        <div className="fixed inset-0 overflow-y-auto z-10">
             <ReportList 
               reports={savedReports}
               onCreateNew={handleCreateNew}
@@ -620,7 +556,6 @@ export default function App() {
                     message="Are you sure you want to delete this report? This action cannot be undone."
                     onConfirm={handleConfirmDeleteReport}
                     onCancel={() => {
-                        // Prevent cancelling during exit animation
                         if (isDeleteExiting) return;
                         setReportToDelete(null);
                         setDeleteModalRect(null);
