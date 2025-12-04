@@ -540,18 +540,6 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     </button>
                 </div>
                 
-                {/* Center Pill: Client Name (Only if active report exists) */}
-                {activeReport && (
-                    <div className="hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
-                        <div className="bg-slate-100 dark:bg-slate-800 pl-2 pr-4 py-2.5 rounded-2xl flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
-                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--color-primary),0.6)] shrink-0" />
-                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[120px] sm:max-w-[200px]">
-                                {clientName || "New Report"}
-                            </span>
-                        </div>
-                    </div>
-                )}
-                
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setIsSearchOpen(true)}
@@ -563,24 +551,12 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     <button 
                         onClick={handleCreate}
                         disabled={isCreating || isExiting}
-                        className={`w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-primary hover:bg-primary hover:text-white transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center ${isCreating ? 'animate-pulse' : 'animate-breathing-glow'}`}
+                        className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-primary hover:bg-primary hover:text-white transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
                     >
                         <Plus size={24} strokeWidth={3} />
                     </button>
                 </div>
             </div>
-
-            {/* Mobile Title Pill */}
-             {activeReport && (
-                <div className="md:hidden flex justify-center pb-2 px-6 relative z-10">
-                    <div className="bg-slate-100 dark:bg-slate-800 pl-2 pr-4 py-2.5 rounded-2xl flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
-                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--color-primary),0.6)] shrink-0" />
-                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[200px]">
-                            {clientName || "New Report"}
-                        </span>
-                    </div>
-                </div>
-            )}
 
             {/* Main Content Area */}
             <div className="flex-1 relative">

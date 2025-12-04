@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
@@ -75,13 +74,24 @@ export const ReportCard: React.FC<ReportCardProps> = ({
     hasDocs
 }) => {
     const fields = project.fields || [];
-    const dateStr = new Date(lastModified).toLocaleDateString();
+    const isSearchResult = !actions; // Identify if this is a search result/list card vs main dashboard card
+    
+    // Format date as MM/DD/YY
+    const d = new Date(lastModified);
+    const dateStr = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear().toString().slice(-2)}`;
+
     const cardRef = useRef<HTMLDivElement>(null);
     
     // Header Logic
+    const nameStr = fields[0]?.value || "Project";
     const subtitle = fields[1]?.value || "";
     const detailFields = fields.slice(2);
     const hasContactInfo = detailFields.some(f => f.value && f.value.trim() !== "");
+
+    // Saved State Logic
+    const isReportSaved = project.reportMarks !== undefined;
+    const isSignOffSaved = project.signOffStrokes !== undefined;
+    const isEmailActive = isReportSaved || isSignOffSaved;
 
     const getLinkProps = (field: ProjectField) => {
         const val = field.value;
@@ -101,6 +111,14 @@ export const ReportCard: React.FC<ReportCardProps> = ({
         return {};
     };
 
+    const getButtonStyle = (isActive: boolean) => {
+        const base = "w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border";
+        if (isActive) {
+            return `${base} bg-primary/10 dark:bg-primary/20 border-primary/20 dark:border-primary/30 text-primary hover:bg-primary/20 dark:hover:bg-primary/30`;
+        }
+        return `${base} bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-primary`;
+    };
+
     return (
         <div 
             ref={cardRef}
@@ -109,40 +127,32 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                 !readOnly && !isSelected ? 'hover:shadow-md hover:border-primary/50 cursor-pointer' : ''
             } ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''}`}
         >
-            {/* Header Row: Flex for continuous line */}
-            <div className="flex items-center gap-2 mb-4 relative min-h-[40px]">
-                 {/* Left: Project Number Pill */}
-                 <div className={`shrink-0 px-3 py-1.5 rounded-2xl flex items-center gap-2 border transition-colors ${subtitle ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 border-dashed'}`}>
-                    <Hash size={12} className={`${subtitle ? 'text-slate-400' : 'text-slate-300 dark:text-slate-600'} shrink-0`} />
-                    <span className={`text-xs font-bold max-w-[80px] sm:max-w-none truncate ${subtitle ? 'text-slate-600 dark:text-slate-300' : 'text-slate-300 dark:text-slate-600 italic'}`}>
-                        {subtitle || "Lot #"}
+            {/* Header: Stacked Pills */}
+            <div className="flex flex-col items-center gap-2 mb-6 relative z-10 w-full">
+                 {/* Decorative Line connecting to Name Pill center */}
+                 <div className="absolute top-[20px] left-0 right-0 h-px bg-slate-100 dark:bg-slate-800 -z-10" />
+
+                 {/* Name Pill - Smaller, Removed Pulse */}
+                 <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2 rounded-full flex items-center gap-3 border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900 z-20">
+                    <div className="w-2 h-2 rounded-full bg-primary shrink-0 animate-pulse" />
+                    <span className="text-base font-bold text-slate-700 dark:text-slate-200 truncate max-w-[50vw]">
+                        {nameStr}
                     </span>
                  </div>
 
-                 {/* Center: Continuous Line */}
-                 <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800 min-w-[10px]" />
-
-                 {/* Right: Delete Pill */}
-                 {onDelete ? (
-                     <button 
-                         onClick={(e) => { 
-                             e.stopPropagation(); 
-                             const rect = cardRef.current?.getBoundingClientRect();
-                             onDelete(e, rect); 
-                         }}
-                         className="shrink-0 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors flex items-center gap-2"
-                         title="Delete Report"
-                     >
-                         <Trash2 size={14} />
-                     </button>
-                 ) : (
-                     <div className="w-8" /> 
+                 {/* Lot/Unit Pill - Only shown in header if NOT a search result (Main Card) */}
+                 {!isSearchResult && subtitle && (
+                    <div className="h-10 px-4 rounded-2xl flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900 shadow-sm z-20">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 max-w-[40vw] truncate">
+                            {subtitle}
+                        </span>
+                    </div>
                  )}
             </div>
 
             {/* Content Body: Gray Box with Contact Info Pills */}
             {hasContactInfo && (
-                <div className="w-full mb-4 flex-1 flex flex-col items-center justify-center animate-fade-in">
+                <div className="w-full mb-6 flex-1 flex flex-col items-center justify-center animate-fade-in">
                      <div className="w-full px-3 py-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
                         <div className="flex flex-wrap items-center justify-center gap-2 w-full">
                             {detailFields.map(field => {
@@ -175,58 +185,72 @@ export const ReportCard: React.FC<ReportCardProps> = ({
 
             {!hasContactInfo && <div className="mb-4"></div>}
             
-            {/* Footer Row: 3-Column Grid for perfect centering */}
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center pt-2 mt-auto relative min-h-[44px] gap-2">
-                {/* Left: Items Count + Line */}
-                <div className="flex items-center gap-2 overflow-hidden">
-                    <div className="shrink-0 bg-slate-100 dark:bg-slate-800 rounded-2xl px-3 py-1 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 h-6 min-w-[24px]">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                            {issueCount} Items
-                        </span>
-                    </div>
-                    <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800 min-w-[10px]" />
+            {/* Footer Row - Unified Group, Centered, Equal Spacing */}
+            <div className="flex items-center justify-center mt-auto w-full gap-2 sm:gap-3">
+                {/* Item Count */}
+                <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink">
+                    <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                        {issueCount} Items
+                    </span>
                 </div>
 
-                {/* Center: Action Buttons */}
-                <div className="flex items-center justify-center">
-                    {actions ? (
-                        <div className="flex items-center gap-2">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); actions.onViewReport?.(); }}
-                                className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-primary transition-colors active:scale-95"
-                                title="View/Generate Report"
-                            >
-                                <FileText size={18} />
-                            </button>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); actions.onViewSignOff?.(); }}
-                                className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-primary transition-colors active:scale-95"
-                                title="View/Sign Off"
-                            >
-                                <PenTool size={18} />
-                            </button>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); actions.onEmail?.(); }}
-                                className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-primary transition-colors active:scale-95"
-                                title="Email Documents"
-                            >
-                                <Mail size={18} />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="w-10" /> 
-                    )}
-                </div>
-                
-                {/* Right: Line + Date */}
-                <div className="flex items-center justify-end gap-2 overflow-hidden">
-                    <div className="flex-1 h-px bg-slate-100 dark:bg-slate-800 min-w-[10px]" />
-                    <div className="shrink-0 bg-slate-100 dark:bg-slate-800 rounded-2xl px-3 py-1 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 h-6">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                            {dateStr}
+                {/* Lot/Unit Pill - Shown in footer for Search Results */}
+                {isSearchResult && subtitle && (
+                    <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink min-w-0">
+                        <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap truncate">
+                            {subtitle}
                         </span>
                     </div>
+                )}
+
+                {/* Actions */}
+                {actions && (
+                    <>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); actions.onViewReport?.(); }}
+                            className={getButtonStyle(isReportSaved)}
+                            title="View/Generate Report"
+                        >
+                            <FileText size={20} className="sm:w-[24px] sm:h-[24px]" />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); actions.onViewSignOff?.(); }}
+                            className={getButtonStyle(isSignOffSaved)}
+                            title="View/Sign Off"
+                        >
+                            <PenTool size={20} className="sm:w-[24px] sm:h-[24px]" />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); actions.onEmail?.(); }}
+                            className={getButtonStyle(isEmailActive)}
+                            title="Email Documents"
+                        >
+                            <Mail size={20} className="sm:w-[24px] sm:h-[24px]" />
+                        </button>
+                    </>
+                )}
+
+                {/* Date Pill */}
+                <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink min-w-0">
+                    <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap truncate">
+                        {dateStr}
+                    </span>
                 </div>
+
+                {/* Delete Button */}
+                {onDelete && (
+                     <button 
+                         onClick={(e) => { 
+                             e.stopPropagation(); 
+                             const rect = cardRef.current?.getBoundingClientRect();
+                             onDelete(e, rect); 
+                         }}
+                         className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl sm:rounded-2xl transition-colors flex items-center justify-center shadow-sm active:scale-95 shrink-0"
+                         title="Delete Report"
+                     >
+                         <Trash2 size={20} className="sm:w-[24px] sm:h-[24px]" />
+                     </button>
+                )}
             </div>
             
             {isSelected && (
@@ -517,36 +541,55 @@ const LocationCard = React.memo(({ location, onClick }: { location: LocationGrou
 });
 
 export const LocationManagerModal = ({ locations, onUpdate, onClose }: { locations: LocationGroup[], onUpdate: (locs: LocationGroup[]) => void, onClose: () => void }) => {
+    const [localLocations, setLocalLocations] = useState(locations);
     const [newLocName, setNewLocName] = useState("");
+
     const handleAdd = () => {
         if (!newLocName.trim()) return;
-        onUpdate([...locations, { id: generateUUID(), name: newLocName.trim(), issues: [] }]);
+        setLocalLocations([...localLocations, { id: generateUUID(), name: newLocName.trim(), issues: [] }]);
         setNewLocName("");
     };
+
+    const handleSave = () => {
+        onUpdate(localLocations);
+        onClose();
+    };
+
     return createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+            <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-xl overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0">
                     <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
                          <h3 className="font-bold text-slate-800 dark:text-white">Manage Locations</h3>
                     </div>
-                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors">
-                        <X size={20} />
-                    </button>
                 </div>
-                <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="p-4 space-y-4 overflow-y-auto flex-1 bg-white dark:bg-slate-800">
                     <div className="flex gap-2">
                         <input value={newLocName} onChange={e => setNewLocName(e.target.value)} placeholder="New Location..." className="flex-1 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none dark:text-white" />
                         <button onClick={handleAdd} className="bg-primary text-white p-3 rounded-xl"><Plus size={24} /></button>
                     </div>
                     <div className="space-y-2">
-                        {locations.map(loc => (
+                        {localLocations.map(loc => (
                             <div key={loc.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
                                 <span className="font-medium text-slate-700 dark:text-slate-200">{loc.name}</span>
-                                <button onClick={() => { if(confirm("Delete?")) onUpdate(locations.filter(l => l.id !== loc.id)); }} className="text-red-500 p-2"><Trash2 size={18} /></button>
+                                <button onClick={() => setLocalLocations(localLocations.filter(l => l.id !== loc.id))} className="text-red-500 p-2"><Trash2 size={18} /></button>
                             </div>
                         ))}
                     </div>
+                </div>
+                <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex gap-3 shrink-0 bg-white dark:bg-slate-800">
+                    <button 
+                        onClick={onClose}
+                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={handleSave}
+                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                    >
+                        Save
+                    </button>
                 </div>
             </div>
         </div>, document.body
@@ -622,18 +665,18 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20 flex justify-center gap-3">
+                <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20 flex gap-3">
                     <button 
                         onClick={onClose}
-                        className="px-8 py-2.5 rounded-full font-bold text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                     >
                         Cancel
                     </button>
                     <button 
                         onClick={handleSave}
-                        className="px-8 py-2.5 rounded-full font-bold text-sm text-white bg-primary hover:bg-primary/90 transition-colors shadow-lg shadow-primary/30"
+                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
                     >
-                        Save Changes
+                        Save
                     </button>
                 </div>
             </div>
@@ -736,7 +779,11 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose, o
 
             // Generate WITH marks for final download
             const res = await generatePDFWithMetadata({ project, locations }, companyLogo, marks);
-            res.doc.save("PunchList_Report.pdf");
+            
+            // Open in new tab
+            const pdfBlobUrl = res.doc.output('bloburl');
+            window.open(pdfBlobUrl, '_blank');
+            
         } catch(e) {
             console.error("Failed to generate PDF on save", e);
         }
@@ -1087,6 +1134,10 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     }, [strokes, resizeTrigger]); 
 
     const handleSave = async () => {
+        // Explicitly update project to mark sign-off as "saved" (even if strokes are empty/unchanged)
+        // This ensures the dashboard icon turns blue
+        onUpdateProject({ ...project, signOffStrokes: strokes });
+
         const overlay = overlayRef.current;
         const containerWidth = overlay ? overlay.scrollWidth : 800;
 
@@ -1117,12 +1168,8 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
             gapHeight
         );
 
-        const link = document.createElement('a');
-        link.href = finalPdfUrl;
-        link.download = "SignOff_Document.pdf";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Open in new tab
+        window.open(finalPdfUrl, '_blank');
         
         onClose();
     };
@@ -1180,24 +1227,27 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                          )}
                     </div>
 
-                    <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
-                        <button 
-                            onClick={onClose}
-                            className="px-6 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                        
-                        <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                           <span className="hidden sm:inline">2 Fingers to Scroll • Pen to Ink • 1 Finger to Erase</span>
+                    <div className="border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20">
+                        <div className="py-2 text-center select-none">
+                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                                2 Fingers to Scroll • Pen to Ink • 1 Finger to Erase
+                             </span>
                         </div>
-
-                        <button 
-                            onClick={handleSave}
-                            className="px-6 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-                        >
-                            Save
-                        </button>
+                        <div className="p-4 pt-0 flex gap-3">
+                            {/* Updated to match ReportPreviewModal style */}
+                            <button 
+                                onClick={onClose}
+                                className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleSave}
+                                className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                            >
+                                Save
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1348,13 +1398,6 @@ export const Dashboard = React.memo<DashboardProps>(({
     const hasPunchList = !!project.reportPreviewImage;
     const hasSignOff = !!project.signOffImage;
     const hasDocs = hasPunchList || hasSignOff;
-    
-    // Find active location object if selected
-    // Note: activeLocationId is handled by parent App.tsx, but Dashboard receives onSelectLocation prop.
-    // Dashboard doesn't own "activeLocationId" state directly in typical structure but App passes it down via props
-    // Wait, Dashboard is rendered by ReportList wrapper or App. 
-    // App.tsx handles the location modal rendering. 
-    // Dashboard just renders the cards.
     
     return (
         <div 
@@ -1590,11 +1633,6 @@ export const Dashboard = React.memo<DashboardProps>(({
                         const targetLoc = pendingLocation || locationName;
                         if (targetLoc) {
                             onAddIssueGlobal(targetLoc, issue);
-                            // We don't close here if we want continuous adding, but global add usually implies specific location selection which we just did.
-                            // The form itself handles continuous entry now if we implement it.
-                            // If AddIssueForm calls onSubmit multiple times, we handle it.
-                            // However, AddIssueForm will handle the loop internally or via specific callback props. 
-                            // For global add, we likely want to keep the location context until closed.
                         }
                     }}
                     showLocationSelect={false} 

@@ -633,19 +633,20 @@ export const generateSignOffPDF = async (
     doc.setFillColor(84, 110, 122); 
     doc.rect(0, 0, 210, 3, 'F');
 
-    if (companyLogo) {
-        try {
-            const dims = await getImageDimensions(companyLogo);
-            if (dims.width > 0) {
-                const maxW = 35; 
-                const maxH = 24; 
-                const scale = Math.min(maxW / dims.width, maxH / dims.height);
-                const w = dims.width * scale;
-                const h = dims.height * scale;
-                const format = getImageFormat(companyLogo);
-                doc.addImage(companyLogo, format, 200 - w, 8, w, h);
-            }
-        } catch (e) { }
+    // Hardcoded logo path
+    const hardcodedLogo = '/logo.png';
+    try {
+        const dims = await getImageDimensions(hardcodedLogo);
+        if (dims.width > 0) {
+            const maxW = 35; 
+            const maxH = 24; 
+            const scale = Math.min(maxW / dims.width, maxH / dims.height);
+            const w = dims.width * scale;
+            const h = dims.height * scale;
+            doc.addImage(hardcodedLogo, 'PNG', 200 - w, 8, w, h);
+        }
+    } catch (e) { 
+        // fallback to param if provided and hardcode fails (optional)
     }
 
     doc.setFontSize(14);
@@ -706,20 +707,19 @@ export const generatePDFWithMetadata = async (
   doc.setFillColor(84, 110, 122); 
   doc.rect(0, 0, 210, 3, 'F');
 
-  if (companyLogo) {
-    try {
-        const dims = await getImageDimensions(companyLogo);
-        if (dims.width > 0) {
-            const maxW = 35; 
-            const maxH = 24; 
-            const scale = Math.min(maxW / dims.width, maxH / dims.height);
-            const w = dims.width * scale;
-            const h = dims.height * scale;
-            const format = getImageFormat(companyLogo);
-            doc.addImage(companyLogo, format, 200 - w, 8, w, h);
-        }
-    } catch (e) { }
-  }
+  // Hardcoded logo path
+  const hardcodedLogo = '/logo.png';
+  try {
+      const dims = await getImageDimensions(hardcodedLogo);
+      if (dims.width > 0) {
+          const maxW = 35; 
+          const maxH = 24; 
+          const scale = Math.min(maxW / dims.width, maxH / dims.height);
+          const w = dims.width * scale;
+          const h = dims.height * scale;
+          doc.addImage(hardcodedLogo, 'PNG', 200 - w, 8, w, h);
+      }
+  } catch (e) { }
 
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
