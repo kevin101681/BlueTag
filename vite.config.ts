@@ -12,7 +12,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, (process as any).cwd(), '');
   
   // Prioritize system variables, then .env variables, checking common names
-  const apiKey = env.API_KEY || env.GEMINI_API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+  // We also check VITE_ prefixed vars in case user followed standard Vite conventions
+  const apiKey = env.API_KEY || env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY || '';
 
   return {
     plugins: [react()],
@@ -28,7 +29,9 @@ export default defineConfig(({ mode }) => {
     // Define global constants replacement
     define: {
       // Safely replace process.env.API_KEY with the string value from the environment
-      'process.env.API_KEY': JSON.stringify(apiKey)
+      'process.env.API_KEY': JSON.stringify(apiKey),
+      // Custom global for robust access
+      '__GEMINI_KEY__': JSON.stringify(apiKey)
     },
     server: {
       host: '0.0.0.0',
