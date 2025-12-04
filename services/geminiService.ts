@@ -1,26 +1,12 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Helper to safely access process.env in various environments
-const getApiKey = () => {
-  try {
-    // Check if process exists and has env
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env.API_KEY || "";
-    }
-  } catch (e) {
-    // process is not defined or accessible
-  }
-  return "";
-};
-
-const apiKey = getApiKey();
-// Initialize only if we have a key (or handle empty key gracefully in calls)
-const ai = new GoogleGenAI({ apiKey: apiKey || "dummy_key" });
+// Use process.env.API_KEY directly as per SDK instructions for environment variable injection
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeDefectImage = async (base64Image: string): Promise<string> => {
   try {
-    if (!apiKey) {
+    if (!process.env.API_KEY) {
         console.warn("Gemini API Key is missing.");
         return "AI analysis unavailable (Key missing).";
     }
@@ -31,6 +17,7 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: {
+        role: 'user',
         parts: [
             {
                 inlineData: {
@@ -54,7 +41,7 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
 
 export const suggestFix = async (issueDescription: string): Promise<string> => {
     try {
-        if (!apiKey) return "";
+        if (!process.env.API_KEY) return "";
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
