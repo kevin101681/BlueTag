@@ -1,20 +1,35 @@
 
 import { GoogleGenAI } from "@google/genai";
 
+// Declare global constant injected by Vite
+declare const __GEMINI_KEY__: string;
+
 let ai: GoogleGenAI | null = null;
 let apiKey = "";
 
 try {
-  // process.env.API_KEY is replaced by Vite during build with the string value.
-  // We use a try-catch to safely handle the replacement or lack thereof.
-  // @ts-ignore
-  apiKey = process.env.API_KEY || "";
+  // 1. Try custom global constant (most reliable in this setup)
+  if (typeof __GEMINI_KEY__ !== 'undefined') {
+      apiKey = __GEMINI_KEY__;
+  }
+  
+  // 2. Fallback to process.env replacement if global missing
+  if (!apiKey) {
+      // @ts-ignore
+      apiKey = process.env.API_KEY || "";
+  }
+
+  // Cleanup: Remove any potential extra quotes if stringify went wrong
+  if (apiKey) {
+      apiKey = apiKey.replace(/^"|"$/g, '').trim();
+  }
+
 } catch (e) {
-  console.warn("Error accessing process.env.API_KEY");
+  console.warn("Error accessing API Key configuration");
 }
 
 // Initialize client if key is present
-if (apiKey) {
+if (apiKey && apiKey.length > 0) {
     try {
         ai = new GoogleGenAI({ apiKey });
     } catch (e) {
