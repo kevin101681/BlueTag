@@ -1,3 +1,4 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve, dirname } from 'path';
@@ -11,9 +12,8 @@ export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   const env = loadEnv(mode, (process as any).cwd(), '');
   
-  // Prioritize system variables, then .env variables, checking common names
-  // We also check VITE_ prefixed vars in case user followed standard Vite conventions
-  const apiKey = env.API_KEY || env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+  // Prioritize GEMINI_API_KEY as per README, then API_KEY, then VITE_ prefixes
+  const apiKey = env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || env.API_KEY || env.VITE_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || '';
 
   return {
     plugins: [react()],
@@ -28,10 +28,16 @@ export default defineConfig(({ mode }) => {
     },
     // Define global constants replacement
     define: {
-      // Safely replace process.env.API_KEY with the string value from the environment
-      'process.env.API_KEY': JSON.stringify(apiKey),
-      // Custom global for robust access
-      '__GEMINI_KEY__': JSON.stringify(apiKey)
+      // Inject the key via a custom global for reliability
+      '__GEMINI_KEY__': JSON.stringify(apiKey),
+      // Polyfill process.env for code that expects it (preventing crash on access)
+      'process.env': JSON.stringify({
+          API_KEY: apiKey,
+          GEMINI_API_KEY: apiKey,
+          NODE_ENV: mode
+      }),
+      // explicit replacement for process.env.API_KEY in case of direct usage match
+      'process.env.API_KEY': JSON.stringify(apiKey)
     },
     server: {
       host: '0.0.0.0',

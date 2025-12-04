@@ -1,49 +1,11 @@
-
 import { GoogleGenAI } from "@google/genai";
 
-// Declare global constant injected by Vite
-declare const __GEMINI_KEY__: string;
-
-let ai: GoogleGenAI | null = null;
-let apiKey = "";
-
-try {
-  // 1. Try custom global constant (most reliable in this setup)
-  if (typeof __GEMINI_KEY__ !== 'undefined') {
-      apiKey = __GEMINI_KEY__;
-  }
-  
-  // 2. Fallback to process.env replacement if global missing
-  if (!apiKey) {
-      // @ts-ignore
-      apiKey = process.env.API_KEY || "";
-  }
-
-  // Cleanup: Remove any potential extra quotes if stringify went wrong
-  if (apiKey) {
-      apiKey = apiKey.replace(/^"|"$/g, '').trim();
-  }
-
-} catch (e) {
-  console.warn("Error accessing API Key configuration");
-}
-
-// Initialize client if key is present
-if (apiKey && apiKey.length > 0) {
-    try {
-        ai = new GoogleGenAI({ apiKey });
-    } catch (e) {
-        console.error("Failed to initialize GoogleGenAI client", e);
-    }
-}
+// Initialize client directly with process.env.API_KEY as per guidelines
+// Ensure your build process or environment polyfills process.env.API_KEY correctly.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeDefectImage = async (base64Image: string): Promise<string> => {
   try {
-    if (!ai || !apiKey) {
-        console.warn("Gemini API Key is missing.");
-        return "AI analysis unavailable (Key missing).";
-    }
-
     // Remove header if present (data:image/jpeg;base64,)
     const cleanBase64 = base64Image.split(',')[1] || base64Image;
 
@@ -74,8 +36,6 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
 
 export const suggestFix = async (issueDescription: string): Promise<string> => {
     try {
-        if (!ai || !apiKey) return "";
-
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`

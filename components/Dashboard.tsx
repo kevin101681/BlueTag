@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
@@ -1074,6 +1075,14 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         }
     };
 
+    // Handle mouse wheel scrolling (for desktop)
+    const handleWheel = (e: React.WheelEvent) => {
+        if (overlayRef.current) {
+            overlayRef.current.scrollTop += e.deltaY;
+            overlayRef.current.scrollLeft += e.deltaX;
+        }
+    };
+
     useLayoutEffect(() => {
         const overlay = overlayRef.current;
         const canvas = canvasRef.current;
@@ -1207,6 +1216,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                         ref={overlayRef} 
                         style={{ overflow: 'hidden' }} 
                         className="flex-1 bg-slate-200 dark:bg-slate-950 relative touch-none"
+                        onWheel={handleWheel}
                     >
                          {pdfUrl ? (
                             <div className="relative min-h-full">

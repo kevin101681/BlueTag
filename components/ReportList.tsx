@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue, LocationGroup } from '../types';
+import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
 import { Dashboard } from './Dashboard';
-import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User } from 'lucide-react';
+import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User, BookOpen } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { BlueTagLogo } from './Logo';
 import { ReportCard } from './Dashboard';
@@ -40,8 +40,6 @@ interface ReportListProps {
   onLogout?: () => void;
   deletingReportId?: string | null;
   isDeleting?: boolean;
-  activeProject?: ProjectDetails;
-  activeLocations?: LocationGroup[];
 }
 
 // Helper to check active
@@ -479,9 +477,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         onSelectReport, 
         isCreating,
         deletingReportId,
-        isDeleting,
-        activeProject,
-        activeLocations
+        isDeleting
     } = props;
 
     const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
@@ -526,26 +522,28 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
     };
 
     const activeReport = reports.find(r => r.id === internalSelectedId);
-    
-    // Create a display object that overrides the stored report with live props if available
-    const displayReport = activeReport ? {
-        ...activeReport,
-        project: activeProject || activeReport.project,
-        locations: activeLocations || activeReport.locations
-    } : undefined;
+    // Extract client name for the header pill
+    const clientName = activeReport?.project?.fields?.[0]?.value || "";
 
     return (
-        <div className="flex flex-col h-full bg-slate-200 dark:bg-slate-950">
+        <div className="flex flex-col min-h-screen bg-slate-200 dark:bg-slate-950">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 shrink-0 bg-transparent relative z-20">
                 <div className="flex items-center gap-3">
-                    <BlueTagLogo size="md" className="drop-shadow-sm" />
-                    
                     <button 
                         onClick={() => setIsSettingsOpen(true)}
                         className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                        title="Settings"
                     >
                         <Settings size={24} />
+                    </button>
+
+                     <button 
+                        onClick={() => { /* Placeholder for Manual Action */ }}
+                        className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                        title="Homeowner Manual"
+                    >
+                        <BookOpen size={24} />
                     </button>
                 </div>
                 
@@ -553,6 +551,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     <button 
                         onClick={() => setIsSearchOpen(true)}
                         className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                        title="Search Reports"
                     >
                         <Search size={24} />
                     </button>
@@ -561,6 +560,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         onClick={handleCreate}
                         disabled={isCreating || isExiting}
                         className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-primary hover:bg-primary hover:text-white transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                        title="Create New Report"
                     >
                         <Plus size={24} strokeWidth={3} />
                     </button>
@@ -569,9 +569,9 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
 
             {/* Main Content Area */}
             <div className="flex-1 relative">
-                {displayReport ? (
+                {activeReport ? (
                     <DashboardWrapper 
-                        activeReport={displayReport}
+                        activeReport={activeReport}
                         onUpdateReport={props.onUpdateReport}
                         onSelectLocation={props.onSelectLocation}
                         onBack={() => {}} // No back button in this mode
@@ -582,7 +582,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         onUpdateTemplates={props.onUpdateTemplates}
                         isCreating={isCreating}
                         isExiting={isExiting}
-                        onDelete={(e: React.MouseEvent, rect?: DOMRect) => props.onDeleteReport(displayReport.id, rect)}
+                        onDelete={(e: React.MouseEvent, rect?: DOMRect) => props.onDeleteReport(activeReport.id, rect)}
                         onAddIssueGlobal={props.onAddIssueGlobal}
                     />
                 ) : (
