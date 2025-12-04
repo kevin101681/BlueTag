@@ -5,20 +5,21 @@ let ai: GoogleGenAI | null = null;
 let apiKey = "";
 
 try {
-  // Use process.env.API_KEY directly.
-  // We removed the 'typeof process' check because in browser environments, 
-  // the bundler replaces 'process.env.API_KEY' with a string literal, 
-  // but 'process' global itself might be undefined, causing the previous check to skip this assignment.
+  // process.env.API_KEY is replaced by Vite during build with the string value.
+  // We use a try-catch to safely handle the replacement or lack thereof.
+  // @ts-ignore
   apiKey = process.env.API_KEY || "";
 } catch (e) {
-  console.warn("Could not access process.env.API_KEY. AI features may be disabled.");
+  console.warn("Error accessing process.env.API_KEY");
 }
 
-// Initialize client
-try {
-    ai = new GoogleGenAI({ apiKey });
-} catch (e) {
-    console.error("Failed to initialize GoogleGenAI client", e);
+// Initialize client if key is present
+if (apiKey) {
+    try {
+        ai = new GoogleGenAI({ apiKey });
+    } catch (e) {
+        console.error("Failed to initialize GoogleGenAI client", e);
+    }
 }
 
 export const analyzeDefectImage = async (base64Image: string): Promise<string> => {
