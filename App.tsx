@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Component, ReactNode } from 'react';
 import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
@@ -54,12 +53,57 @@ const migrateProjectData = (p: any): ProjectDetails => {
     };
 };
 
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: any;
+}
+
+// Error Boundary to catch runtime crashes and prevent white screen
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900 p-6 text-center">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-xl max-w-md w-full">
+                <h2 className="text-2xl font-bold text-red-500 mb-4">Something went wrong</h2>
+                <p className="text-slate-600 dark:text-slate-300 mb-4">The application encountered an unexpected error.</p>
+                <div className="bg-slate-100 dark:bg-slate-950 p-4 rounded-lg text-left overflow-auto max-h-40 mb-6">
+                    <code className="text-xs text-slate-500 font-mono">{this.state.error?.toString()}</code>
+                </div>
+                <button 
+                    onClick={() => window.location.reload()}
+                    className="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors"
+                >
+                    Reload Application
+                </button>
+            </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   
   // Netlify Identity Effect
   useEffect(() => {
-    if (window.netlifyIdentity) {
+    if (typeof window !== 'undefined' && window.netlifyIdentity) {
       const user = window.netlifyIdentity.currentUser();
       if (user) {
         setCurrentUser(user);
@@ -81,13 +125,13 @@ export default function App() {
   }, []);
 
   const handleLogin = () => {
-      if (window.netlifyIdentity) {
+      if (typeof window !== 'undefined' && window.netlifyIdentity) {
           window.netlifyIdentity.open();
       }
   };
 
   const handleLogout = () => {
-      if (window.netlifyIdentity) {
+      if (typeof window !== 'undefined' && window.netlifyIdentity) {
           window.netlifyIdentity.logout();
       }
   };
@@ -429,7 +473,6 @@ export default function App() {
           setLocations(prev => prev.map(l => 
               l.id === activeLocationId ? { ...l, issues } : l
           ));
-          // Don't close modal here, let LocationDetail call onBack or have LocationDetail call this on Save
       }
   };
 
@@ -456,7 +499,7 @@ export default function App() {
           setReportToDelete(null);
           setDeleteModalRect(null);
           setIsDeleteExiting(false);
-      }, 400); // 400ms matches dialog-exit and scale-out duration roughly
+      }, 400); 
   };
 
   const handleDeleteOldReports = async () => {
@@ -501,72 +544,72 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-full min-h-screen bg-slate-200 dark:bg-slate-950 overflow-hidden relative">
-        <div className="fixed inset-0 overflow-y-auto z-10">
-            <ReportList 
-              reports={savedReports}
-              onCreateNew={handleCreateNew}
-              onSelectReport={handleSelectReport}
-              onSelectLocation={handleSelectLocation}
-              onDeleteReport={(id, rect) => {
-                  setReportToDelete(id);
-                  if (rect) setDeleteModalRect(rect);
-              }}
-              onDeleteOldReports={handleDeleteOldReports}
-              onUpdateReport={handleUpdateReport}
-              isDarkMode={isDarkMode}
-              currentTheme={theme}
-              onThemeChange={setTheme}
-              colorTheme={colorTheme}
-              onColorThemeChange={setColorTheme}
-              user={currentUser}
-              companyLogo={companyLogo}
-              onUpdateLogo={handleUpdateLogo}
-              partnerLogo={partnerLogo}
-              onUpdatePartnerLogo={handleUpdatePartnerLogo}
-              installAvailable={!!installPrompt}
-              onInstall={handleInstallApp}
-              isIOS={isIOS}
-              isStandalone={isStandalone}
-              isDashboardOpen={false} 
-              signOffTemplates={signOffTemplates}
-              onUpdateTemplates={handleUpdateTemplates}
-              isCreating={isCreating}
-              onAddIssueGlobal={handleAddIssueGlobal}
-              onLogin={handleLogin}
-              onLogout={handleLogout}
-              deletingReportId={reportToDelete}
-              isDeleting={isDeleteExiting}
-              activeProject={activeReportId ? project : undefined}
-              activeLocations={activeReportId ? locations : undefined}
-            />
-            
-            {activeLocationId && (
-                <LocationDetail
-                    location={locations.find(l => l.id === activeLocationId)!}
-                    onBack={() => {
-                        setActiveLocationId(null);
-                        window.history.back();
-                    }}
-                    onUpdateLocation={handleUpdateLocation}
+    <ErrorBoundary>
+        <div className="w-full h-full min-h-screen bg-slate-200 dark:bg-slate-950 overflow-hidden relative">
+            <div className="fixed inset-0 overflow-y-auto z-10">
+                <ReportList 
+                reports={savedReports}
+                onCreateNew={handleCreateNew}
+                onSelectReport={handleSelectReport}
+                onSelectLocation={handleSelectLocation}
+                onDeleteReport={(id, rect) => {
+                    setReportToDelete(id);
+                    if (rect) setDeleteModalRect(rect);
+                }}
+                onDeleteOldReports={handleDeleteOldReports}
+                onUpdateReport={handleUpdateReport}
+                isDarkMode={isDarkMode}
+                currentTheme={theme}
+                onThemeChange={setTheme}
+                colorTheme={colorTheme}
+                onColorThemeChange={setColorTheme}
+                user={currentUser}
+                companyLogo={companyLogo}
+                onUpdateLogo={handleUpdateLogo}
+                partnerLogo={partnerLogo}
+                onUpdatePartnerLogo={handleUpdatePartnerLogo}
+                installAvailable={!!installPrompt}
+                onInstall={handleInstallApp}
+                isIOS={isIOS}
+                isStandalone={isStandalone}
+                isDashboardOpen={false} 
+                signOffTemplates={signOffTemplates}
+                onUpdateTemplates={handleUpdateTemplates}
+                isCreating={isCreating}
+                onAddIssueGlobal={handleAddIssueGlobal}
+                onLogin={handleLogin}
+                onLogout={handleLogout}
+                deletingReportId={reportToDelete}
+                isDeleting={isDeleteExiting}
                 />
-            )}
-            
-            {reportToDelete && (
-                <DeleteConfirmationModal
-                    title="Delete Report?"
-                    message="Are you sure you want to delete this report? This action cannot be undone."
-                    onConfirm={handleConfirmDeleteReport}
-                    onCancel={() => {
-                        if (isDeleteExiting) return;
-                        setReportToDelete(null);
-                        setDeleteModalRect(null);
-                    }}
-                    targetRect={deleteModalRect}
-                    isExiting={isDeleteExiting}
-                />
-            )}
+                
+                {activeLocationId && (
+                    <LocationDetail
+                        location={locations.find(l => l.id === activeLocationId)!}
+                        onBack={() => {
+                            setActiveLocationId(null);
+                            window.history.back();
+                        }}
+                        onUpdateLocation={handleUpdateLocation}
+                    />
+                )}
+                
+                {reportToDelete && (
+                    <DeleteConfirmationModal
+                        title="Delete Report?"
+                        message="Are you sure you want to delete this report? This action cannot be undone."
+                        onConfirm={handleConfirmDeleteReport}
+                        onCancel={() => {
+                            if (isDeleteExiting) return;
+                            setReportToDelete(null);
+                            setDeleteModalRect(null);
+                        }}
+                        targetRect={deleteModalRect}
+                        isExiting={isDeleteExiting}
+                    />
+                )}
+            </div>
         </div>
-    </div>
+    </ErrorBoundary>
   );
 }
