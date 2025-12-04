@@ -5,17 +5,16 @@ let ai: GoogleGenAI | null = null;
 let apiKey = "";
 
 try {
-  // Use process.env.API_KEY directly as per SDK instructions.
-  // We wrap this in a try-catch because in some Vite/browser environments, 
-  // accessing 'process' directly without a polyfill can throw a ReferenceError.
-  if (typeof process !== 'undefined' && process.env) {
-      apiKey = process.env.API_KEY || "";
-  }
+  // Use process.env.API_KEY directly.
+  // We removed the 'typeof process' check because in browser environments, 
+  // the bundler replaces 'process.env.API_KEY' with a string literal, 
+  // but 'process' global itself might be undefined, causing the previous check to skip this assignment.
+  apiKey = process.env.API_KEY || "";
 } catch (e) {
   console.warn("Could not access process.env.API_KEY. AI features may be disabled.");
 }
 
-// Initialize client (allow empty key to avoid crash on init, check later)
+// Initialize client
 try {
     ai = new GoogleGenAI({ apiKey });
 } catch (e) {
