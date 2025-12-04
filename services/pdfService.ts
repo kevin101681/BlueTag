@@ -1,8 +1,11 @@
-
 import { jsPDF } from 'jspdf';
 import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 
 // --- CONFIGURATION ---
+
+// Paste your Base64 encoded logo string here to hardcode it into the PDF.
+// Format: "data:image/png;base64,iVBORw0KGgo..."
+export const LOGO_BASE64: string = "";
 
 export const SIGN_OFF_PDF_BASE64: string = "";
 
@@ -40,29 +43,60 @@ export interface PDFGenerationResult {
 
 // --- HELPER FUNCTIONS ---
 
-const getImageDimensions = (base64: string): Promise<{ width: number, height: number }> => {
+// Load image and return dimensions + base64 data to ensure it renders in jsPDF
+const loadImage = (url: string): Promise<{ width: number, height: number, dataUrl: string }> => {
     return new Promise((resolve) => {
-        if (!base64) {
-            resolve({ width: 0, height: 0 });
+        if (!url) {
+            resolve({ width: 0, height: 0, dataUrl: '' });
             return;
         }
 
+        // Optimization: If it's already a base64 string, skip network load
+        if (url.startsWith('data:image')) {
+             const img = new Image();
+             img.onload = () => {
+                 resolve({ width: img.width, height: img.height, dataUrl: url });
+             };
+             img.onerror = () => {
+                 resolve({ width: 0, height: 0, dataUrl: '' });
+             };
+             img.src = url;
+             return;
+        }
+
         const img = new Image();
+        img.crossOrigin = "Anonymous"; // Required if loading from external URLs, though mostly local here
+        
         const timeoutId = setTimeout(() => {
-            console.warn("Image load timeout");
-            resolve({ width: 0, height: 0 });
+            console.warn("Image load timeout for", url);
+            resolve({ width: 0, height: 0, dataUrl: '' });
         }, 3000);
 
         img.onload = () => {
             clearTimeout(timeoutId);
-            resolve({ width: img.width, height: img.height });
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0);
+                    const dataUrl = canvas.toDataURL('image/png');
+                    resolve({ width: img.width, height: img.height, dataUrl });
+                } else {
+                    resolve({ width: 0, height: 0, dataUrl: '' });
+                }
+            } catch (e) {
+                console.warn("Canvas export failed (CORS?)", e);
+                resolve({ width: 0, height: 0, dataUrl: '' });
+            }
         };
         img.onerror = () => {
             clearTimeout(timeoutId);
-            console.warn("Image load error");
-            resolve({ width: 0, height: 0 });
+            console.warn("Image load error", url);
+            resolve({ width: 0, height: 0, dataUrl: '' });
         };
-        img.src = base64;
+        img.src = url;
     });
 };
 
@@ -633,20 +667,21 @@ export const generateSignOffPDF = async (
     doc.setFillColor(84, 110, 122); 
     doc.rect(0, 0, 210, 3, 'F');
 
-    // Hardcoded logo path
-    const hardcodedLogo = '/logo.png';
+    // Hardcoded logo priority: Base64 constant -> File path
+    const logoToUse = LOGO_BASE64 || '/logo.png';
     try {
-        const dims = await getImageDimensions(hardcodedLogo);
-        if (dims.width > 0) {
+        const logoData = await loadImage(logoToUse);
+        if (logoData.width > 0 && logoData.dataUrl) {
             const maxW = 35; 
             const maxH = 24; 
-            const scale = Math.min(maxW / dims.width, maxH / dims.height);
-            const w = dims.width * scale;
-            const h = dims.height * scale;
-            doc.addImage(hardcodedLogo, 'PNG', 200 - w, 8, w, h);
+            const scale = Math.min(maxW / logoData.width, maxH / logoData.height);
+            const w = logoData.width * scale;
+            const h = logoData.height * scale;
+            const fmt = getImageFormat(logoData.dataUrl);
+            doc.addImage(logoData.dataUrl, fmt, 200 - w, 8, w, h);
         }
     } catch (e) { 
-        // fallback to param if provided and hardcode fails (optional)
+        console.warn("Logo load failed", e);
     }
 
     doc.setFontSize(14);
@@ -707,17 +742,18 @@ export const generatePDFWithMetadata = async (
   doc.setFillColor(84, 110, 122); 
   doc.rect(0, 0, 210, 3, 'F');
 
-  // Hardcoded logo path
-  const hardcodedLogo = '/logo.png';
+  // Hardcoded logo priority: Base64 constant -> File path
+  const logoToUse = LOGO_BASE64 || '/logo.png';
   try {
-      const dims = await getImageDimensions(hardcodedLogo);
-      if (dims.width > 0) {
+      const logoData = await loadImage(logoToUse);
+      if (logoData.width > 0 && logoData.dataUrl) {
           const maxW = 35; 
           const maxH = 24; 
-          const scale = Math.min(maxW / dims.width, maxH / dims.height);
-          const w = dims.width * scale;
-          const h = dims.height * scale;
-          doc.addImage(hardcodedLogo, 'PNG', 200 - w, 8, w, h);
+          const scale = Math.min(maxW / logoData.width, maxH / logoData.height);
+          const w = logoData.width * scale;
+          const h = logoData.height * scale;
+          const fmt = getImageFormat(logoData.dataUrl);
+          doc.addImage(logoData.dataUrl, fmt, 200 - w, 8, w, h);
       }
   } catch (e) { }
 
@@ -921,6 +957,9 @@ export const generatePDFWithMetadata = async (
                   const photoId = photo.id || `${issue.id}_img_${i}`;
                   
                   try {
+                      // Note: We use the base64 url directly from the issue photo object here
+                      // But for external logos, we need the loading helper.
+                      // Issue photos are ALREADY base64 data URLs from the app logic.
                       const format = getImageFormat(photo.url);
                       
                       // Explicit clipping path for rounded image

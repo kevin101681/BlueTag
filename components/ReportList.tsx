@@ -534,7 +534,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     
                     <button 
                         onClick={() => setIsSettingsOpen(true)}
-                        className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                        className="w-[54px] h-[54px] rounded-2xl bg-slate-300 dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-400 dark:hover:bg-slate-800 transition-all shadow-sm border border-slate-300 dark:border-slate-800 flex items-center justify-center"
                     >
                         <Settings size={24} />
                     </button>
@@ -543,7 +543,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setIsSearchOpen(true)}
-                        className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                        className="w-[54px] h-[54px] rounded-2xl bg-slate-300 dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-primary hover:bg-slate-400 dark:hover:bg-slate-800 transition-all shadow-sm border border-slate-300 dark:border-slate-800 flex items-center justify-center"
                     >
                         <Search size={24} />
                     </button>
@@ -551,7 +551,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     <button 
                         onClick={handleCreate}
                         disabled={isCreating || isExiting}
-                        className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-primary hover:bg-primary hover:text-white transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+                        className="w-[54px] h-[54px] rounded-2xl bg-slate-300 dark:bg-slate-900 text-primary dark:text-primary hover:bg-slate-400 dark:hover:bg-slate-800 hover:text-primary/80 transition-all shadow-sm border border-slate-300 dark:border-slate-800 flex items-center justify-center"
                     >
                         <Plus size={24} strokeWidth={3} />
                     </button>
@@ -580,8 +580,8 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     <div className="max-w-3xl mx-auto p-6 relative">
                          {/* Empty Placeholder that matches ReportCard dimensions/position */}
                         <div className="w-full bg-white/50 dark:bg-slate-900/50 rounded-[32px] p-6 border-4 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center min-h-[220px]">
-                             <div className="w-20 h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-6">
-                                 <Plus size={40} className="text-slate-300 dark:text-slate-600" />
+                             <div className="w-20 h-20 rounded-2xl bg-slate-300 dark:bg-slate-800 flex items-center justify-center mb-6">
+                                 <Plus size={40} className="text-slate-400 dark:text-slate-600" />
                              </div>
                              <button 
                                 onClick={handleCreate}

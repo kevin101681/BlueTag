@@ -20,7 +20,7 @@ export const BlueTagLogo: React.FC<LogoProps> = ({ size = 'md', className = '', 
 
   return (
     <div 
-        className={`flex items-center justify-center bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 ${config.r} ${className}`} 
+        className={`flex items-center justify-center bg-slate-300 dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 ${config.r} ${className}`} 
         style={{ 
             width: config.w, 
             height: config.h, 

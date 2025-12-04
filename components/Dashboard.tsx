@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
@@ -116,7 +117,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
         if (isActive) {
             return `${base} bg-primary/10 dark:bg-primary/20 border-primary/20 dark:border-primary/30 text-primary hover:bg-primary/20 dark:hover:bg-primary/30`;
         }
-        return `${base} bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-primary`;
+        return `${base} bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-400 dark:hover:bg-slate-700 hover:text-primary`;
     };
 
     return (
@@ -130,10 +131,10 @@ export const ReportCard: React.FC<ReportCardProps> = ({
             {/* Header: Stacked Pills */}
             <div className="flex flex-col items-center gap-2 mb-6 relative z-10 w-full">
                  {/* Decorative Line connecting to Name Pill center */}
-                 <div className="absolute top-[20px] left-0 right-0 h-px bg-slate-100 dark:bg-slate-800 -z-10" />
+                 <div className="absolute top-[20px] left-0 right-0 h-px bg-slate-300 dark:bg-slate-800 -z-10" />
 
                  {/* Name Pill - Smaller, Removed Pulse */}
-                 <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2 rounded-full flex items-center gap-3 border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900 z-20">
+                 <div className="bg-slate-300 dark:bg-slate-800 px-6 py-2 rounded-full flex items-center gap-3 border border-slate-300 dark:border-slate-700 relative z-20">
                     <div className="w-2 h-2 rounded-full bg-primary shrink-0 animate-pulse" />
                     <span className="text-base font-bold text-slate-700 dark:text-slate-200 truncate max-w-[50vw]">
                         {nameStr}
@@ -142,7 +143,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
 
                  {/* Lot/Unit Pill - Only shown in header if NOT a search result (Main Card) */}
                  {!isSearchResult && subtitle && (
-                    <div className="h-10 px-4 rounded-2xl flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900 shadow-sm z-20">
+                    <div className="h-10 px-4 rounded-2xl flex items-center justify-center gap-2 bg-slate-300 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 relative shadow-sm z-20">
                         <span className="text-xs font-bold text-slate-500 dark:text-slate-400 max-w-[40vw] truncate">
                             {subtitle}
                         </span>
@@ -188,7 +189,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
             {/* Footer Row - Unified Group, Centered, Equal Spacing */}
             <div className="flex items-center justify-center mt-auto w-full gap-2 sm:gap-3">
                 {/* Item Count */}
-                <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink">
+                <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-300 dark:bg-slate-800 px-4 sm:px-6 flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 shadow-sm shrink">
                     <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
                         {issueCount} Items
                     </span>
@@ -196,7 +197,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
 
                 {/* Lot/Unit Pill - Shown in footer for Search Results */}
                 {isSearchResult && subtitle && (
-                    <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink min-w-0">
+                    <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-300 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-300 dark:border-slate-700 shadow-sm shrink min-w-0">
                         <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap truncate">
                             {subtitle}
                         </span>
@@ -230,14 +231,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                     </>
                 )}
 
-                {/* Date Pill */}
-                <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink min-w-0">
-                    <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap truncate">
-                        {dateStr}
-                    </span>
-                </div>
-
-                {/* Delete Button */}
+                {/* Delete Button (Moved to position before Date) */}
                 {onDelete && (
                      <button 
                          onClick={(e) => { 
@@ -245,12 +239,19 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                              const rect = cardRef.current?.getBoundingClientRect();
                              onDelete(e, rect); 
                          }}
-                         className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl sm:rounded-2xl transition-colors flex items-center justify-center shadow-sm active:scale-95 shrink-0"
+                         className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-300 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl sm:rounded-2xl transition-colors flex items-center justify-center shadow-sm active:scale-95 shrink-0"
                          title="Delete Report"
                      >
                          <Trash2 size={20} className="sm:w-[24px] sm:h-[24px]" />
                      </button>
                 )}
+
+                {/* Date Pill (Moved to End) */}
+                <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-300 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-300 dark:border-slate-700 shadow-sm shrink min-w-0">
+                    <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap truncate">
+                        {dateStr}
+                    </span>
+                </div>
             </div>
             
             {isSelected && (
@@ -1435,26 +1436,29 @@ export const Dashboard = React.memo<DashboardProps>(({
                         animationFillMode: isCreating || isExiting ? 'both' : undefined
                     }}
                 >
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 relative z-0">
+                         {/* Decorative Line in Header */}
+                         <div className="absolute top-1/2 left-0 right-0 h-px bg-slate-300 dark:bg-slate-700 -z-10" />
+
                         <div className="flex items-center gap-3 w-full justify-center relative">
                             {/* Edit Button Left */}
                             <button
                                 onClick={() => setIsEditClientInfoOpen(true)}
-                                className="absolute left-0 p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors"
+                                className="absolute left-0 p-3 bg-slate-300 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors"
                                 title="Edit Info Schema"
                             >
                                 <Pencil size={20} />
                             </button>
                             
                             {/* Title Center - Updated to Rounded Full (Pill) */}
-                            <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2.5 rounded-full">
+                            <div className="bg-slate-300 dark:bg-slate-800 px-6 py-2.5 rounded-full z-10">
                                 <h2 className="text-lg font-bold text-slate-600 dark:text-slate-300">Client Information</h2>
                             </div>
 
                              {/* Collapse Right */}
                              <button 
                                 onClick={() => setIsDetailsCollapsed(!isDetailsCollapsed)}
-                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-300 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-400 dark:hover:bg-slate-700 transition-colors"
                             >
                                 {isDetailsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
                             </button>
@@ -1497,25 +1501,28 @@ export const Dashboard = React.memo<DashboardProps>(({
                 >
                     {/* Locations Header Row */}
                     <div className="flex items-center justify-between mb-6 relative z-30">
+                        {/* Decorative Line in Header */}
+                        <div className="absolute top-1/2 left-0 right-0 h-px bg-slate-300 dark:bg-slate-700 -z-10" />
+
                         <div className="flex items-center gap-3 w-full justify-center relative">
                             {/* Manage Locations Left */}
                             <button
                                 onClick={() => setIsManageLocationsOpen(true)}
-                                className="absolute left-0 p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors shrink-0 z-10"
+                                className="absolute left-0 p-3 bg-slate-300 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors shrink-0 z-10"
                                 title="Manage Locations"
                             >
                                 <Pencil size={20} />
                             </button>
 
                             {/* Title Center - Updated to Rounded Full (Pill) */}
-                            <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2.5 rounded-full">
+                            <div className="bg-slate-300 dark:bg-slate-800 px-6 py-2.5 rounded-full z-10">
                                 <h2 className="text-lg font-bold text-slate-600 dark:text-slate-300">Report Items</h2>
                             </div>
 
                             {/* Collapse Right */}
                             <button 
                                 onClick={() => setIsLocationsCollapsed(!isLocationsCollapsed)}
-                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 z-10"
+                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-300 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 z-10"
                             >
                                  {isLocationsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
                             </button>
