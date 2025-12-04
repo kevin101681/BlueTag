@@ -1,12 +1,30 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Use process.env.API_KEY directly as per SDK instructions for environment variable injection
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let ai: GoogleGenAI | null = null;
+let apiKey = "";
+
+try {
+  // Use process.env.API_KEY directly as per SDK instructions.
+  // We wrap this in a try-catch because in some Vite/browser environments, 
+  // accessing 'process' directly without a polyfill can throw a ReferenceError.
+  if (typeof process !== 'undefined' && process.env) {
+      apiKey = process.env.API_KEY || "";
+  }
+} catch (e) {
+  console.warn("Could not access process.env.API_KEY. AI features may be disabled.");
+}
+
+// Initialize client (allow empty key to avoid crash on init, check later)
+try {
+    ai = new GoogleGenAI({ apiKey });
+} catch (e) {
+    console.error("Failed to initialize GoogleGenAI client", e);
+}
 
 export const analyzeDefectImage = async (base64Image: string): Promise<string> => {
   try {
-    if (!process.env.API_KEY) {
+    if (!ai || !apiKey) {
         console.warn("Gemini API Key is missing.");
         return "AI analysis unavailable (Key missing).";
     }
@@ -41,7 +59,7 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
 
 export const suggestFix = async (issueDescription: string): Promise<string> => {
     try {
-        if (!process.env.API_KEY) return "";
+        if (!ai || !apiKey) return "";
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
