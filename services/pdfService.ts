@@ -78,6 +78,19 @@ const getImageFormat = (base64: string): string => {
     return 'JPEG';
 };
 
+const drawVerticalGradient = (doc: jsPDF, x: number, y: number, w: number, h: number, c1: [number, number, number], c2: [number, number, number]) => {
+    const steps = 20; 
+    const stepH = h / steps;
+    for (let i = 0; i < steps; i++) {
+        const ratio = i / steps;
+        const r = Math.round(c1[0] * (1 - ratio) + c2[0] * ratio);
+        const g = Math.round(c1[1] * (1 - ratio) + c2[1] * ratio);
+        const b = Math.round(c1[2] * (1 - ratio) + c2[2] * ratio);
+        doc.setFillColor(r, g, b);
+        doc.rect(x, y + (i * stepH), w, stepH + 0.5, 'F');
+    }
+};
+
 const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: number = 5, numberValue?: string, customColor?: [number, number, number], textColor?: [number, number, number]) => {
     const s = size; 
     doc.saveGraphicsState();
@@ -187,6 +200,8 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
          doc.line(cx, cy + s*0.25, cx, cy + s*0.25);
     } else if (t === 'number') {
          const rn = s / 2; 
+         // Aligning: Use simple centering, no vertical offset for icon
+         // Remove vertical offset - s*0.3
          
          const c = customColor || [14, 165, 233];
          doc.setFillColor(c[0], c[1], c[2]); 
@@ -592,74 +607,87 @@ export const generatePDFWithMetadata = async (
 
 // --- SIGN OFF PDF ---
 
-const drawSignatureImageOnPDF = async (
+const drawSignatureImageOnPDF = (
     doc: jsPDF, 
     signatureImage: string, 
     containerWidth: number, 
     startY: number, 
     pageHeightPx?: number, 
     gapHeightPx: number = 16
-): Promise<void> => {
+): number => {
     // 1. Calculate ratios
     const pdfPageHeightMM = 297; 
     const pdfPageWidthMM = 210;
     
     // Determine scale factor based on container width vs PDF width
+    // Assuming the container fills the PDF width (minus minimal margin?)
+    // In SignOffModal, we render PDFCanvasPreview which fills width. 
+    // The canvas overlay matches that scrollWidth.
+    // So ratio = 210mm / scrollWidthPx
     const ratio = pdfPageWidthMM / containerWidth;
 
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const imgWidthPx = img.width;
-            const imgHeightPx = img.height; 
+    const img = new Image();
+    img.src = signatureImage;
+    
+    // Since loading is sync in jsPDF addImage if base64, we can assume dimensions:
+    const imgWidthPx = img.width;
+    const imgHeightPx = img.height; // Total height of long canvas
 
-            // If we have accurate page height from DOM, use it to slice. 
-            // Otherwise fall back to PDF page height logic (less accurate if DOM varies).
-            // pageHeightPx is the height of ONE PDF page rendered in DOM
-            const effectivePageHeightPx = pageHeightPx || (pdfPageHeightMM / ratio);
-            
-            // Calculate total PDF pages needed
-            const totalPages = doc.getNumberOfPages();
-            
-            for (let i = 1; i <= totalPages; i++) {
-                doc.setPage(i);
-                
-                const sourceY = (effectivePageHeightPx + gapHeightPx) * (i - 1);
-                const sourceH = effectivePageHeightPx;
-                
-                // Safety check
-                if (sourceY >= imgHeightPx) break;
+    // If we have accurate page height from DOM, use it to slice. 
+    // Otherwise fall back to PDF page height logic (less accurate if DOM varies).
+    // pageHeightPx is the height of ONE PDF page rendered in DOM
+    if (!pageHeightPx) {
+         // Fallback: estimate from ratio
+         pageHeightPx = pdfPageHeightMM / ratio;
+    }
+    
+    // Calculate total PDF pages needed
+    const totalPages = doc.getNumberOfPages();
+    
+    // Iterate through pages and draw slice
+    // Visual check: The overlay is one long canvas. The PDF is paginated.
+    // We need to slice the canvas corresponding to each page.
+    // Between pages in the UI, there is a GAP (gapHeightPx).
+    // The canvas COVERS that gap too (it's absolute over the whole column).
+    // So for Page N:
+    // Source Y = (PageHeight + Gap) * (N-1)
+    // Source H = PageHeight
+    // Dest X = 0 (or margin?), Dest Y = 0, Dest W = 210, Dest H = 297
+    
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        
+        const sourceY = (pageHeightPx + gapHeightPx) * (i - 1);
+        const sourceH = pageHeightPx;
+        
+        // Safety check
+        if (sourceY >= imgHeightPx) break;
 
-                // Create a temporary canvas to slice the image
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = imgWidthPx;
-                tempCanvas.height = sourceH;
-                
-                const ctx = tempCanvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(
-                        img, 
-                        0, sourceY, imgWidthPx, sourceH, // Source
-                        0, 0, imgWidthPx, sourceH        // Dest on temp canvas
-                    );
-                    
-                    const sliceData = tempCanvas.toDataURL('image/png');
-                    
-                    // Draw onto PDF
-                    // The canvas overlay matches the PDF coordinates 1:1 visually
-                    doc.addImage(sliceData, 'PNG', 0, 0, pdfPageWidthMM, pdfPageHeightMM);
-                }
-            }
-            resolve();
-        };
-        img.onerror = () => {
-            console.warn("Failed to load signature image");
-            resolve();
-        };
-        img.src = signatureImage;
-    });
+        // Create a temporary canvas to slice the image
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = imgWidthPx;
+        tempCanvas.height = sourceH;
+        
+        const ctx = tempCanvas.getContext('2d');
+        if (ctx) {
+            ctx.drawImage(
+                img, 
+                0, sourceY, imgWidthPx, sourceH, // Source
+                0, 0, imgWidthPx, sourceH        // Dest on temp canvas
+            );
+            
+            const sliceData = tempCanvas.toDataURL('image/png');
+            
+            // Draw onto PDF
+            // The canvas overlay matches the PDF coordinates 1:1 visually
+            doc.addImage(sliceData, 'PNG', 0, 0, pdfPageWidthMM, pdfPageHeightMM);
+        }
+    }
+    
+    return 0;
 };
 
+// Original vector function kept but updated to handle page switching correctly
 const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], containerWidth: number, startY: number, pageHeightPx?: number, gapHeightPx: number = 16) => {
     // Ratio calc (see above)
     const pdfPageWidthMM = 210;
@@ -677,6 +705,7 @@ const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], cont
         if (points.length < 2) return;
 
         // Calculate which page this stroke belongs to based on the FIRST point
+        // NOTE: Strokes crossing pages might look weird. We'll handle segment by segment.
         
         for (let i = 0; i < points.length - 1; i++) {
             const p1 = points[i];
@@ -884,8 +913,7 @@ export const generateSignOffPDF = async (
     // --- DRAW STROKES OR SIGNATURE IMAGE ---
     if (signatureImage && containerWidth) {
         // Preferred: Draw full raster image (handles eraser correctly)
-        // Must wait for async drawing to finish
-        await drawSignatureImageOnPDF(doc, signatureImage, containerWidth, 0, pageHeightPx, gapHeightPx);
+        drawSignatureImageOnPDF(doc, signatureImage, containerWidth, 0, pageHeightPx, gapHeightPx);
     } else if (strokes && containerWidth) {
         // Fallback: Draw vector strokes (eraser might show as white lines on white bg)
         drawStrokesOnPDF(doc, strokes, containerWidth, 0, pageHeightPx, gapHeightPx);
