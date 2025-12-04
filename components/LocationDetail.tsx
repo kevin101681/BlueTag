@@ -160,34 +160,54 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     }, []);
 
     useEffect(() => {
-        if ('webkitSpeechRecognition' in window) {
-            const SpeechRecognition = (window as any).webkitSpeechRecognition;
-            recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.continuous = true;
-            recognitionRef.current.interimResults = false;
-            recognitionRef.current.onresult = (event: any) => {
-                 let finalTranscript = '';
-                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                     if (event.results[i].isFinal) {
-                         finalTranscript += event.results[i][0].transcript;
+        // Support standard and webkit prefixed SpeechRecognition
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+        if (SpeechRecognition) {
+            try {
+                recognitionRef.current = new SpeechRecognition();
+                recognitionRef.current.continuous = true;
+                recognitionRef.current.interimResults = false;
+                recognitionRef.current.lang = 'en-US';
+
+                recognitionRef.current.onresult = (event: any) => {
+                     let finalTranscript = '';
+                     for (let i = event.resultIndex; i < event.results.length; ++i) {
+                         if (event.results[i].isFinal) {
+                             finalTranscript += event.results[i][0].transcript;
+                         }
                      }
-                 }
-                 if (finalTranscript) {
-                     const trimmed = finalTranscript.trim();
-                     if (trimmed) {
-                        setDescription(prev => {
-                            const needsSpace = prev.length > 0 && !prev.endsWith(' ');
-                            return prev + (needsSpace ? ' ' : '') + trimmed;
-                        });
+                     if (finalTranscript) {
+                         const trimmed = finalTranscript.trim();
+                         if (trimmed) {
+                            setDescription(prev => {
+                                const needsSpace = prev.length > 0 && !prev.endsWith(' ');
+                                return prev + (needsSpace ? ' ' : '') + trimmed;
+                            });
+                         }
                      }
-                 }
-            };
-            recognitionRef.current.onend = () => {
-                setIsListening(false);
-            };
+                };
+
+                recognitionRef.current.onend = () => {
+                    setIsListening(false);
+                };
+                
+                recognitionRef.current.onerror = (event: any) => {
+                    console.error("Speech Recognition Error", event.error);
+                    setIsListening(false);
+                };
+
+            } catch (e) {
+                console.error("Failed to initialize speech recognition", e);
+            }
         }
+        
         return () => {
-            if (recognitionRef.current) recognitionRef.current.stop();
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.stop();
+                } catch(e) {}
+            }
         };
     }, []);
 
@@ -204,7 +224,7 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                 recognitionRef.current.start();
                 setIsListening(true);
             } catch (e) {
-                console.error("Speech recognition error", e);
+                console.error("Speech recognition start error", e);
                 setIsListening(false);
             }
         }
@@ -474,11 +494,6 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     const [localIssues, setLocalIssues] = useState<Issue[]>(location.issues);
     const [isAddIssueOpen, setIsAddIssueOpen] = useState(false);
     const [issueToDelete, setIssueToDelete] = useState<string | null>(null);
-    
-    // Photo management state
-    const [pendingPhotoIssueId, setPendingPhotoIssueId] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [editingImageState, setEditingImageState] = useState<{issueId: string, photoIndex: number} | null>(null);
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -505,63 +520,6 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     const handleSaveAll = () => {
         onUpdateLocation(localIssues);
         onBack();
-    };
-
-    // --- Photo Handlers for Inline Editing ---
-
-    const handleTriggerAddPhoto = (issueId: string) => {
-        setPendingPhotoIssueId(issueId);
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!pendingPhotoIssueId || !e.target.files?.[0]) return;
-        
-        try {
-            const url = await compressImage(e.target.files[0]);
-            setLocalIssues(prev => prev.map(issue => {
-                if (issue.id === pendingPhotoIssueId) {
-                    return {
-                        ...issue,
-                        photos: [...issue.photos, { id: generateUUID(), url, description: '' }]
-                    };
-                }
-                return issue;
-            }));
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setPendingPhotoIssueId(null);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    };
-
-    const handleRemovePhoto = (issueId: string, photoIndex: number) => {
-        setLocalIssues(prev => prev.map(issue => {
-            if (issue.id === issueId) {
-                return {
-                    ...issue,
-                    photos: issue.photos.filter((_, idx) => idx !== photoIndex)
-                };
-            }
-            return issue;
-        }));
-    };
-
-    const handleSaveEditedImageInline = (newUrl: string) => {
-        if (!editingImageState) return;
-        const { issueId, photoIndex } = editingImageState;
-        
-        setLocalIssues(prev => prev.map(issue => {
-            if (issue.id === issueId) {
-                const newPhotos = [...issue.photos];
-                newPhotos[photoIndex] = { ...newPhotos[photoIndex], url: newUrl };
-                return { ...issue, photos: newPhotos };
-            }
-            return issue;
-        }));
-        
-        setEditingImageState(null);
     };
 
     return createPortal(
@@ -610,35 +568,19 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                                          </button>
                                     </div>
                                     
-                                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide ml-8 items-center">
-                                        {issue.photos.map((photo, idx) => (
-                                            <div key={idx} className="w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo">
-                                                <img 
-                                                    src={photo.url} 
-                                                    alt="Thumbnail" 
-                                                    className="w-full h-full object-cover cursor-pointer hover:opacity-90"
-                                                    onClick={() => setEditingImageState({ issueId: issue.id, photoIndex: idx })}
-                                                />
-                                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                                     <Edit2 size={16} className="text-white" />
+                                    {issue.photos.length > 0 && (
+                                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide ml-8">
+                                            {issue.photos.map((photo, idx) => (
+                                                <div key={idx} className="w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                                                    <img 
+                                                        src={photo.url} 
+                                                        alt="Thumbnail" 
+                                                        className="w-full h-full object-cover" 
+                                                    />
                                                 </div>
-                                                <button 
-                                                    onClick={() => handleRemovePhoto(issue.id, idx)}
-                                                    className="absolute top-0 right-0 p-1 bg-black/50 text-white hover:bg-red-500 transition-colors rounded-bl-lg"
-                                                >
-                                                    <X size={10} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                        {/* Add Photo Button Inline */}
-                                        <button 
-                                            onClick={() => handleTriggerAddPhoto(issue.id)}
-                                            className="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all"
-                                        >
-                                            <Camera size={18} />
-                                            <span className="text-[9px] font-bold mt-1">Add</span>
-                                        </button>
-                                    </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -667,16 +609,6 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 </div>
             </div>
 
-            {/* Hidden Input for Adding Photos */}
-            <input 
-                type="file" 
-                accept="image/*" 
-                capture="environment" 
-                ref={fileInputRef} 
-                className="hidden" 
-                onChange={handleFileChange} 
-            />
-
             {isAddIssueOpen && (
                 <AddIssueForm 
                     onClose={() => setIsAddIssueOpen(false)}
@@ -690,21 +622,6 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                     onCancel={() => setIssueToDelete(null)}
                 />
             )}
-
-            {editingImageState && (() => {
-                const issue = localIssues.find(i => i.id === editingImageState.issueId);
-                const photo = issue?.photos[editingImageState.photoIndex];
-                if (photo) {
-                    return (
-                        <ImageEditor 
-                            imageUrl={photo.url}
-                            onSave={handleSaveEditedImageInline}
-                            onCancel={() => setEditingImageState(null)}
-                        />
-                    );
-                }
-                return null;
-            })()}
         </>,
         document.body
     );
