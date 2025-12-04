@@ -5,6 +5,8 @@ import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField
 // --- CONFIGURATION ---
 
 export const SIGN_OFF_PDF_BASE64: string = "";
+export const LOGO_BASE64: string = ""; // Paste your Base64 logo string here to override everything else
+const HARDCODED_LOGO_PATH = '/logo.png';
 
 // --- EDITABLE TEXT CONTENT ---
 
@@ -198,6 +200,9 @@ const drawSimpleIcon = (doc: jsPDF, type: string, x: number, y: number, size: nu
          doc.line(cx, cy + s*0.25, cx, cy + s*0.25);
     } else if (t === 'number') {
          const rn = s / 2; 
+         // Aligning: Use simple centering, no vertical offset for icon
+         // Remove vertical offset - s*0.3
+         
          const c = customColor || [14, 165, 233];
          doc.setFillColor(c[0], c[1], c[2]); 
          doc.circle(x + rn, y + rn, rn, 'F');
@@ -265,345 +270,480 @@ const drawProjectCard = (doc: jsPDF, project: ProjectDetails, startY: number): n
     const minWidth = 80;
     const maxContentWidth = Math.max(nameWidth, lotWidth, detailsContentWidth);
     const boxWidth = Math.max(minWidth, maxContentWidth + (paddingX * 2));
-
-    let contentHeight = 6;
-    if (lotStr) contentHeight += 6;
-    if (detailFields.length > 0) contentHeight += 6; 
-    if (detailFields.length > 0) contentHeight += (detailFields.length * lineHeight) - 2;
-
-    const finalBoxHeight = contentHeight + (paddingY * 2);
-    const pageWidth = 210;
-    const boxX = (pageWidth - boxWidth) / 2;
-
-    doc.setFillColor(236, 239, 241); 
-    doc.setDrawColor(207, 216, 220); 
-    doc.setLineWidth(0.1); 
-    doc.roundedRect(boxX, startY, boxWidth, finalBoxHeight, 8, 8, 'FD'); 
-
-    let currentY = startY + paddingY + 4; 
-    const leftX = boxX + paddingX;
-
-    doc.setFontSize(14);
-    doc.setTextColor(30, 41, 59); 
-    doc.setFont("helvetica", "bold");
-    doc.text(nameStr, leftX, currentY);
-
-    if (lotStr) {
-        currentY += 6;
-        doc.setFontSize(10);
-        doc.setTextColor(100, 116, 139); 
-        doc.setFont("helvetica", "bold");
-        doc.text(lotStr, leftX, currentY);
+    
+    // Calculate Height
+    let boxHeight = paddingY * 2 + 7; // Header + Subheader gap
+    if (detailFields.length > 0) {
+        boxHeight += 4; 
+        boxHeight += detailFields.length * lineHeight; 
     }
 
-    if (detailFields.length > 0) {
-        currentY += 6; 
-        
-        doc.setFontSize(9); 
-        doc.setTextColor(51, 65, 85); 
-        doc.setFont("helvetica", "normal");
+    // Center Logic
+    const pageWidth = 210;
+    const boxX = (pageWidth - boxWidth) / 2;
+    
+    // Draw Box
+    doc.saveGraphicsState();
+    doc.setFillColor(248, 250, 252); 
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(boxX, startY, boxWidth, boxHeight, 4, 4, 'FD');
+    doc.restoreGraphicsState();
 
-        detailFields.forEach(line => {
-            drawSimpleIcon(doc, line.icon, leftX, currentY - 3, iconSize);
-            doc.text(line.value, leftX + iconSize + iconGap, currentY);
-            currentY += lineHeight;
+    let curY = startY + paddingY + 4;
+    
+    // Header
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(51, 65, 85);
+    doc.text(nameStr, pageWidth / 2, curY, { align: 'center' });
+    
+    // Subheader
+    if (lotStr) {
+        curY += 5;
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139);
+        doc.text(lotStr, pageWidth / 2, curY, { align: 'center' });
+    }
+
+    // Details
+    if (detailFields.length > 0) {
+        curY += 6;
+        doc.setDrawColor(226, 232, 240);
+        doc.line(boxX + 10, curY, boxX + boxWidth - 10, curY);
+        curY += 6;
+
+        const contentStartX = boxX + (boxWidth - detailsContentWidth) / 2;
+
+        detailFields.forEach(field => {
+             drawSimpleIcon(doc, field.icon, contentStartX, curY - 3, iconSize);
+             
+             doc.setFontSize(9);
+             doc.setFont("helvetica", "normal");
+             doc.setTextColor(71, 85, 105);
+             doc.text(field.value, contentStartX + iconSize + iconGap, curY);
+             
+             curY += lineHeight;
         });
     }
 
-    return startY + finalBoxHeight;
+    return startY + boxHeight;
 };
 
-const CARD_WIDTH = 190;
-const CARD_X = (210 - CARD_WIDTH) / 2;
-const CARD_PADDING = 8;
-const TITLE_HEIGHT = 12;
-const INITIAL_BOX_SIZE = 10;
-const INITIAL_BOX_LEFT_MARGIN = 14;
+// --- PDF GENERATOR (REPORT) ---
 
-const drawCardHeader = (doc: jsPDF, y: number, title: string, cardHeight: number, iconType: string) => {
-    const headerColor = [207, 216, 220]; 
-    const bodyColor = [236, 242, 245]; 
-
-    doc.setFillColor(bodyColor[0], bodyColor[1], bodyColor[2]);
-    doc.setDrawColor(bodyColor[0], bodyColor[1], bodyColor[2]); 
-    doc.roundedRect(CARD_X, y, CARD_WIDTH, cardHeight, 4, 4, 'FD');
-
-    doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
-    doc.setDrawColor(headerColor[0], headerColor[1], headerColor[2]);
+export const generatePDFWithMetadata = async (
+    state: AppState, 
+    companyLogo?: string,
+    marks?: Record<string, ('check' | 'x')[]>
+): Promise<PDFGenerationResult> => {
+    const doc = new jsPDF();
+    const imageMap: ImageLocation[] = [];
+    const checkboxMap: CheckboxLocation[] = [];
     
-    doc.roundedRect(CARD_X, y, CARD_WIDTH, TITLE_HEIGHT + 2, 4, 4, 'F');
-    doc.rect(CARD_X, y + TITLE_HEIGHT - 2, CARD_WIDTH, 4, 'F');
+    let y = 10;
+    const pageWidth = 210;
+    const margin = 15;
     
-    doc.setFontSize(11);
-    doc.setTextColor(51, 65, 85); 
-    doc.setFont("helvetica", "bold");
-    
-    drawSimpleIcon(doc, iconType, CARD_X + 6, y + 3.5, 5);
-    doc.text(title, CARD_X + 16, y + 7.5);
-};
+    // --- LOAD ASSETS ---
+    let logoDataUrl = companyLogo;
 
-const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): number => {
-    if (section.title === "Sign Off") {
-        const headerH = TITLE_HEIGHT;
-        const initialSpacing = 16;
-        const text1H = 8; 
-        const text2H = 12; 
-        const sigRow1H = 10;
-        const text3H = 8; 
-        const boxH = 18;
-        const text4H = 8; 
-        const sigRow2H = 10;
-        const gaps = 30;
-        
-        const cardHeight = headerH + initialSpacing + text1H + text2H + sigRow1H + text3H + boxH + text4H + sigRow2H + gaps + CARD_PADDING;
-
-        if (startY + cardHeight > 280) {
-            doc.addPage();
-            drawVerticalGradient(doc, 0, 0, 210, 35, [226, 232, 240], [255, 255, 255]);
-            startY = 20; 
-        }
-
-        drawCardHeader(doc, startY, section.title, cardHeight, 'pentool');
-
-        let currentY = startY + TITLE_HEIGHT + initialSpacing;
-        const leftX = CARD_X + CARD_PADDING;
-        const width = CARD_WIDTH - (CARD_PADDING * 2);
-
-        doc.setFontSize(10);
-        doc.setTextColor(51, 65, 85);
-        doc.setFont("helvetica", "normal");
-        
-        doc.text("The following is to be signed at the \"rewalk\" (typically the date of closing)", leftX, currentY);
-        currentY += 8;
-
-        doc.setFont("helvetica", "bold");
-        const disclaimer = "MY SIGNATURE CERTIFIES THE ACCEPTABLE COMPLETION OF ALL ITEMS LISTED ON THE BUILDER’S NEW HOME COMPLETION LIST:";
-        const splitDisclaimer = doc.splitTextToSize(disclaimer, width);
-        doc.text(splitDisclaimer, leftX, currentY);
-        currentY += (splitDisclaimer.length * 5) + 6;
-
-        doc.setFont("helvetica", "normal");
-        doc.text("Homebuyer", leftX, currentY + 5);
-        const sigBoxX = leftX + 22;
-        const sigBoxW = 80;
-        const sigBoxH = 8;
-        drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
-        
-        const dateLabelX = sigBoxX + sigBoxW + 5;
-        doc.text("Date", dateLabelX, currentY + 5);
-        const dateBoxX = dateLabelX + 10;
-        const dateBoxW = 30;
-        drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
-        currentY += sigBoxH + 8;
-
-        doc.text("Item numbers not complete on the date of acceptance/closing:", leftX, currentY);
-        currentY += 6;
-
-        drawModernBox(doc, leftX, currentY, width, 18, 'initial');
-        currentY += 18 + 6;
-
-        doc.text("All items on the builder's new home completion list have been completed.", leftX, currentY);
-        currentY += 8;
-
-        doc.text("Homebuyer", leftX, currentY + 5);
-        drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
-        doc.text("Date", dateLabelX, currentY + 5);
-        drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
-
-        return startY + cardHeight;
-    }
-
-    const isSignatureType = section.type === 'signature' || 
-                           /acknowledg(e)?ment/i.test(section.title) ||
-                           /sign\s?off/i.test(section.title) ||
-                           /signature/i.test(section.title);
-
-    const paragraphs = section.body.split('\n').filter(p => p.trim().length > 0);
-    let lineCounter = 1;
-
-    const contentItems = paragraphs.map(text => {
-        let currentType = 'text'; 
-        let currentText = text;
-        
-        if (section.type === 'initials') currentType = 'initials';
-        
-        if (currentText.trim().startsWith('[INITIAL]')) {
-             currentType = 'initials';
-             currentText = currentText.replace('[INITIAL]', '').trim();
-        }
-
-        let leftMargin = 0;
-        if (currentType === 'initials') {
-            leftMargin = INITIAL_BOX_LEFT_MARGIN;
-        } else if (section.title === "Warranty Procedures") {
-            leftMargin = 16; 
-        }
-        
-        const availWidth = CARD_WIDTH - (CARD_PADDING * 2) - leftMargin - 4; 
-        
-        doc.setFontSize(11); 
-        doc.setFont("helvetica", "normal");
-        const lines = doc.splitTextToSize(currentText, availWidth);
-        const textHeight = lines.length * 5.5; 
-        
-        let height = textHeight;
-        if (currentType === 'initials') {
-            height = Math.max(textHeight, INITIAL_BOX_SIZE + 2);
-        } else if (section.title === "Warranty Procedures") {
-             height = textHeight + 4; 
-        }
-        
-        return { lines, height, type: currentType, textHeight };
-    });
-
-    const signatureBlockHeight = isSignatureType ? 28 : 0;
-    const totalContentHeight = contentItems.reduce((acc, item) => acc + item.height + 4, 0) + signatureBlockHeight; 
-    const cardHeight = TITLE_HEIGHT + totalContentHeight + CARD_PADDING;
-
-    let icon = 'paper';
-    const titleLower = section.title.toLowerCase();
-    
-    if (isSignatureType) icon = 'pentool';
-    else if (section.type === 'initials') icon = 'check';
-    else if (titleLower.includes('warranty')) icon = 'paper';
-    else if (titleLower.includes('note')) icon = 'alert';
-
-    if (startY + cardHeight > 280) {
-        doc.addPage();
-        drawVerticalGradient(doc, 0, 0, 210, 35, [226, 232, 240], [255, 255, 255]);
-        startY = 20; 
-    }
-
-    drawCardHeader(doc, startY, section.title, cardHeight, icon);
-
-    let currentY = startY + TITLE_HEIGHT + 8;
-
-    contentItems.forEach((item) => {
-        const boxX = CARD_X + CARD_PADDING;
-        const boxY = currentY;
-        let leftMargin = 0;
-
-        if (item.type === 'initials') {
-            drawModernBox(doc, boxX, boxY, INITIAL_BOX_SIZE, INITIAL_BOX_SIZE, 'initial');
-            leftMargin = INITIAL_BOX_LEFT_MARGIN;
-        } else if (section.title === "Warranty Procedures") {
-            const textBgW = CARD_WIDTH - (CARD_PADDING * 2);
-            doc.setFillColor(248, 250, 252); 
-            doc.roundedRect(boxX, boxY, textBgW, item.height, 2, 2, 'F');
-
-            const iconSize = 7;
-            const centerY = boxY + (item.height / 2);
-            const iconY = centerY - (iconSize / 2); 
-            
-            drawSimpleIcon(doc, 'number', boxX + 4, iconY, iconSize, lineCounter.toString(), [207, 216, 220], [51, 65, 85]);
-            lineCounter++;
-            leftMargin = 16;
-        }
-
-        doc.setFontSize(11); 
-        doc.setTextColor(51, 65, 85);
-        doc.setFont("helvetica", "normal");
-        
-        const textX = boxX + leftMargin + (item.type === 'initials' ? 4 : 0);
-        
-        if (section.title === "Warranty Procedures") {
-            const startTextY = boxY + 7;
-            const lineHeight = 5.5;
-            
-            if (Array.isArray(item.lines)) {
-                item.lines.forEach((line, i) => {
-                    doc.text(line, textX, startTextY + (i * lineHeight));
+    // Prioritize LOGO_BASE64 if provided
+    if (LOGO_BASE64) {
+        logoDataUrl = LOGO_BASE64;
+    } else {
+        // Force load logo.png for consistency if no base64 override
+        try {
+            const logoResp = await fetch(HARDCODED_LOGO_PATH);
+            if (logoResp.ok) {
+                const blob = await logoResp.blob();
+                logoDataUrl = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(blob);
                 });
-            } else {
-                doc.text(item.lines, textX, startTextY);
             }
-        } else {
-            const textY = currentY + 5;
-            doc.text(item.lines, textX, textY);
-        }
-        
-        currentY += item.height + 4; 
-    });
-
-    if (isSignatureType) {
-         const leftX = CARD_X + CARD_PADDING;
-         doc.setFontSize(11);
-         doc.setTextColor(51, 65, 85);
-         doc.setFont("helvetica", "normal");
-         doc.text("Homebuyer", leftX, currentY + 5);
-         
-         const sigBoxX = leftX + 22;
-         const sigBoxW = 80;
-         const sigBoxH = 8;
-         drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
-
-         const dateLabelX = sigBoxX + sigBoxW + 5;
-         doc.text("Date", dateLabelX, currentY + 5);
-
-         const dateBoxX = dateLabelX + 10;
-         const dateBoxW = 30;
-         drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
-         
-         const dateStr = new Date().toLocaleDateString();
-         doc.setFontSize(9);
-         doc.text(dateStr, dateBoxX + (dateBoxW/2), currentY + 5.5, { align: 'center' });
+        } catch(e) { console.warn("Fallback logo failed", e); }
     }
 
-    return startY + cardHeight;
+    // --- HEADER ---
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(55, 71, 79);
+    doc.text(REPORT_TITLE, margin, y + 8);
+    
+    // Draw Logo Top Right
+    if (logoDataUrl) {
+        const logoDims = await getImageDimensions(logoDataUrl);
+        if (logoDims.width > 0) {
+            const logoW = 35; 
+            const logoH = (logoDims.height / logoDims.width) * logoW;
+            const logoX = pageWidth - margin - logoW;
+            doc.addImage(logoDataUrl, getImageFormat(logoDataUrl), logoX, y - 5, logoW, logoH);
+        }
+    }
+
+    y += 20;
+
+    // --- PROJECT CARD ---
+    const cardEndY = drawProjectCard(doc, state.project, y);
+    y = cardEndY + 12; // Increased space
+
+    // --- DISCLAIMER ---
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    
+    const disclaimerLines = doc.splitTextToSize(REPORT_DISCLAIMER, pageWidth - (margin * 2) - 10);
+    const disclaimerHeight = (disclaimerLines.length * 3.5) + 4; // Add padding height
+    
+    doc.setFillColor(245, 247, 250);
+    doc.setDrawColor(220);
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), disclaimerHeight, 2, 2, 'FD');
+    
+    // Center Text Vertically
+    const textBlockHeight = disclaimerLines.length * 3.5;
+    const textStartY = y + (disclaimerHeight - textBlockHeight) / 2 + 2.5; // +2.5 approx baseline adjustment
+    
+    doc.text(disclaimerLines, margin + 5, textStartY);
+    
+    y += disclaimerHeight + 10;
+
+    // --- LOCATIONS & ISSUES ---
+    const locations = state.locations.filter(l => l.issues.length > 0);
+    let itemCounter = 0;
+
+    for (const loc of locations) {
+        // Check Page Break (Location Header)
+        if (y > 270) {
+            doc.addPage();
+            y = 20;
+        }
+
+        // Location Header
+        doc.setFillColor(240, 248, 255); // Light Blue
+        doc.setDrawColor(200, 220, 240);
+        doc.roundedRect(margin, y, pageWidth - (margin * 2), 8, 2, 2, 'FD');
+        
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 80, 160);
+        doc.text(loc.name.toUpperCase(), margin + 4, y + 5.5);
+        
+        y += 12;
+
+        for (const issue of loc.issues) {
+            itemCounter++;
+            const issueId = issue.id;
+            
+            // Check Page Break (Issue Block)
+            // Estimate height: Text + Photos + Gap
+            const descLines = doc.splitTextToSize(issue.description, pageWidth - margin * 2 - 25);
+            const textHeight = descLines.length * 5;
+            const photoHeight = issue.photos.length > 0 ? 45 : 0; // Increased for larger photos
+            const blockHeight = Math.max(textHeight, 10) + photoHeight + 8;
+            
+            if (y + blockHeight > 280) {
+                doc.addPage();
+                y = 20;
+            }
+
+            // --- ITEM ROW ---
+            const iconY = y;
+            
+            // Checkbox / Number Icon
+            const isChecked = marks?.[issueId]?.includes('check');
+            
+            // Number Icon (replaces checkbox)
+            drawSimpleIcon(doc, 'number', margin + 2, iconY, 6, itemCounter.toString(), isChecked ? [74, 222, 128] : [203, 213, 225], isChecked ? [255,255,255] : [100,116,139]);
+            
+            checkboxMap.push({
+                pageIndex: doc.getNumberOfPages(),
+                x: margin + 2,
+                y: iconY,
+                w: 6,
+                h: 6,
+                id: issueId,
+                // Add strike line data for preview renderer
+                strikethroughLines: isChecked ? descLines.map((line: string, i: number) => ({
+                    x: margin + 14,
+                    y: iconY + 4.5 + (i * 5) - 1.0, // Match PDF line calc
+                    w: doc.getTextWidth(line)
+                })) : undefined
+            });
+
+            // Description
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(50);
+            
+            // Render text line by line to support strikethrough alignment
+            let textY = iconY + 4.5;
+            descLines.forEach((line: string) => {
+                doc.text(line, margin + 14, textY);
+                
+                // Strike-through if checked
+                if (isChecked) {
+                    const lw = doc.getTextWidth(line);
+                    doc.setDrawColor(50);
+                    doc.setLineWidth(0.2);
+                    // y-offset -1.0mm from baseline looks good for middle strikethrough
+                    doc.line(margin + 14, textY - 1.0, margin + 14 + lw, textY - 1.0);
+                }
+                textY += 5;
+            });
+
+            y = Math.max(y + textHeight, iconY + 8);
+
+            // --- PHOTOS ---
+            if (issue.photos.length > 0) {
+                y += 2;
+                let px = margin + 14;
+                const photoSize = 40; // Bigger photos
+                const gap = 4;
+                
+                for (let i = 0; i < issue.photos.length; i++) {
+                    const photo = issue.photos[i];
+                    // Fallback to index-based ID if issuePhoto.id is missing (legacy data)
+                    const photoId = photo.id || `${issueId}_p${i}`; 
+
+                    if (px + photoSize > pageWidth - margin) {
+                        px = margin + 14;
+                        y += photoSize + gap;
+                    }
+
+                    // Rounded Clip
+                    doc.saveGraphicsState();
+                    doc.roundedRect(px, y, photoSize, photoSize, 3, 3);
+                    doc.clip();
+                    
+                    try {
+                        const dims = await getImageDimensions(photo.url);
+                        const fmt = getImageFormat(photo.url);
+                        if (dims.width > 0) {
+                             doc.addImage(photo.url, fmt, px, y, photoSize, photoSize, undefined, 'FAST');
+                        }
+                    } catch (e) {
+                        doc.setFillColor(240);
+                        doc.rect(px, y, photoSize, photoSize, 'F');
+                    }
+                    doc.restoreGraphicsState();
+                    
+                    // Add White Masking Stroke to cover anti-aliased corners
+                    doc.setDrawColor(255, 255, 255);
+                    doc.setLineWidth(3.0); // Thicker mask
+                    doc.roundedRect(px, y, photoSize, photoSize, 3, 3, 'S');
+
+                    // Draw Border
+                    doc.setDrawColor(200);
+                    doc.setLineWidth(0.1);
+                    doc.roundedRect(px, y, photoSize, photoSize, 3, 3, 'S');
+
+                    // Photo Number Pill
+                    const label = `${itemCounter}.${i+1}`;
+                    doc.setFontSize(7);
+                    doc.setFont("helvetica", "bold");
+                    const labelW = doc.getTextWidth(label) + 4;
+                    
+                    // Pill Background
+                    doc.setFillColor(255, 255, 255);
+                    doc.setDrawColor(200);
+                    doc.roundedRect(px + 2, y + 2, labelW, 5, 1, 1, 'FD');
+                    
+                    // Pill Text
+                    doc.setTextColor(50);
+                    doc.text(label, px + 2 + (labelW/2), y + 5.5, { align: 'center' });
+
+                    // Add to interactive map
+                    imageMap.push({
+                        pageIndex: doc.getNumberOfPages(),
+                        x: px,
+                        y: y,
+                        w: photoSize,
+                        h: photoSize,
+                        id: photoId
+                    });
+
+                    // Draw 'X' if marked
+                    if (marks?.[photoId]?.includes('x')) {
+                         doc.setDrawColor(220, 38, 38); // Red
+                         doc.setLineWidth(2);
+                         doc.setLineCap('round');
+                         doc.setLineJoin('round');
+                         
+                         const padding = photoSize * 0.2;
+                         doc.line(px + padding, y + padding, px + photoSize - padding, y + photoSize - padding);
+                         doc.line(px + photoSize - padding, y + padding, px + padding, y + photoSize - padding);
+                    }
+
+                    px += photoSize + gap;
+                }
+                y += photoSize + 6;
+            } else {
+                y += 4;
+            }
+            
+            // Divider Line
+            doc.setDrawColor(240);
+            doc.setLineWidth(0.1);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 4;
+        }
+        
+        y += 4;
+    }
+    
+    // Page Numbers
+    const pageCount = doc.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, 290, { align: 'center' });
+    }
+
+    return { doc, imageMap, checkboxMap };
 };
 
-const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], containerWidth: number, pageHeight?: number, gapHeight?: number) => {
-    const pdfW = 210;
-    const scale = pdfW / containerWidth;
-    const screenPageH = pageHeight || (containerWidth * (297 / 210));
-    const screenGap = gapHeight !== undefined ? gapHeight : 16; 
-    const pageTotalH = screenPageH + screenGap;
-    const totalPages = doc.getNumberOfPages();
 
-    strokes.forEach(stroke => {
-        const points = Array.isArray(stroke) ? stroke : stroke.points;
-        const type = Array.isArray(stroke) ? 'ink' : stroke.type;
+// --- SIGN OFF PDF ---
+
+const drawSignatureImageOnPDF = (
+    doc: jsPDF, 
+    signatureImage: string, 
+    containerWidth: number, 
+    startY: number, 
+    pageHeightPx?: number, 
+    gapHeightPx: number = 16
+): number => {
+    // 1. Calculate ratios
+    const pdfPageHeightMM = 297; 
+    const pdfPageWidthMM = 210;
+    
+    // Determine scale factor based on container width vs PDF width
+    // Assuming the container fills the PDF width (minus minimal margin?)
+    // In SignOffModal, we render PDFCanvasPreview which fills width. 
+    // The canvas overlay matches that scrollWidth.
+    // So ratio = 210mm / scrollWidthPx
+    const ratio = pdfPageWidthMM / containerWidth;
+
+    const img = new Image();
+    img.src = signatureImage;
+    
+    // Since loading is sync in jsPDF addImage if base64, we can assume dimensions:
+    const imgWidthPx = img.width;
+    const imgHeightPx = img.height; // Total height of long canvas
+
+    // If we have accurate page height from DOM, use it to slice. 
+    // Otherwise fall back to PDF page height logic (less accurate if DOM varies).
+    // pageHeightPx is the height of ONE PDF page rendered in DOM
+    if (!pageHeightPx) {
+         // Fallback: estimate from ratio
+         pageHeightPx = pdfPageHeightMM / ratio;
+    }
+    
+    // Calculate total PDF pages needed
+    const totalPages = doc.getNumberOfPages();
+    
+    // Iterate through pages and draw slice
+    // Visual check: The overlay is one long canvas. The PDF is paginated.
+    // We need to slice the canvas corresponding to each page.
+    // Between pages in the UI, there is a GAP (gapHeightPx).
+    // The canvas COVERS that gap too (it's absolute over the whole column).
+    // So for Page N:
+    // Source Y = (PageHeight + Gap) * (N-1)
+    // Source H = PageHeight
+    // Dest X = 0 (or margin?), Dest Y = 0, Dest W = 210, Dest H = 297
+    
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
         
+        const sourceY = (pageHeightPx + gapHeightPx) * (i - 1);
+        const sourceH = pageHeightPx;
+        
+        // Safety check
+        if (sourceY >= imgHeightPx) break;
+
+        // Create a temporary canvas to slice the image
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = imgWidthPx;
+        tempCanvas.height = sourceH;
+        
+        const ctx = tempCanvas.getContext('2d');
+        if (ctx) {
+            ctx.drawImage(
+                img, 
+                0, sourceY, imgWidthPx, sourceH, // Source
+                0, 0, imgWidthPx, sourceH        // Dest on temp canvas
+            );
+            
+            const sliceData = tempCanvas.toDataURL('image/png');
+            
+            // Draw onto PDF
+            // The canvas overlay matches the PDF coordinates 1:1 visually
+            doc.addImage(sliceData, 'PNG', 0, 0, pdfPageWidthMM, pdfPageHeightMM);
+        }
+    }
+    
+    return 0;
+};
+
+// Original vector function kept but updated to handle page switching correctly
+const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], containerWidth: number, startY: number, pageHeightPx?: number, gapHeightPx: number = 16) => {
+    // Ratio calc (see above)
+    const pdfPageWidthMM = 210;
+    const ratio = pdfPageWidthMM / containerWidth;
+    
+    const domPageH = pageHeightPx || (297 / ratio);
+    const domGapH = gapHeightPx;
+    
+    const totalHeightPerBlock = domPageH + domGapH;
+
+    strokes.forEach(s => {
+        const points = Array.isArray(s) ? s : s.points;
+        const type = Array.isArray(s) ? 'ink' : s.type;
+
         if (points.length < 2) return;
 
+        // Calculate which page this stroke belongs to based on the FIRST point
+        // NOTE: Strokes crossing pages might look weird. We'll handle segment by segment.
+        
         for (let i = 0; i < points.length - 1; i++) {
             const p1 = points[i];
             const p2 = points[i+1];
-
-            const pageIndex1 = Math.floor(p1.y / pageTotalH);
-            const pageIndex2 = Math.floor(p2.y / pageTotalH); 
             
-            if (pageIndex1 !== pageIndex2) continue;
-
-            const relY1 = p1.y % pageTotalH;
-
-            if (relY1 > screenPageH) continue;
-
-            const targetPage = pageIndex1 + 1;
-            if (targetPage > totalPages) continue;
-
-            if (doc.getCurrentPageInfo().pageNumber !== targetPage) {
-                 doc.setPage(targetPage);
-            }
+            // Determine page index for p1
+            const pageIndex = Math.floor(p1.y / totalHeightPerBlock) + 1;
             
-            doc.setLineCap('round');
-            doc.setLineJoin('round');
-
+            // Determine local Y on that page
+            // Global Y - (Pages Before * BlockHeight)
+            const localY1 = p1.y - ((pageIndex - 1) * totalHeightPerBlock);
+            const localY2 = p2.y - ((pageIndex - 1) * totalHeightPerBlock);
+            
+            // If segment crosses into the gap or next page, skip or clip it
+            if (localY1 > domPageH) continue; // In the gap
+            
+            // Scale to PDF MM
+            const pdfX1 = p1.x * ratio;
+            const pdfY1 = localY1 * ratio;
+            const pdfX2 = p2.x * ratio;
+            const pdfY2 = localY2 * ratio;
+            
+            if (pageIndex > doc.getNumberOfPages()) continue;
+            
+            doc.setPage(pageIndex);
+            
+            // Apply styles explicitly per segment/page to ensure state is correct
             if (type === 'erase') {
                 doc.setDrawColor(255, 255, 255);
-                doc.setLineWidth(6); 
+                doc.setLineWidth(12); // ~40px scaled roughly
             } else {
                 doc.setDrawColor(0, 0, 0);
-                doc.setLineWidth(0.5); 
+                doc.setLineWidth(0.5);
             }
-
-            const x1 = p1.x * scale;
-            const y1 = relY1 * scale;
-            const x2 = p2.x * scale;
-            const relY2 = p2.y % pageTotalH;
-            const y2 = relY2 * scale;
-
-            doc.line(x1, y1, x2, y2);
+            doc.setLineCap('round');
+            doc.setLineJoin('round');
+            
+            doc.line(pdfX1, pdfY1, pdfX2, pdfY2);
         }
     });
 };
@@ -661,21 +801,49 @@ export const generateSignOffPDF = async (
     project: ProjectDetails, 
     title: string, 
     template: SignOffTemplate, 
-    companyLogo?: string, 
-    signatureImage?: string,
-    strokes?: (Point[] | SignOffStroke)[],
+    companyLogo?: string,
+    signatureImage?: string, // New: Full canvas snapshot
+    strokes?: (Point[] | SignOffStroke)[], // Legacy/Fallback
     containerWidth?: number,
-    pageHeight?: number,
-    gapHeight?: number
+    pageHeightPx?: number,
+    gapHeightPx?: number
 ): Promise<string> => {
-    let doc: jsPDF;
-    try {
-        doc = new jsPDF();
-    } catch (e) {
-        console.error("jsPDF init failed", e);
-        throw new Error("Could not initialize PDF generator. Please refresh the page.");
+    const doc = new jsPDF();
+    const pageWidth = 210;
+    const margin = 20;
+    let y = 15;
+
+    // --- LOAD LOGO ---
+    let logoDataUrl = companyLogo;
+
+    // Prioritize LOGO_BASE64 if provided
+    if (LOGO_BASE64) {
+        logoDataUrl = LOGO_BASE64;
+    } else {
+        try {
+            const logoResp = await fetch(HARDCODED_LOGO_PATH);
+            if (logoResp.ok) {
+                const blob = await logoResp.blob();
+                logoDataUrl = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(blob);
+                });
+            }
+        } catch(e) {}
     }
 
+<<<<<<< HEAD
+    // Draw Logo Top Right
+    if (logoDataUrl) {
+        const logoDims = await getImageDimensions(logoDataUrl);
+        if (logoDims.width > 0) {
+            const logoW = 30; 
+            const logoH = (logoDims.height / logoDims.width) * logoW;
+            const logoX = pageWidth - margin - logoW + 5;
+            doc.addImage(logoDataUrl, getImageFormat(logoDataUrl), logoX, 8, logoW, logoH);
+        }
+=======
     drawVerticalGradient(doc, 0, 0, 210, 35, [226, 232, 240], [255, 255, 255]);
     drawVerticalGradient(doc, 0, 297 - 35, 210, 35, [255, 255, 255], [226, 232, 240]);
 
@@ -696,40 +864,145 @@ export const generateSignOffPDF = async (
         }
     } catch (e) { 
         // fallback to param if provided and hardcode fails (optional)
+>>>>>>> 8a9c3f04dde3b8074d6cc60f2e447dc2d68d0c0b
     }
 
-    doc.setFontSize(14);
+    // --- HEADER ---
+    doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    const titleWidth = doc.getTextWidth(title);
-    const pillW = titleWidth + 20;
-    const pillX = (210 - pillW) / 2;
-    const pillY = 18;
+    doc.text(title, margin, y);
+    y += 15;
 
-    doc.setFillColor(84, 110, 122); 
-    doc.roundedRect(pillX, pillY, pillW, 10, 5, 5, 'F'); 
+    // --- PROJECT CARD ---
+    const cardEndY = drawProjectCard(doc, project, y);
+    y = cardEndY + 10;
 
-    doc.setTextColor(255, 255, 255);
-    doc.text(title, 105, pillY + 6.5, { align: 'center' });
+    // --- SECTIONS ---
+    for (const section of template.sections) {
+        // --- CUSTOM SIGN OFF SECTION LAYOUT ---
+        if (section.title === "Sign Off") {
+            if (y + 60 > 280) { doc.addPage(); y = 20; }
+            
+            y += 10; // Extra spacing before header
+            doc.setFillColor(240, 248, 255);
+            doc.setDrawColor(200, 220, 240);
+            doc.roundedRect(margin, y, pageWidth - margin*2, 8, 2, 2, 'FD');
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(0, 80, 160);
+            doc.text(section.title.toUpperCase(), margin + 4, y + 5.5);
+            y += 16; // Increased space after header
 
-    let currentY = drawProjectCard(doc, project, 35);
-    currentY += 10;
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(60);
+            doc.text("The following is to be signed at the \"rewalk\" (typically the date of closing)", margin, y);
+            y += 6;
+            
+            doc.setFont("helvetica", "bold");
+            doc.text("MY SIGNATURE CERTIFIES THE ACCEPTABLE COMPLETION OF ALL ITEMS LISTED ON THE BUILDER’S NEW HOME COMPLETION LIST:", margin, y);
+            y += 10;
 
-    if (template && template.sections) {
-        for (const section of template.sections) {
-             currentY = drawSectionCard(doc, currentY, section);
-             currentY += 4;
+            // Row 1: Homebuyer Sig | Date
+            doc.setFont("helvetica", "normal");
+            doc.text("Homebuyer", margin, y + 5);
+            drawModernBox(doc, margin + 25, y, 80, 10, 'signature');
+            
+            doc.text("Date", margin + 115, y + 5);
+            drawModernBox(doc, margin + 125, y, 40, 10, 'initial');
+            y += 18;
+
+            // Item numbers not complete
+            doc.text("Item numbers not complete on the date of acceptance/closing:", margin, y);
+            y += 5;
+            drawModernBox(doc, margin, y, pageWidth - margin*2, 12, 'initial');
+            y += 18;
+
+            // Final Statement
+            doc.text("All items on the builder's new home completion list have been completed.", margin, y);
+            y += 8;
+
+            // Row 2: Homebuyer Sig | Date
+            doc.text("Homebuyer", margin, y + 5);
+            drawModernBox(doc, margin + 25, y, 80, 10, 'signature');
+            
+            doc.text("Date", margin + 115, y + 5);
+            drawModernBox(doc, margin + 125, y, 40, 10, 'initial');
+            y += 20;
+
+            continue; 
         }
-    }
 
+<<<<<<< HEAD
+        // --- STANDARD SECTION LAYOUT ---
+        const lines = doc.splitTextToSize(section.body, pageWidth - (margin * 2));
+        const textHeight = lines.length * 5;
+        const boxHeight = textHeight + 20; 
+
+        if (y + boxHeight > 280) {
+            doc.addPage();
+            y = 20;
+        }
+
+        doc.setFillColor(240, 248, 255);
+        doc.setDrawColor(200, 220, 240);
+        doc.roundedRect(margin, y, pageWidth - (margin * 2), 8, 2, 2, 'FD');
+        
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 80, 160);
+        doc.text(section.title.toUpperCase(), margin + 4, y + 5.5);
+        
+        y += 10;
+        
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(60);
+        
+        // Render lines manually to control spacing
+        let textY = y;
+        lines.forEach((line: string) => {
+            // Check for [INITIAL] placeholder
+            if (line.includes('[INITIAL]')) {
+                 const parts = line.split('[INITIAL]');
+                 doc.text(parts[0], margin, textY);
+                 const preWidth = doc.getTextWidth(parts[0]);
+                 
+                 // Draw box
+                 drawModernBox(doc, margin + preWidth + 2, textY - 4, 12, 6, 'initial');
+                 
+                 if (parts[1]) {
+                     doc.text(parts[1], margin + preWidth + 16, textY);
+                 }
+            } else {
+                doc.text(line, margin, textY);
+            }
+            textY += 6; // Line height
+        });
+        
+        y = textY + 5;
+    }
+    
+    // --- DRAW STROKES OR SIGNATURE IMAGE ---
+    if (signatureImage && containerWidth) {
+        // Preferred: Draw full raster image (handles eraser correctly)
+        drawSignatureImageOnPDF(doc, signatureImage, containerWidth, 0, pageHeightPx, gapHeightPx);
+    } else if (strokes && containerWidth) {
+        // Fallback: Draw vector strokes (eraser might show as white lines on white bg)
+        drawStrokesOnPDF(doc, strokes, containerWidth, 0, pageHeightPx, gapHeightPx);
+=======
     // Prefer image overlay (handling opacity/erasure correctly) over vector strokes
     if (signatureImage && containerWidth && pageHeight) {
         await drawSignatureImageOnPDF(doc, signatureImage, containerWidth, pageHeight, gapHeight || 16);
     } else if (strokes && containerWidth && strokes.length > 0) {
         drawStrokesOnPDF(doc, strokes, containerWidth, pageHeight, gapHeight);
+>>>>>>> 8a9c3f04dde3b8074d6cc60f2e447dc2d68d0c0b
     }
 
     return doc.output('bloburl').toString();
 };
+<<<<<<< HEAD
+=======
 
 export const generatePDFWithMetadata = async (
     data: AppState, 
@@ -1053,3 +1326,4 @@ export const generatePDFWithMetadata = async (
 
   return { doc, imageMap, checkboxMap };
 };
+>>>>>>> 8a9c3f04dde3b8074d6cc60f2e447dc2d68d0c0b
