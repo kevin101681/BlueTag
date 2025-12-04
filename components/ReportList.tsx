@@ -1,13 +1,11 @@
 
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
 import { Dashboard } from './Dashboard';
-import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { BlueTagLogo } from './Logo';
 import { ReportCard } from './Dashboard';
-import { MANUAL_IMAGES } from '../constants';
 
 export type ThemeOption = 'light' | 'dark' | 'system';
 
@@ -81,160 +79,6 @@ const DashboardWrapper = ({
                 onDelete={onDelete}
             />
         </div>
-    );
-};
-
-const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
-    const [page, setPage] = useState(0);
-    const [direction, setDirection] = useState(0); // -1 prev, 1 next
-    const totalPages = Math.max(MANUAL_IMAGES.length, 4); // Default to at least 4 for structure, even if empty
-    
-    // Swipe Logic
-    const touchStartX = useRef<number | null>(null);
-    const minSwipeDistance = 50;
-
-    const onTouchStart = (e: React.TouchEvent) => {
-        setTouchEnd(null);
-        setTouchStartX(e.targetTouches[0].clientX);
-    };
-
-    const [touchStartXVal, setTouchStartX] = useState<number | null>(null);
-    const [touchEnd, setTouchEnd] = useState<number | null>(null);
-
-    const onTouchMove = (e: React.TouchEvent) => setTouchEnd(e.targetTouches[0].clientX);
-
-    const onTouchEnd = () => {
-        if (!touchStartXVal || !touchEnd) return;
-        const distance = touchStartXVal - touchEnd;
-        const isLeftSwipe = distance > minSwipeDistance;
-        const isRightSwipe = distance < -minSwipeDistance;
-        
-        if (isLeftSwipe && page < totalPages - 1) {
-            handleNext();
-        }
-        if (isRightSwipe && page > 0) {
-            handlePrev();
-        }
-    };
-
-    const handleNext = () => {
-        if (page < totalPages - 1) {
-            setDirection(1);
-            setPage(p => p + 1);
-        }
-    };
-
-    const handlePrev = () => {
-        if (page > 0) {
-            setDirection(-1);
-            setPage(p => p - 1);
-        }
-    };
-
-    return createPortal(
-        <div className="fixed inset-0 z-[250] bg-black/90 backdrop-blur-xl flex items-center justify-center animate-fade-in overflow-hidden">
-            <button 
-                onClick={onClose}
-                className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-50"
-            >
-                <X size={24} />
-            </button>
-
-            <div 
-                className="w-full h-full max-w-4xl max-h-[90vh] relative flex items-center justify-center perspective-1000"
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-            >
-                {/* Image Container with 3D Transform */}
-                <div className="relative w-full h-full flex items-center justify-center p-4">
-                    {MANUAL_IMAGES.length > 0 ? (
-                        MANUAL_IMAGES.map((imgSrc, idx) => {
-                            // Logic to determine visibility and animation class
-                            const isActive = idx === page;
-                            
-                            // Only render active, previous, and next to save DOM
-                            if (Math.abs(idx - page) > 1 && !isActive) return null;
-
-                            let transformClass = '';
-                            let opacityClass = 'opacity-0 pointer-events-none';
-                            let zIndex = 0;
-
-                            if (isActive) {
-                                transformClass = 'translate-x-0 rotate-y-0 scale-100';
-                                opacityClass = 'opacity-100';
-                                zIndex = 10;
-                            } else if (idx < page) {
-                                // Previous page (Hidden to left)
-                                transformClass = '-translate-x-full -rotate-y-12 scale-90';
-                                opacityClass = 'opacity-0';
-                                zIndex = 5;
-                            } else {
-                                // Next page (Hidden to right)
-                                transformClass = 'translate-x-full rotate-y-12 scale-90';
-                                opacityClass = 'opacity-0';
-                                zIndex = 5;
-                            }
-
-                            return (
-                                <div 
-                                    key={idx}
-                                    className={`absolute inset-4 flex items-center justify-center transition-all duration-500 ease-in-out transform-gpu origin-center ${transformClass} ${opacityClass}`}
-                                    style={{ zIndex }}
-                                >
-                                    <div className="relative w-auto h-full max-h-full aspect-[3/4] shadow-2xl rounded-lg overflow-hidden bg-white">
-                                        {imgSrc ? (
-                                            <img 
-                                                src={imgSrc} 
-                                                alt={`Manual Page ${idx + 1}`} 
-                                                className="w-full h-full object-contain"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100">
-                                                <ImageIcon size={48} className="mb-4 opacity-50" />
-                                                <p className="font-bold">Page {idx + 1}</p>
-                                                <p className="text-xs">No Image Loaded</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })
-                    ) : (
-                         <div className="text-white text-center">No manual images found.</div>
-                    )}
-                </div>
-
-                {/* Navigation Controls */}
-                <div className="absolute bottom-8 left-0 right-0 flex justify-center items-center gap-6 z-50">
-                    <button 
-                        onClick={handlePrev}
-                        disabled={page === 0}
-                        className="p-4 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all hidden sm:flex"
-                    >
-                        <ChevronLeft size={24} />
-                    </button>
-
-                    <div className="flex gap-2">
-                        {Array.from({ length: totalPages }).map((_, i) => (
-                            <div 
-                                key={i} 
-                                className={`h-2 rounded-full transition-all duration-300 ${i === page ? 'w-8 bg-white' : 'w-2 bg-white/30'}`}
-                            />
-                        ))}
-                    </div>
-
-                    <button 
-                        onClick={handleNext}
-                        disabled={page === totalPages - 1}
-                        className="p-4 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all hidden sm:flex"
-                    >
-                        <ChevronRight size={24} />
-                    </button>
-                </div>
-            </div>
-        </div>,
-        document.body
     );
 };
 
@@ -639,7 +483,6 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
     const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [isManualOpen, setIsManualOpen] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
 
     // Effect: If `isCreating` becomes true, we should probably select the newest report
@@ -698,15 +541,6 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                 </div>
                 
                 <div className="flex items-center gap-3">
-                    {/* Homeowner Manual Button */}
-                    <button 
-                        onClick={() => setIsManualOpen(true)}
-                        className="w-[54px] h-[54px] rounded-2xl bg-slate-300 dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-primary hover:bg-slate-400 dark:hover:bg-slate-800 transition-all shadow-sm border border-slate-300 dark:border-slate-800 flex items-center justify-center"
-                        title="Homeowner Manual"
-                    >
-                        <BookOpen size={24} />
-                    </button>
-
                     <button 
                         onClick={() => setIsSearchOpen(true)}
                         className="w-[54px] h-[54px] rounded-2xl bg-slate-300 dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-primary hover:bg-slate-400 dark:hover:bg-slate-800 transition-all shadow-sm border border-slate-300 dark:border-slate-800 flex items-center justify-center"
@@ -776,8 +610,6 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                 deletingReportId={deletingReportId}
                 isDeleting={isDeleting}
             />
-
-            {isManualOpen && <HomeownerManualModal onClose={() => setIsManualOpen(false)} />}
         </div>
     );
 }
