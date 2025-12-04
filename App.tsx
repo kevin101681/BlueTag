@@ -537,6 +537,8 @@ export default function App() {
               onLogout={handleLogout}
               deletingReportId={reportToDelete}
               isDeleting={isDeleteExiting}
+              activeProject={activeReportId ? project : undefined}
+              activeLocations={activeReportId ? locations : undefined}
             />
             
             {activeLocationId && (
