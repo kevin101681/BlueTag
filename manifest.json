@@ -10,6 +10,23 @@
   "background_color": "#546e7a",
   "theme_color": "#546e7a",
   "orientation": "portrait",
+  "categories": ["productivity", "business", "utilities"],
+  "screenshots": [
+    {
+      "src": "/images/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile Home Screen"
+    },
+     {
+      "src": "/images/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop Dashboard"
+    }
+  ],
   "icons": [
     {
       "src": "/images/icon.png",

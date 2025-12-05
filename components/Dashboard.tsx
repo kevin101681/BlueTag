@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
@@ -498,6 +499,28 @@ const DetailInput = ({ field, onChange }: { field: ProjectField, onChange: (val:
     const isPhone = field.icon === 'Phone';
     const [localValue, setLocalValue] = useState(field.value);
 
+    // Determine autocomplete attribute based on field properties
+    const getAutoCompleteType = (label: string, icon: string): string => {
+        const l = label.toLowerCase();
+        if (l.includes('email')) return 'email';
+        if (l.includes('phone')) return 'tel';
+        if (l.includes('address')) return 'street-address';
+        if (l.includes('zip') || l.includes('postal')) return 'postal-code';
+        if (l.includes('city')) return 'address-level2';
+        if (l.includes('state')) return 'address-level1';
+        if (l.includes('name')) return 'name';
+        
+        // Fallback to icon hints
+        if (icon === 'Mail') return 'email';
+        if (icon === 'Phone') return 'tel';
+        if (icon === 'User') return 'name';
+        if (icon === 'MapPin') return 'street-address';
+
+        return 'on';
+    };
+
+    const autoCompleteType = getAutoCompleteType(field.label, field.icon);
+
     useEffect(() => {
         setLocalValue(field.value);
     }, [field.value]);
@@ -512,8 +535,10 @@ const DetailInput = ({ field, onChange }: { field: ProjectField, onChange: (val:
         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl px-4 py-3 border border-slate-100 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary/50 transition-all shadow-sm flex items-center justify-between gap-3 h-[60px] relative z-10">
             <Icon size={20} className="text-slate-400 shrink-0" />
             <input 
-                type="text"
-                inputMode={isPhone ? "tel" : "text"}
+                type={isPhone ? "tel" : (autoCompleteType === 'email' ? 'email' : 'text')}
+                inputMode={isPhone ? "tel" : (autoCompleteType === 'email' ? 'email' : 'text')}
+                autoComplete={autoCompleteType}
+                name={field.label}
                 value={localValue}
                 onChange={handleChange}
                 placeholder={field.label}
