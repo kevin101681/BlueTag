@@ -1,10 +1,12 @@
 
 
+
+
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
 import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
-import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage } from './LocationDetail';
+import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage, DeleteConfirmationModal } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
 import { createPortal } from 'react-dom';
 import { ImageEditor } from './ImageEditor';
@@ -601,6 +603,7 @@ export const LocationManagerModal = ({ locations, onUpdate, onClose }: { locatio
 
 export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: LocationGroup[], onUpdate: (locs: LocationGroup[]) => void, onClose: () => void }) => {
     const [localLocations, setLocalLocations] = useState(locations);
+    const [itemToDelete, setItemToDelete] = useState<{ locId: string, issueId: string } | null>(null);
     
     // New state for photo management
     const [editingPhoto, setEditingPhoto] = useState<{ locId: string, issueId: string, photoIndex: number } | null>(null);
@@ -645,6 +648,18 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                 })
             };
         }));
+    };
+
+    const handleDeleteItem = () => {
+        if (!itemToDelete) return;
+        setLocalLocations(prev => prev.map(l => {
+            if (l.id !== itemToDelete.locId) return l;
+            return {
+                ...l,
+                issues: l.issues.filter(i => i.id !== itemToDelete.issueId)
+            };
+        }));
+        setItemToDelete(null);
     };
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -745,6 +760,13 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                                                             className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[40px]"
                                                             placeholder="Item description..."
                                                         />
+                                                        <button 
+                                                            onClick={() => setItemToDelete({ locId: loc.id, issueId: issue.id })}
+                                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors shrink-0"
+                                                            title="Delete Item"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
                                                     </div>
 
                                                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide ml-8 items-start">
@@ -824,6 +846,15 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                 className="hidden" 
                 onChange={handlePhotoUpload} 
             />
+
+            {itemToDelete && (
+                <DeleteConfirmationModal 
+                    onConfirm={handleDeleteItem}
+                    onCancel={() => setItemToDelete(null)}
+                    title="Delete Item?"
+                    message="This action cannot be undone."
+                />
+            )}
 
             {editingPhoto && (() => {
                 const issue = localLocations.find(l => l.id === editingPhoto.locId)?.issues.find(i => i.id === editingPhoto.issueId);
@@ -1332,11 +1363,25 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
         let pageHeight = undefined;
         let gapHeight = 16; 
+        let contentX = 0;
+        let contentW = containerWidth;
 
         if (overlay) {
             const canvasEl = overlay.querySelector('.pdf-page-canvas'); 
             if (canvasEl) {
-                pageHeight = canvasEl.clientHeight; 
+                // Use precise bounding rect height to prevent rounding errors accumulating over pages
+                const canvasRect = canvasEl.getBoundingClientRect();
+                pageHeight = canvasRect.height;
+                
+                // Determine horizontal offset/crop for proper PDF mapping
+                // We need the bounding rect of the PDF page element relative to the scrolling overlay
+                const overlayRect = overlay.getBoundingClientRect();
+                
+                // Account for scroll position since getBoundingClientRect is relative to viewport
+                // contentX is the left offset of the visual PDF page within the scrollable area
+                contentX = (canvasRect.left - overlayRect.left) + overlay.scrollLeft;
+                contentW = canvasRect.width;
+
                 if (canvasEl.parentElement) {
                      const style = window.getComputedStyle(canvasEl.parentElement);
                      const mb = parseFloat(style.marginBottom);
@@ -1354,7 +1399,9 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
             undefined, // Do NOT pass strokes if image is passed to prevent double drawing/white lines
             containerWidth,
             pageHeight,
-            gapHeight
+            gapHeight,
+            contentX,
+            contentW
         );
 
         // Open in new tab

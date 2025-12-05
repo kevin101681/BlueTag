@@ -1,4 +1,6 @@
 
+
+
 import { jsPDF } from 'jspdf';
 import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 
@@ -608,7 +610,7 @@ const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], cont
     });
 };
 
-const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidth: number, screenPageHeight: number, screenGapHeight: number) => {
+const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidth: number, screenPageHeight: number, screenGapHeight: number, contentX: number = 0, contentW: number = 0) => {
     return new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -626,9 +628,15 @@ const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidt
             const srcGapH = screenGapHeight * dpr;
             const srcTotalH = srcPageH + srcGapH;
             
-            // Create a temp canvas to slice the image
+            // Horizontal Crop Calculation
+            const sx = contentX * dpr;
+            // Use provided content width for the slice, or default to full image width
+            const sw = (contentW > 0) ? contentW * dpr : imgW;
+
+            // Create a temp canvas to slice and crop the image
             const canvas = document.createElement('canvas');
-            canvas.width = imgW;
+            // Canvas should be sized to the sliced content (width of PDF page on screen)
+            canvas.width = sw;
             canvas.height = srcPageH;
             const ctx = canvas.getContext('2d');
             
@@ -642,9 +650,9 @@ const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidt
                 
                 // Clear and draw slice
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                // Source: img, sx=0, sy=sy, sw=imgW, sh=srcPageH
-                // Dest:   canvas, dx=0, dy=0, dw=imgW, dh=srcPageH
-                ctx.drawImage(img, 0, sy, imgW, srcPageH, 0, 0, imgW, srcPageH);
+                // Source: img, sx=sx (crop left), sy=sy, sw=sw (crop width), sh=srcPageH
+                // Dest:   canvas, dx=0, dy=0, dw=sw, dh=srcPageH
+                ctx.drawImage(img, sx, sy, sw, srcPageH, 0, 0, sw, srcPageH);
                 
                 const sliceData = canvas.toDataURL('image/png');
                 
@@ -666,7 +674,9 @@ export const generateSignOffPDF = async (
     strokes?: (Point[] | SignOffStroke)[],
     containerWidth?: number,
     pageHeight?: number,
-    gapHeight?: number
+    gapHeight?: number,
+    contentX?: number,
+    contentW?: number
 ): Promise<string> => {
     let doc: jsPDF;
     try {
@@ -723,7 +733,7 @@ export const generateSignOffPDF = async (
 
     // Prefer image overlay (handling opacity/erasure correctly) over vector strokes
     if (signatureImage && containerWidth && pageHeight) {
-        await drawSignatureImageOnPDF(doc, signatureImage, containerWidth, pageHeight, gapHeight || 16);
+        await drawSignatureImageOnPDF(doc, signatureImage, containerWidth, pageHeight, gapHeight || 16, contentX, contentW);
     } else if (strokes && containerWidth && strokes.length > 0) {
         drawStrokesOnPDF(doc, strokes, containerWidth, pageHeight, gapHeight);
     }
