@@ -1,5 +1,4 @@
 
-
 import { LocationGroup, SignOffTemplate, ProjectDetails } from "./types";
 
 // Safe UUID generator that works in non-secure contexts (like mobile IP addresses)
@@ -98,10 +97,10 @@ export const DEFAULT_SIGN_OFF_TEMPLATES: SignOffTemplate[] = [
     }
 ];
 
-// Paste your Base64 image strings here for the Homeowner Manual
+// --- PASTE YOUR 4 BASE64 IMAGES BELOW ---
 export const HOMEOWNER_MANUAL_IMAGES: string[] = [
-    "", // Image 1 Base64
-    "", // Image 2 Base64
-    "", // Image 3 Base64
-    ""  // Image 4 Base64
+    "", // [IMAGE 1] Paste Base64 string here
+    "", // [IMAGE 2] Paste Base64 string here
+    "", // [IMAGE 3] Paste Base64 string here
+    ""  // [IMAGE 4] Paste Base64 string here
 ];
