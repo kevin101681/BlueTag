@@ -64,7 +64,7 @@ interface ErrorBoundaryState {
 }
 
 // Error Boundary to catch runtime crashes and prevent white screen
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null
@@ -86,7 +86,11 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
                 <h2 className="text-2xl font-bold text-red-500 mb-4">Something went wrong</h2>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">The application encountered an unexpected error.</p>
                 <div className="bg-slate-100 dark:bg-slate-950 p-4 rounded-lg text-left overflow-auto max-h-40 mb-6">
-                    <code className="text-xs text-slate-500 font-mono">{this.state.error?.toString()}</code>
+                    <code className="text-xs text-slate-500 font-mono">
+                        {this.state.error instanceof Error 
+                            ? this.state.error.message + '\n' + (this.state.error.stack || '')
+                            : JSON.stringify(this.state.error)}
+                    </code>
                 </div>
                 <button 
                     onClick={() => window.location.reload()}

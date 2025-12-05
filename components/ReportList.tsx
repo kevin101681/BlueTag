@@ -223,7 +223,8 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
             >
                 <X size={28} />
             </button>
-        </div>
+        </div>,
+        document.body
     );
 };
 
@@ -772,4 +773,3 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         </div>
     );
 }
-
