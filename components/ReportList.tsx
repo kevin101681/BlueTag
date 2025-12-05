@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
 import { Dashboard } from './Dashboard';
-import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User, Book, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User, Book, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { BlueTagLogo } from './Logo';
 import { ReportCard } from './Dashboard';
@@ -41,6 +41,7 @@ interface ReportListProps {
   onLogout?: () => void;
   deletingReportId?: string | null;
   isDeleting?: boolean;
+  onRefresh?: () => void;
 }
 
 // Helper to check active
@@ -218,12 +219,12 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
                 </div>
             )}
 
-            {/* Close FAB */}
+            {/* Close FAB (Material 3 Style) */}
             <button 
                 onClick={onClose}
-                className="absolute bottom-8 right-8 w-14 h-14 bg-white text-slate-900 rounded-full shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[310]"
+                className="absolute bottom-6 right-6 w-14 h-14 bg-primary-container text-on-primary-container rounded-2xl shadow-lg flex items-center justify-center hover:shadow-xl hover:scale-105 active:scale-95 transition-all z-[310]"
             >
-                <X size={28} />
+                <X size={24} />
             </button>
         </div>,
         document.body
@@ -247,7 +248,8 @@ const SettingsModal = ({
     onDeleteOldReports,
     user,
     onLogin,
-    onLogout
+    onLogout,
+    onRefresh
 }: any) => {
     // Internal state to manage mount/unmount for exit animation
     const [isVisible, setIsVisible] = useState(false);
@@ -289,6 +291,7 @@ const SettingsModal = ({
                     user={user}
                     onLogin={onLogin}
                     onLogout={onLogout}
+                    onRefresh={onRefresh}
                 />
             </div>
         </div>,
@@ -296,7 +299,7 @@ const SettingsModal = ({
     );
 };
 
-const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, colorTheme, onColorThemeChange, installAvailable, onInstall, onDeleteOldReports, user, onLogin, onLogout }: any) => {
+const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, colorTheme, onColorThemeChange, installAvailable, onInstall, onDeleteOldReports, user, onLogin, onLogout, onRefresh }: any) => {
     
     const THEME_COLORS = [
         '#60a5fa', // Blue (Default)
@@ -400,6 +403,20 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
                 {/* App Actions */}
                 <div className="space-y-3">
                     <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data & App</h4>
+                    
+                    {onRefresh && (
+                        <button 
+                            onClick={() => {
+                                onRefresh();
+                                onClose();
+                            }}
+                            className="w-full p-4 bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                        >
+                            <RefreshCw size={20} />
+                            Sync Reports
+                        </button>
+                    )}
+
                     {installAvailable && (
                         <button 
                             onClick={onInstall}
@@ -540,7 +557,8 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         onSelectReport, 
         isCreating,
         deletingReportId,
-        isDeleting
+        isDeleting,
+        onRefresh
     } = props;
 
     const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);

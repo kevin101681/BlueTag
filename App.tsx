@@ -65,7 +65,7 @@ interface ErrorBoundaryState {
 
 // Error Boundary to catch runtime crashes and prevent white screen
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false, error: null };
+  public state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
@@ -107,6 +107,10 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   
+  // Reports State
+  const [savedReports, setSavedReports] = useState<Report[]>([]);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+
   // Netlify Identity Effect
   useEffect(() => {
     if (typeof window !== 'undefined' && window.netlifyIdentity) {
@@ -145,8 +149,6 @@ export default function App() {
       }
   };
 
-  // Reports State
-  const [savedReports, setSavedReports] = useState<Report[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false); 
 
   // --- STORAGE LOGIC ---
@@ -174,44 +176,62 @@ export default function App() {
     }
   }, []);
 
+  const refreshReports = async (silent = false) => {
+      if (!currentUser) return;
+      if (!silent) setIsSyncing(true);
+      try {
+          const cloudReports = await CloudService.fetchReports();
+          if (cloudReports) {
+              const migrated = cloudReports.map((r: any) => ({
+                  ...r,
+                  project: migrateProjectData(r.project)
+              }));
+              
+              setSavedReports(prev => {
+                   // If no report is active, just update list.
+                   if (!activeReportId) return migrated;
+                   
+                   // If a report is active, avoid overwriting it with older/conflicting data 
+                   // to prevent losing current work in this session.
+                   const activeLocal = prev.find(r => r.id === activeReportId);
+                   
+                   // If for some reason active local is missing, just return migrated.
+                   if (!activeLocal) return migrated;
+                   
+                   // Filter the active report out of the fresh cloud list
+                   const others = migrated.filter(r => r.id !== activeReportId);
+                   
+                   // Combine new cloud reports with our locally active one
+                   return [...others, activeLocal].sort((a,b) => b.lastModified - a.lastModified);
+              });
+          }
+      } catch (err) {
+          console.error("Sync Error", err);
+      } finally {
+          if (!silent) setIsSyncing(false);
+      }
+  };
+
   // 2. Cloud Sync (When User Changes)
   useEffect(() => {
     if (currentUser) {
-        setIsSyncing(true);
-        CloudService.fetchReports()
-            .then(cloudReports => {
-                if (cloudReports) {
-                    // Migrate data coming from cloud just in case
-                    const migrated = cloudReports.map((r: any) => ({
-                        ...r,
-                        project: migrateProjectData(r.project)
-                    }));
-                    setSavedReports(migrated);
-                }
-            })
-            .catch(err => console.error("Sync Error", err))
-            .finally(() => setIsSyncing(false));
+        refreshReports();
+        
+        // Setup polling
+        const interval = setInterval(() => {
+            refreshReports(true); // Silent update
+        }, 15000); 
+
+        return () => clearInterval(interval);
     }
-  }, [currentUser]);
+  }, [currentUser, activeReportId]);
 
   // 3. Save Changes (Routing to Local vs Cloud)
   const saveToStorage = (reports: Report[]) => {
       // Always save to local state for UI
       setSavedReports(reports);
 
-      // Determine persistence layer
-      if (currentUser) {
-          // CLOUD MODE: Identify changed report and push it
-          // Note: In a real app we'd queue this. For now, we find the 'active' or just save recently modified
-          // Optimization: Just save the one that changed.
-          // Since this function usually receives the WHOLE array, we'll iterate or use the active ID context.
-          
-          // Strategy: We find the report that is Active or most recently modified and save IT.
-          // Or simpler: We just save to local storage as backup, AND try to sync modified.
-          
-          // For this specific implementation, we will rely on the handleUpdateReport wrappers to trigger single-item saves
-          // But we must also update localStorage for offline fallback/speed.
-      }
+      // Save to cloud is handled in handleUpdateReport
       
       // Always Update Local Storage (cache)
       try {
@@ -225,7 +245,6 @@ export default function App() {
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
-  const [activeReportId, setActiveReportId] = useState<string | null>(null);
   
   const [project, setProject] = useState<ProjectDetails>(INITIAL_PROJECT_STATE);
   const [locations, setLocations] = useState<LocationGroup[]>(EMPTY_LOCATIONS);
@@ -644,6 +663,7 @@ export default function App() {
                 onAddIssueGlobal={handleAddIssueGlobal}
                 deletingReportId={reportToDelete}
                 isDeleting={isDeleteExiting}
+                onRefresh={() => refreshReports(false)}
             />
         )}
         
