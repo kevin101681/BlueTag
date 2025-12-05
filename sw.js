@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'bluetag-v36-offline-capable';
+const CACHE_NAME = 'bluetag-v37-pwa-fix';
 
 const URLS_TO_CACHE = [
   '/',
@@ -61,6 +61,7 @@ self.addEventListener('fetch', event => {
                 if (cachedResponse) return cachedResponse;
                 
                 // Fallback for navigation (HTML) to index.html if completely offline
+                // This ensures the PWA loads even if the specific sub-route wasn't cached
                 if (event.request.mode === 'navigate') {
                     return caches.match('/index.html');
                 }

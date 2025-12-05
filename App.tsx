@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef, ReactNode } from 'react';
 import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
@@ -13,7 +15,8 @@ declare global {
   }
 }
 
-const CompanyLogoAsset = "";
+// Logo stored in public/images/logo.png
+const CompanyLogoAsset = "/images/logo.png";
 const PartnerLogoAsset = "";
 
 const STORAGE_KEY = 'punchlist_reports';
@@ -67,10 +70,7 @@ interface ErrorBoundaryState {
 
 // Error Boundary to catch runtime crashes and prevent white screen
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };

@@ -1,3 +1,5 @@
+
+
 import { jsPDF } from 'jspdf';
 import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 
@@ -706,20 +708,21 @@ export const generateSignOffPDF = async (
     doc.setFillColor(84, 110, 122); 
     doc.rect(0, 0, 210, 3, 'F');
 
-    // Hardcoded logo path
-    const hardcodedLogo = '/logo.png';
+    // Use the provided companyLogo or fallback to default path
+    const logoToUse = companyLogo || '/images/logo.png';
     try {
-        const dims = await getImageDimensions(hardcodedLogo);
+        const dims = await getImageDimensions(logoToUse);
         if (dims.width > 0) {
             const maxW = 35; 
             const maxH = 24; 
             const scale = Math.min(maxW / dims.width, maxH / dims.height);
             const w = dims.width * scale;
             const h = dims.height * scale;
-            doc.addImage(hardcodedLogo, 'PNG', 200 - w, 8, w, h);
+            const fmt = getImageFormat(logoToUse);
+            doc.addImage(logoToUse, fmt, 200 - w, 8, w, h);
         }
     } catch (e) { 
-        // fallback to param if provided and hardcode fails (optional)
+        console.warn("Could not load logo", e);
     }
 
     doc.setFontSize(14);
@@ -783,19 +786,22 @@ export const generatePDFWithMetadata = async (
   doc.setFillColor(84, 110, 122); 
   doc.rect(0, 0, 210, 3, 'F');
 
-  // Hardcoded logo path
-  const hardcodedLogo = '/logo.png';
+  // Use the provided companyLogo or fallback to default path
+  const logoToUse = companyLogo || '/images/logo.png';
   try {
-      const dims = await getImageDimensions(hardcodedLogo);
+      const dims = await getImageDimensions(logoToUse);
       if (dims.width > 0) {
           const maxW = 35; 
           const maxH = 24; 
           const scale = Math.min(maxW / dims.width, maxH / dims.height);
           const w = dims.width * scale;
           const h = dims.height * scale;
-          doc.addImage(hardcodedLogo, 'PNG', 200 - w, 8, w, h);
+          const fmt = getImageFormat(logoToUse);
+          doc.addImage(logoToUse, fmt, 200 - w, 8, w, h);
       }
-  } catch (e) { }
+  } catch (e) { 
+      console.warn("Could not load logo", e);
+  }
 
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");

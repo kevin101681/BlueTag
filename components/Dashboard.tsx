@@ -500,6 +500,7 @@ const DetailInput = ({ field, onChange }: { field: ProjectField, onChange: (val:
     const [localValue, setLocalValue] = useState(field.value);
 
     // Determine autocomplete attribute based on field properties
+    // This enables the browser to suggest addresses, emails, and names
     const getAutoCompleteType = (label: string, icon: string): string => {
         const l = label.toLowerCase();
         if (l.includes('email')) return 'email';
