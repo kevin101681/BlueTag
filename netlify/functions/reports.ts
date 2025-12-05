@@ -1,7 +1,8 @@
 import { Client } from 'pg';
 
-// Netlify injects DATABASE_URL from the Neon extension automatically
-const connectionString = process.env.DATABASE_URL;
+// Netlify/Neon integration often injects NETLIFY_DATABASE_URL. 
+// We check both standard DATABASE_URL and the Netlify specific one.
+const connectionString = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL;
 
 export const handler = async (event: any, context: any) => {
   // 1. Security Check: Ensure user is logged in via Netlify Identity
@@ -13,19 +14,27 @@ export const handler = async (event: any, context: any) => {
     };
   }
 
+  // 2. Configuration Check
+  if (!connectionString) {
+    console.error("Database connection string missing. Ensure DATABASE_URL or NETLIFY_DATABASE_URL is set.");
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Server misconfiguration: Missing Database URL." }),
+    };
+  }
+
   const userId = user.sub; // Unique Google/Netlify User ID
 
-  // 2. Database Connection
+  // 3. Database Connection
   const client = new Client({
     connectionString,
-    ssl: { rejectUnauthorized: false }, // Neon requires SSL
+    ssl: { rejectUnauthorized: false }, // Neon/Serverless often requires this setting
   });
 
   try {
     await client.connect();
 
-    // 2a. Auto-Init: Ensure table exists
-    // This allows the app to work immediately without manual SQL setup
+    // 4. Auto-Init: Ensure table exists
     await client.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id TEXT PRIMARY KEY,
@@ -36,7 +45,6 @@ export const handler = async (event: any, context: any) => {
       CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id);
     `);
 
-    // 3. Handle Request Methods
     const method = event.httpMethod;
 
     // GET: Fetch all reports for this user
@@ -46,7 +54,6 @@ export const handler = async (event: any, context: any) => {
         [userId]
       );
       
-      // Extract the JSON blob from the row
       const reports = result.rows.map((row: any) => row.data);
       
       return {
@@ -63,6 +70,7 @@ export const handler = async (event: any, context: any) => {
          return { statusCode: 400, body: "Report ID missing" };
       }
 
+      // Upsert query
       const query = `
         INSERT INTO reports (id, user_id, last_modified, data)
         VALUES ($1, $2, $3, $4)
@@ -105,6 +113,7 @@ export const handler = async (event: any, context: any) => {
       body: JSON.stringify({ error: "Database operation failed", details: error.message }),
     };
   } finally {
+    // Ensure client is closed to prevent hanging functions
     await client.end();
   }
 };
