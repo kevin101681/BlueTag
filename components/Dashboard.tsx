@@ -1160,9 +1160,17 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     }, [strokes, resizeTrigger]); 
 
     const handleSave = async () => {
+        // Capture canvas state as image for PDF overlay (preserves erased areas correctly)
+        const canvas = canvasRef.current;
+        let signatureImage = undefined;
+        if (canvas) {
+             signatureImage = canvas.toDataURL('image/png');
+        }
+
         // Explicitly update project to mark sign-off as "saved" (even if strokes are empty/unchanged)
         // This ensures the dashboard icon turns blue
-        onUpdateProject({ ...project, signOffStrokes: strokes });
+        // ALSO SAVE IMAGE to project state
+        onUpdateProject({ ...project, signOffStrokes: strokes, signOffImage: signatureImage });
 
         const overlay = overlayRef.current;
         const containerWidth = overlay ? overlay.scrollWidth : 800;
@@ -1180,13 +1188,6 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                      if (!isNaN(mb)) gapHeight = mb;
                 }
             }
-        }
-
-        // Capture canvas state as image for PDF overlay (preserves erased areas correctly)
-        const canvas = canvasRef.current;
-        let signatureImage = undefined;
-        if (canvas) {
-             signatureImage = canvas.toDataURL('image/png');
         }
 
         const finalPdfUrl = await generateSignOffPDF(
@@ -1289,7 +1290,114 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     );
 };
 
-const EmailOptionsModal = ({ onClose }: { onClose: () => void }) => createPortal(
+const EmailOptionsModal = ({ 
+    onClose,
+    project,
+    locations,
+    companyLogo,
+    signOffTemplates
+}: { 
+    onClose: () => void;
+    project: ProjectDetails;
+    locations: LocationGroup[];
+    companyLogo?: string;
+    signOffTemplates: SignOffTemplate[];
+}) => {
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const getSafeName = () => {
+        const name = project.fields?.[0]?.value || "Project";
+        return name.replace(/[^a-z0-9]/gi, '_');
+    };
+
+    const handleShare = async (files: File[], title?: string, text?: string) => {
+        if (navigator.share && navigator.canShare && navigator.canShare({ files })) {
+            try {
+                await navigator.share({
+                    files,
+                    title,
+                    text
+                });
+                onClose();
+            } catch (error) {
+                console.error("Share failed", error);
+                // User cancelled or share failed
+            }
+        } else {
+            alert("Sharing files is not supported on this browser/device.");
+        }
+    };
+
+    const generateReportFile = async () => {
+        const res = await generatePDFWithMetadata({ project, locations }, companyLogo, project.reportMarks);
+        const blob = res.doc.output('blob');
+        const filename = `${getSafeName()} - New Home Completion List.pdf`;
+        return new File([blob], filename, { type: 'application/pdf' });
+    };
+
+    const generateSignOffFile = async () => {
+        // Use saved image if available, otherwise strokes
+        // If width is unknown (headless), default to 800 which matches fallback
+        const blobUrl = await generateSignOffPDF(
+            project,
+            SIGN_OFF_TITLE,
+            signOffTemplates[0],
+            companyLogo,
+            project.signOffImage, 
+            project.signOffStrokes,
+            800, // Default width if headless
+            undefined, // Default height
+            16 // Default gap
+        );
+        const blob = await fetch(blobUrl).then(r => r.blob());
+        const filename = `${getSafeName()} - Sign Off Sheet.pdf`;
+        return new File([blob], filename, { type: 'application/pdf' });
+    };
+
+    const handleEmailAll = async () => {
+        setIsGenerating(true);
+        try {
+            const reportFile = await generateReportFile();
+            const signOffFile = await generateSignOffFile();
+            const safeProjectName = project.fields?.[0]?.value || "Project";
+            
+            await handleShare(
+                [reportFile, signOffFile], 
+                `${safeProjectName} - Walk through docs`, 
+                "Here's the punch list and sign off sheet. The rewalk is scheduled for"
+            );
+        } catch (e) {
+            console.error("Failed to generate files", e);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleEmailReport = async () => {
+        setIsGenerating(true);
+        try {
+            const reportFile = await generateReportFile();
+            await handleShare([reportFile]);
+        } catch (e) {
+            console.error("Failed to generate report", e);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleEmailSignOff = async () => {
+        setIsGenerating(true);
+        try {
+            const signOffFile = await generateSignOffFile();
+            await handleShare([signOffFile]);
+        } catch (e) {
+            console.error("Failed to generate sign off", e);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    return createPortal(
     <div 
         className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
         onClick={onClose}
@@ -1299,32 +1407,42 @@ const EmailOptionsModal = ({ onClose }: { onClose: () => void }) => createPortal
             className="bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl w-full max-w-sm p-6 animate-dialog-enter border border-slate-100 dark:border-slate-700"
         >
             <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 text-center">Share Documents</h3>
-            <div className="space-y-3">
-                <button 
-                    onClick={() => { /* Email All */ onClose(); }}
-                    className="w-full py-4 rounded-2xl font-bold text-white bg-primary hover:bg-primary/90 flex items-center justify-center gap-2"
-                >
-                    <Mail size={20} />
-                    Email All Docs
-                </button>
-                <button 
-                    onClick={() => { /* Email Report */ onClose(); }}
-                    className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"
-                >
-                    <FileText size={20} />
-                    Email Report Only
-                </button>
-                <button 
-                     onClick={() => { /* Email Sign Off */ onClose(); }}
-                     className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"
-                 >
-                    <PenTool size={20} />
-                    Email Sign Off Only
-                </button>
-            </div>
+            
+            {isGenerating ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-slate-500 font-medium">Generating PDFs...</p>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    <button 
+                        onClick={handleEmailAll}
+                        className="w-full py-4 rounded-2xl font-bold text-white bg-primary hover:bg-primary/90 flex items-center justify-center gap-2"
+                    >
+                        <Mail size={20} />
+                        Email All Docs
+                    </button>
+                    <button 
+                        onClick={handleEmailReport}
+                        className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"
+                    >
+                        <FileText size={20} />
+                        Email Report Only
+                    </button>
+                    <button 
+                        onClick={handleEmailSignOff}
+                        className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"
+                    >
+                        <PenTool size={20} />
+                        Email Sign Off Only
+                    </button>
+                </div>
+            )}
+            
             <button 
                 onClick={onClose}
-                className="w-full mt-6 py-3 rounded-full font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                disabled={isGenerating}
+                className="w-full mt-6 py-3 rounded-full font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-50"
             >
                 Cancel
             </button>
@@ -1332,6 +1450,7 @@ const EmailOptionsModal = ({ onClose }: { onClose: () => void }) => createPortal
     </div>,
     document.body
 );
+};
 
 // [Dashboard Component]
 export const Dashboard = React.memo<DashboardProps>(({ 
@@ -1658,7 +1777,13 @@ export const Dashboard = React.memo<DashboardProps>(({
             )}
             
             {isEmailOptionsOpen && (
-                <EmailOptionsModal onClose={() => setIsEmailOptionsOpen(false)} />
+                <EmailOptionsModal 
+                    onClose={() => setIsEmailOptionsOpen(false)} 
+                    project={project}
+                    locations={locations}
+                    companyLogo={companyLogo}
+                    signOffTemplates={signOffTemplates}
+                />
             )}
 
             {showGlobalAddIssue && (
