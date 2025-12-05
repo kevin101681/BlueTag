@@ -65,7 +65,12 @@ interface ErrorBoundaryState {
 
 // Error Boundary to catch runtime crashes and prevent white screen
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  public state: ErrorBoundaryState;
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
@@ -164,10 +169,8 @@ export default function App() {
                     ...r,
                     project: migrateProjectData(r.project)
                 }));
-                // Only set if we haven't loaded cloud data yet
-                if (!currentUser) {
-                    setSavedReports(migrated);
-                }
+                // ALWAYS load local data initially to ensure offline availability / merging
+                setSavedReports(migrated);
             }
         } catch (e) {
             console.error("Failed to load local reports", e);
@@ -175,6 +178,18 @@ export default function App() {
         setIsDataLoaded(true);
     }
   }, []);
+
+  // New Persistence Effect: Automatically save to localStorage when reports change
+  // This replaces manual saves and ensures cloud sync updates are also persisted locally
+  useEffect(() => {
+      if (isDataLoaded) {
+          try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(savedReports));
+          } catch (e) {
+              console.error("Storage quota exceeded", e);
+          }
+      }
+  }, [savedReports, isDataLoaded]);
 
   const refreshReports = async (silent = false) => {
       if (!currentUser) return;
@@ -188,21 +203,29 @@ export default function App() {
               }));
               
               setSavedReports(prev => {
-                   // If no report is active, just update list.
-                   if (!activeReportId) return migrated;
+                   // Merge Logic:
+                   // 1. Create Map of cloud reports
+                   const cloudMap = new Map(migrated.map((r: any) => [r.id, r]));
                    
-                   // If a report is active, avoid overwriting it with older/conflicting data 
-                   // to prevent losing current work in this session.
-                   const activeLocal = prev.find(r => r.id === activeReportId);
+                   // 2. Start with cloud reports as the base truth
+                   const merged = [...migrated];
+
+                   // 3. Iterate through local reports (prev) to preserve local-only files
+                   prev.forEach(localR => {
+                       // If local report is NOT in cloud, keep it (local-only/offline created)
+                       if (!cloudMap.has(localR.id)) {
+                           merged.push(localR);
+                       } else {
+                           // If it IS in cloud, but it's the currently active one being edited,
+                           // keep the local version to prevent UI overwrites/jumps during editing.
+                           if (activeReportId && localR.id === activeReportId) {
+                               const idx = merged.findIndex(m => m.id === localR.id);
+                               if (idx !== -1) merged[idx] = localR;
+                           }
+                       }
+                   });
                    
-                   // If for some reason active local is missing, just return migrated.
-                   if (!activeLocal) return migrated;
-                   
-                   // Filter the active report out of the fresh cloud list
-                   const others = migrated.filter(r => r.id !== activeReportId);
-                   
-                   // Combine new cloud reports with our locally active one
-                   return [...others, activeLocal].sort((a,b) => b.lastModified - a.lastModified);
+                   return merged.sort((a: any, b: any) => b.lastModified - a.lastModified);
               });
           }
       } catch (err) {
@@ -229,16 +252,8 @@ export default function App() {
   // 3. Save Changes (Routing to Local vs Cloud)
   const saveToStorage = (reports: Report[]) => {
       // Always save to local state for UI
+      // The useEffect above will handle writing to localStorage automatically
       setSavedReports(reports);
-
-      // Save to cloud is handled in handleUpdateReport
-      
-      // Always Update Local Storage (cache)
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
-      } catch (e) {
-        console.error("Storage quota exceeded", e);
-      }
   };
 
   const [installPrompt, setInstallPrompt] = useState<any>(null);
