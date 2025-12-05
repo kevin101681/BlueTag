@@ -90,7 +90,7 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
     const [currentPage, setCurrentPage] = useState(0);
 
     const goNext = () => {
-        if (currentPage < images.length - 1) {
+        if (currentPage < images.length) {
             setCurrentPage(prev => prev + 1);
         }
     };
@@ -114,7 +114,7 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
     const hasImages = images.some(img => img.length > 0);
 
     return createPortal(
-        <div className="fixed inset-0 z-[300] bg-slate-900 flex flex-col items-center justify-center overflow-hidden animate-fade-in touch-none">
+        <div className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center overflow-hidden animate-fade-in touch-none">
             
             {!hasImages && (
                  <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
@@ -129,62 +129,89 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
             {/* Book Container */}
             {hasImages && (
                 <div 
-                    className="relative w-full h-full max-w-3xl max-h-[90vh] perspective-container flex items-center justify-center"
+                    className="relative w-full h-full max-w-4xl max-h-[85vh] perspective-container flex items-center justify-center px-4"
                     {...swipeHandlers}
                     style={{ perspective: '2000px' }}
                     onClick={(e) => {
                          const width = e.currentTarget.clientWidth;
                          const x = e.clientX;
-                         if (x > width / 2) goNext();
+                         // Simple tap navigation: Right half next, Left half prev
+                         if (x > window.innerWidth / 2) goNext();
                          else goPrev();
                     }}
                 >
+                    <div className="relative w-full h-full md:aspect-[4/3] max-w-[90vh]">
                     {images.map((img, index) => {
                         if (!img) return null;
-                        
-                        // Stack order: lower pages are behind
-                        // Current and future pages are stacked normally (0 on top of 1, etc)
-                        // But wait, standard stack is 0 at bottom in DOM. 
-                        // Let's force Z-index: 
-                        const zIndex = images.length - index;
-                        
-                        // Flip logic: 
-                        // If index < currentPage, it has flipped (-180deg)
-                        // If index === currentPage, it is flat (0deg)
-                        // If index > currentPage, it is flat (0deg) and underneath
+
+                        // Page State Logic
                         const isFlipped = index < currentPage;
                         
+                        // Z-Index Management for 3D Stacking
+                        // When flipped (Left Stack): z-index follows index (0 at bottom, 1 above...)
+                        // When unflipped (Right Stack): z-index is reversed (0 at top, 1 below...)
+                        const zIndex = isFlipped ? index : (images.length - index);
+
                         return (
                             <div 
                                 key={index}
-                                className="absolute inset-4 md:inset-10 flex items-center justify-center backface-hidden transition-transform duration-700 ease-in-out origin-left shadow-2xl"
+                                className="absolute top-4 bottom-4 left-2 right-2 md:inset-0 origin-left"
                                 style={{
-                                    zIndex: isFlipped ? 0 : zIndex, // Send flipped pages to back visually if needed, though rotate handles it mostly
-                                    transform: isFlipped ? 'rotateY(-130deg)' : 'rotateY(0deg)', // -130 allows seeing the previous page a bit like holding a book
-                                    opacity: isFlipped ? 0 : 1, // Fade out flipped pages for cleaner "single stack" look on mobile
-                                    pointerEvents: 'none',
-                                    backgroundColor: 'white'
+                                    transformStyle: 'preserve-3d',
+                                    transform: isFlipped ? 'rotateY(-180deg)' : 'rotateY(0deg)',
+                                    zIndex: zIndex,
+                                    // Delay z-index change when flipping forward (to keep it on top while moving)
+                                    // Immediate z-index change when flipping backward (to lift it off the left stack immediately)
+                                    transition: `transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1), z-index 0s ${isFlipped ? '0.4s' : '0s'}`
                                 }}
                             >
-                                <img 
-                                    src={img} 
-                                    className="max-w-full max-h-full object-contain shadow-md rounded-sm"
-                                    alt={`Page ${index + 1}`}
-                                />
-                                
-                                {/* Shadow overlay for depth during flip */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" style={{ opacity: isFlipped ? 1 : 0, transition: 'opacity 0.7s' }} />
+                                {/* Front Face (The Image) */}
+                                <div 
+                                    className="absolute inset-0 bg-white shadow-xl rounded-r-md rounded-l-sm overflow-hidden flex items-center justify-center"
+                                    style={{ backfaceVisibility: 'hidden' }}
+                                >
+                                    <img 
+                                        src={img} 
+                                        className="w-full h-full object-contain pointer-events-none" 
+                                        alt={`Page ${index + 1}`}
+                                    />
+                                    {/* Inner Spine Shadow */}
+                                    <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" />
+                                    {/* Page Number */}
+                                    <div className="absolute bottom-4 right-6 text-slate-400 font-mono text-xs select-none">
+                                        {index + 1}
+                                    </div>
+                                </div>
+
+                                {/* Back Face (Blank / Pattern) */}
+                                <div 
+                                    className="absolute inset-0 bg-white shadow-xl rounded-l-md rounded-r-sm flex items-center justify-center overflow-hidden"
+                                    style={{ 
+                                        backfaceVisibility: 'hidden', 
+                                        transform: 'rotateY(180deg)' 
+                                    }}
+                                >
+                                    {/* Subtle Watermark on Back */}
+                                    <div className="text-slate-100 font-bold text-6xl md:text-8xl select-none rotate-45 transform">
+                                        BlueTag
+                                    </div>
+                                    {/* Spine Shadow for Back (Right Side when flipped) */}
+                                    <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-black/10 to-transparent pointer-events-none" />
+                                </div>
                             </div>
                         );
                     })}
+                    </div>
                 </div>
             )}
 
-            {/* Controls / Indicators */}
+            {/* Hint / Indicators */}
             {hasImages && (
-                <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
-                     <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full text-white/90 font-mono text-sm border border-white/10 pointer-events-auto">
-                         {currentPage + 1} / {images.length}
+                <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none z-[305]">
+                     <div className="bg-black/50 backdrop-blur-md px-6 py-2 rounded-full text-white/90 font-medium text-sm border border-white/10 shadow-lg pointer-events-auto flex gap-4">
+                         <span className="opacity-60">Prev</span>
+                         <span className="font-mono">{currentPage} / {images.length}</span>
+                         <span className="opacity-60">Next</span>
                      </div>
                 </div>
             )}
@@ -196,8 +223,7 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
             >
                 <X size={28} />
             </button>
-        </div>,
-        document.body
+        </div>
     );
 };
 
@@ -270,6 +296,30 @@ const SettingsModal = ({
 const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, colorTheme, onColorThemeChange, companyLogo, onUpdateLogo, partnerLogo, onUpdatePartnerLogo, installAvailable, onInstall, onDeleteOldReports, user, onLogin, onLogout }: any) => {
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const partnerFileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    onUpdateLogo(ev.target.result as string);
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+
+    const handlePartnerLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (ev.target?.result) {
+                    onUpdatePartnerLogo(ev.target.result as string);
+                }
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
 
     const THEME_COLORS = [
         '#60a5fa', // Blue (Default)
@@ -367,6 +417,70 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
                                     />
                                 ))}
                             </div>
+                    </div>
+                </div>
+
+                {/* Branding */}
+                <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Company Branding</h4>
+                    {/* Primary Logo */}
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            {companyLogo ? (
+                                <img src={companyLogo} className="w-12 h-12 object-contain bg-white rounded-lg p-1" alt="Logo" />
+                            ) : (
+                                <div className="w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400">
+                                    <Upload size={20} />
+                                </div>
+                            )}
+                            <div className="text-sm">
+                                <p className="font-bold text-slate-800 dark:text-white">Report Logo</p>
+                                <p className="text-slate-500 dark:text-slate-400 text-xs">Appears on PDFs</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-3 py-1.5 bg-white dark:bg-slate-600 text-slate-700 dark:text-white text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors"
+                        >
+                            Change
+                        </button>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handleLogoUpload}
+                        />
+                    </div>
+
+                    {/* Partner Logo */}
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            {partnerLogo ? (
+                                <img src={partnerLogo} className="w-12 h-12 object-contain bg-white rounded-lg p-1" alt="Partner Logo" />
+                            ) : (
+                                <div className="w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400">
+                                    <Upload size={20} />
+                                </div>
+                            )}
+                            <div className="text-sm">
+                                <p className="font-bold text-slate-800 dark:text-white">Co-branding Logo</p>
+                                <p className="text-slate-500 dark:text-slate-400 text-xs">Optional partner logo</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => partnerFileInputRef.current?.click()}
+                            className="px-3 py-1.5 bg-white dark:bg-slate-600 text-slate-700 dark:text-white text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors"
+                        >
+                            Change
+                        </button>
+                        <input 
+                            type="file" 
+                            ref={partnerFileInputRef} 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handlePartnerLogoUpload}
+                        />
                     </div>
                 </div>
 
@@ -508,8 +622,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         onSelectReport, 
         isCreating,
         deletingReportId,
-        isDeleting,
-        companyLogo
+        isDeleting
     } = props;
 
     const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
@@ -610,7 +723,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         onBack={() => {}} // No back button in this mode
                         isDarkMode={props.isDarkMode}
                         toggleTheme={() => props.onThemeChange(props.currentTheme === 'dark' ? 'light' : 'dark')}
-                        companyLogo={companyLogo}
+                        companyLogo={props.companyLogo}
                         signOffTemplates={props.signOffTemplates}
                         onUpdateTemplates={props.onUpdateTemplates}
                         isCreating={isCreating}
@@ -659,3 +772,4 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         </div>
     );
 }
+

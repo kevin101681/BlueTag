@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, ReactNode, Component } from 'react';
-import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES, COMPANY_LOGO_BASE64, PARTNER_LOGO_BASE64 } from './constants';
+import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
@@ -65,10 +65,10 @@ interface ErrorBoundaryState {
 
 // Error Boundary to catch runtime crashes and prevent white screen
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null
+  };
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
@@ -269,13 +269,11 @@ export default function App() {
   });
 
   const [companyLogo, setCompanyLogo] = useState<string>(() => {
-      if (COMPANY_LOGO_BASE64) return COMPANY_LOGO_BASE64;
       const saved = localStorage.getItem(LOGO_KEY);
       return saved || CompanyLogoAsset;
   });
 
   const [partnerLogo, setPartnerLogo] = useState<string>(() => {
-      if (PARTNER_LOGO_BASE64) return PARTNER_LOGO_BASE64;
       const saved = localStorage.getItem(PARTNER_LOGO_KEY);
       return saved || PartnerLogoAsset;
   });
