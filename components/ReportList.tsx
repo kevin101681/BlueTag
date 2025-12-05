@@ -1,9 +1,7 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
 import { Dashboard } from './Dashboard';
-import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User, BookOpen, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User, Book, ArrowLeft, ArrowRight } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { BlueTagLogo } from './Logo';
 import { ReportCard } from './Dashboard';
@@ -59,7 +57,9 @@ const DashboardWrapper = ({
     isCreating,
     isExiting,
     onDelete,
-    onAddIssueGlobal
+    onAddIssueGlobal,
+    isClientInfoCollapsed,
+    onToggleClientInfo
 }: any) => {
     return (
         <div className="w-full h-full">
@@ -80,6 +80,8 @@ const DashboardWrapper = ({
                 isCreating={isCreating}
                 isExiting={isExiting}
                 onDelete={onDelete}
+                isClientInfoCollapsed={isClientInfoCollapsed}
+                onToggleClientInfo={onToggleClientInfo}
             />
         </div>
     );
@@ -119,7 +121,7 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
             {!hasImages && (
                  <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
                      <div className="max-w-md bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-white">
-                         <BookOpen size={48} className="mx-auto mb-4 opacity-50" />
+                         <Book size={48} className="mx-auto mb-4 opacity-50" />
                          <h3 className="text-xl font-bold mb-2">Manual Not Configured</h3>
                          <p className="text-white/70">Please add Base64 image strings to the configuration file to view the homeowner manual.</p>
                      </div>
@@ -450,11 +452,16 @@ const ReportSelectionModal = ({
     useEffect(() => {
         if (isOpen) {
             setShouldRender(true);
+            document.body.style.overflow = 'hidden';
             setTimeout(() => setIsVisible(true), 10);
         } else {
             setIsVisible(false);
-            setTimeout(() => setShouldRender(false), 300);
+            setTimeout(() => {
+                setShouldRender(false);
+                document.body.style.overflow = '';
+            }, 300);
         }
+        return () => { document.body.style.overflow = ''; };
     }, [isOpen]);
 
     // Most recent 5 reports for initial view
@@ -541,6 +548,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
     const [isManualOpen, setIsManualOpen] = useState(false);
+    const [reportViewStates, setReportViewStates] = useState<Record<string, { clientInfoCollapsed: boolean }>>({});
 
     // Effect: If `isCreating` becomes true, we should probably select the newest report
     useEffect(() => {
@@ -600,7 +608,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
                         title="Homeowner Manual"
                     >
-                        <BookOpen size={24} />
+                        <Book size={24} />
                     </button>
                 </div>
                 
@@ -641,6 +649,13 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         isExiting={isExiting}
                         onDelete={(e: React.MouseEvent, rect?: DOMRect) => props.onDeleteReport(activeReport.id, rect)}
                         onAddIssueGlobal={props.onAddIssueGlobal}
+                        isClientInfoCollapsed={reportViewStates[activeReport.id]?.clientInfoCollapsed ?? false}
+                        onToggleClientInfo={(collapsed: boolean) => {
+                             setReportViewStates(prev => ({
+                                ...prev,
+                                [activeReport.id]: { ...prev[activeReport.id], clientInfoCollapsed: collapsed }
+                             }));
+                        }}
                     />
                 ) : (
                     <div className="max-w-3xl mx-auto p-6 relative">

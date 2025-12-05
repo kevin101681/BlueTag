@@ -1,6 +1,3 @@
-
-
-
 import { jsPDF } from 'jspdf';
 import { AppState, ProjectDetails, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 
@@ -350,11 +347,11 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         const initialSpacing = 16;
         const text1H = 8; 
         const text2H = 12; 
-        const sigRow1H = 10;
+        const sigRow1H = 20;
         const text3H = 8; 
         const boxH = 18;
         const text4H = 8; 
-        const sigRow2H = 10;
+        const sigRow2H = 20;
         const gaps = 30;
         
         const cardHeight = headerH + initialSpacing + text1H + text2H + sigRow1H + text3H + boxH + text4H + sigRow2H + gaps + CARD_PADDING;
@@ -385,17 +382,26 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         currentY += (splitDisclaimer.length * 5) + 6;
 
         doc.setFont("helvetica", "normal");
-        doc.text("Homebuyer", leftX, currentY + 5);
+        
+        const sigBoxH = 16;
+        const dateBoxH = 8;
+        const textOffY = 11;
+        const dateBoxY = 4;
+        
+        // Vertically center "Date" label to the 8mm date box (starts at y+4, ends y+12, mid=8)
+        const dateTextY = 9.5; 
+        
+        doc.text("Homebuyer", leftX, currentY + textOffY);
         const sigBoxX = leftX + 22;
         const sigBoxW = 80;
-        const sigBoxH = 8;
+        
         drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
         
         const dateLabelX = sigBoxX + sigBoxW + 5;
-        doc.text("Date", dateLabelX, currentY + 5);
+        doc.text("Date", dateLabelX, currentY + dateTextY);
         const dateBoxX = dateLabelX + 10;
         const dateBoxW = 30;
-        drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
+        drawModernBox(doc, dateBoxX, currentY + dateBoxY, dateBoxW, dateBoxH, 'initial');
         currentY += sigBoxH + 8;
 
         doc.text("Item numbers not complete on the date of acceptance/closing:", leftX, currentY);
@@ -407,10 +413,10 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         doc.text("All items on the builder's new home completion list have been completed.", leftX, currentY);
         currentY += 8;
 
-        doc.text("Homebuyer", leftX, currentY + 5);
+        doc.text("Homebuyer", leftX, currentY + textOffY);
         drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
-        doc.text("Date", dateLabelX, currentY + 5);
-        drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
+        doc.text("Date", dateLabelX, currentY + dateTextY);
+        drawModernBox(doc, dateBoxX, currentY + dateBoxY, dateBoxW, dateBoxH, 'initial');
 
         return startY + cardHeight;
     }
@@ -458,7 +464,7 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
         return { lines, height, type: currentType, textHeight };
     });
 
-    const signatureBlockHeight = isSignatureType ? 28 : 0;
+    const signatureBlockHeight = isSignatureType ? 36 : 0;
     const totalContentHeight = contentItems.reduce((acc, item) => acc + item.height + 4, 0) + signatureBlockHeight; 
     const cardHeight = TITLE_HEIGHT + totalContentHeight + CARD_PADDING;
 
@@ -532,23 +538,31 @@ const drawSectionCard = (doc: jsPDF, startY: number, section: SignOffSection): n
          doc.setFontSize(11);
          doc.setTextColor(51, 65, 85);
          doc.setFont("helvetica", "normal");
-         doc.text("Homebuyer", leftX, currentY + 5);
+         
+         const sigBoxH = 16;
+         const dateBoxH = 8;
+         const textOffY = 11;
+         const dateBoxY = 4;
+         
+         // Vertically center "Date" label to the 8mm date box (starts at y+4, ends y+12, mid=8)
+         const dateTextY = 9.5;
+         
+         doc.text("Homebuyer", leftX, currentY + textOffY);
          
          const sigBoxX = leftX + 22;
          const sigBoxW = 80;
-         const sigBoxH = 8;
          drawModernBox(doc, sigBoxX, currentY, sigBoxW, sigBoxH, 'signature');
 
          const dateLabelX = sigBoxX + sigBoxW + 5;
-         doc.text("Date", dateLabelX, currentY + 5);
+         doc.text("Date", dateLabelX, currentY + dateTextY);
 
          const dateBoxX = dateLabelX + 10;
          const dateBoxW = 30;
-         drawModernBox(doc, dateBoxX, currentY, dateBoxW, sigBoxH, 'initial');
+         drawModernBox(doc, dateBoxX, currentY + dateBoxY, dateBoxW, dateBoxH, 'initial');
          
          const dateStr = new Date().toLocaleDateString();
          doc.setFontSize(9);
-         doc.text(dateStr, dateBoxX + (dateBoxW/2), currentY + 5.5, { align: 'center' });
+         doc.text(dateStr, dateBoxX + (dateBoxW/2), currentY + dateBoxY + 5.5, { align: 'center' });
     }
 
     return startY + cardHeight;
