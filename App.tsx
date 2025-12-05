@@ -64,13 +64,11 @@ interface ErrorBoundaryState {
 }
 
 // Error Boundary to catch runtime crashes and prevent white screen
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-
-  public state: ErrorBoundaryState;
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
@@ -114,7 +112,15 @@ export default function App() {
   
   // Reports State
   const [savedReports, setSavedReports] = useState<Report[]>([]);
+  // Ref to track savedReports for async sync operations without stale closures
+  const savedReportsRef = useRef<Report[]>(savedReports);
+  
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
+
+  // Keep ref synchronized with state
+  useEffect(() => {
+    savedReportsRef.current = savedReports;
+  }, [savedReports]);
 
   // Netlify Identity Effect
   useEffect(() => {
@@ -196,37 +202,51 @@ export default function App() {
       if (!silent) setIsSyncing(true);
       try {
           const cloudReports = await CloudService.fetchReports();
-          if (cloudReports) {
-              const migrated = cloudReports.map((r: any) => ({
+          
+          if (Array.isArray(cloudReports)) {
+              const migratedCloud = cloudReports.map((r: any) => ({
                   ...r,
                   project: migrateProjectData(r.project)
               }));
               
-              setSavedReports(prev => {
-                   // Merge Logic:
-                   // 1. Create Map of cloud reports
-                   const cloudMap = new Map(migrated.map((r: any) => [r.id, r]));
-                   
-                   // 2. Start with cloud reports as the base truth
-                   const merged = [...migrated];
+              const localReports = savedReportsRef.current;
+              const cloudMap = new Map(migratedCloud.map(r => [r.id, r]));
+              
+              // Start with Cloud as base
+              const merged = [...migratedCloud];
+              const reportsToPush: Report[] = [];
 
-                   // 3. Iterate through local reports (prev) to preserve local-only files
-                   prev.forEach(localR => {
-                       // If local report is NOT in cloud, keep it (local-only/offline created)
-                       if (!cloudMap.has(localR.id)) {
-                           merged.push(localR);
-                       } else {
-                           // If it IS in cloud, but it's the currently active one being edited,
-                           // keep the local version to prevent UI overwrites/jumps during editing.
-                           if (activeReportId && localR.id === activeReportId) {
-                               const idx = merged.findIndex(m => m.id === localR.id);
-                               if (idx !== -1) merged[idx] = localR;
-                           }
-                       }
-                   });
+              localReports.forEach(localR => {
+                   const cloudR = cloudMap.get(localR.id);
                    
-                   return merged.sort((a: any, b: any) => b.lastModified - a.lastModified);
+                   if (!cloudR) {
+                       // Exists Locally but NOT on Cloud
+                       // Assume it's a new report created offline -> Keep & Push
+                       merged.push(localR);
+                       reportsToPush.push(localR);
+                   } else {
+                       // Exists in Both -> Conflict Resolution
+                       // Last Write Wins based on lastModified timestamp
+                       if (localR.lastModified > cloudR.lastModified) {
+                           // Local is newer -> Keep Local & Push update to cloud
+                           const idx = merged.findIndex(m => m.id === localR.id);
+                           if (idx !== -1) merged[idx] = localR;
+                           reportsToPush.push(localR);
+                       }
+                       // Else: Cloud is newer or equal -> Keep Cloud (already in merged)
+                   }
               });
+
+              // Bi-directional Sync: Push local changes that Cloud doesn't have or are stale
+              if (reportsToPush.length > 0) {
+                   Promise.all(reportsToPush.map(r => CloudService.saveReport(r)))
+                       .catch(e => console.error("Auto-push failed", e));
+              }
+              
+              const finalSorted = merged.sort((a, b) => b.lastModified - a.lastModified);
+              
+              // Only update if array is different (React handles reference equality)
+              setSavedReports(finalSorted);
           }
       } catch (err) {
           console.error("Sync Error", err);
@@ -247,7 +267,7 @@ export default function App() {
 
         return () => clearInterval(interval);
     }
-  }, [currentUser, activeReportId]);
+  }, [currentUser]);
 
   // 3. Save Changes (Routing to Local vs Cloud)
   const saveToStorage = (reports: Report[]) => {
