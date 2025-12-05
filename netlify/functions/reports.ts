@@ -24,6 +24,18 @@ export const handler = async (event: any, context: any) => {
   try {
     await client.connect();
 
+    // 2a. Auto-Init: Ensure table exists
+    // This allows the app to work immediately without manual SQL setup
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        last_modified BIGINT,
+        data JSONB
+      );
+      CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id);
+    `);
+
     // 3. Handle Request Methods
     const method = event.httpMethod;
 

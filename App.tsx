@@ -4,6 +4,7 @@ import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTempla
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
 import { CloudService } from './services/cloudService';
+import { AlertCircle } from 'lucide-react';
 
 // Global declaration for Netlify Identity
 declare global {
@@ -16,6 +17,7 @@ const CompanyLogoAsset = "";
 const PartnerLogoAsset = "";
 
 const STORAGE_KEY = 'punchlist_reports';
+const DELETED_REPORTS_KEY = 'punchlist_deleted_ids';
 const THEME_KEY = 'cbs_punch_theme';
 const COLOR_THEME_KEY = 'cbs_color_theme';
 const LOGO_KEY = 'cbs_company_logo';
@@ -64,7 +66,7 @@ interface ErrorBoundaryState {
 }
 
 // Error Boundary to catch runtime crashes and prevent white screen
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -109,11 +111,16 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   
   // Reports State
   const [savedReports, setSavedReports] = useState<Report[]>([]);
+  // Tombstone state to track deletions across devices
+  const [deletedReportIds, setDeletedReportIds] = useState<string[]>([]);
+  
   // Ref to track savedReports for async sync operations without stale closures
   const savedReportsRef = useRef<Report[]>(savedReports);
+  const deletedReportIdsRef = useRef<string[]>(deletedReportIds);
   
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
 
@@ -121,6 +128,10 @@ export default function App() {
   useEffect(() => {
     savedReportsRef.current = savedReports;
   }, [savedReports]);
+
+  useEffect(() => {
+    deletedReportIdsRef.current = deletedReportIds;
+  }, [deletedReportIds]);
 
   // Netlify Identity Effect
   useEffect(() => {
@@ -141,8 +152,6 @@ export default function App() {
 
       window.netlifyIdentity.on('logout', () => {
         setCurrentUser(null);
-        // Clear sensitive state on logout? 
-        // For now, we revert to local storage which might be empty or distinct.
         window.location.reload(); 
       });
     }
@@ -175,8 +184,11 @@ export default function App() {
                     ...r,
                     project: migrateProjectData(r.project)
                 }));
-                // ALWAYS load local data initially to ensure offline availability / merging
                 setSavedReports(migrated);
+            }
+            const deleted = localStorage.getItem(DELETED_REPORTS_KEY);
+            if (deleted) {
+                setDeletedReportIds(JSON.parse(deleted));
             }
         } catch (e) {
             console.error("Failed to load local reports", e);
@@ -185,8 +197,7 @@ export default function App() {
     }
   }, []);
 
-  // New Persistence Effect: Automatically save to localStorage when reports change
-  // This replaces manual saves and ensures cloud sync updates are also persisted locally
+  // Persistence Effects
   useEffect(() => {
       if (isDataLoaded) {
           try {
@@ -197,82 +208,107 @@ export default function App() {
       }
   }, [savedReports, isDataLoaded]);
 
+  useEffect(() => {
+      if (isDataLoaded) {
+          localStorage.setItem(DELETED_REPORTS_KEY, JSON.stringify(deletedReportIds));
+      }
+  }, [deletedReportIds, isDataLoaded]);
+
   const refreshReports = async (silent = false) => {
       if (!currentUser) return;
-      if (!silent) setIsSyncing(true);
+      if (!silent) {
+          setIsSyncing(true);
+          setSyncError(null);
+      }
+      
       try {
+          // fetchReports returns null on error (e.g. connection failure), [] on success-but-empty
           const cloudReports = await CloudService.fetchReports();
           
-          if (Array.isArray(cloudReports)) {
-              const migratedCloud = cloudReports.map((r: any) => ({
-                  ...r,
-                  project: migrateProjectData(r.project)
-              }));
-              
-              const localReports = savedReportsRef.current;
-              const cloudMap = new Map(migratedCloud.map(r => [r.id, r]));
-              
-              // Start with Cloud as base
-              const merged = [...migratedCloud];
-              const reportsToPush: Report[] = [];
-
-              localReports.forEach(localR => {
-                   const cloudR = cloudMap.get(localR.id);
-                   
-                   if (!cloudR) {
-                       // Exists Locally but NOT on Cloud
-                       // Assume it's a new report created offline -> Keep & Push
-                       merged.push(localR);
-                       reportsToPush.push(localR);
-                   } else {
-                       // Exists in Both -> Conflict Resolution
-                       // Last Write Wins based on lastModified timestamp
-                       if (localR.lastModified > cloudR.lastModified) {
-                           // Local is newer -> Keep Local & Push update to cloud
-                           const idx = merged.findIndex(m => m.id === localR.id);
-                           if (idx !== -1) merged[idx] = localR;
-                           reportsToPush.push(localR);
-                       }
-                       // Else: Cloud is newer or equal -> Keep Cloud (already in merged)
-                   }
-              });
-
-              // Bi-directional Sync: Push local changes that Cloud doesn't have or are stale
-              if (reportsToPush.length > 0) {
-                   Promise.all(reportsToPush.map(r => CloudService.saveReport(r)))
-                       .catch(e => console.error("Auto-push failed", e));
-              }
-              
-              const finalSorted = merged.sort((a, b) => b.lastModified - a.lastModified);
-              
-              // Only update if array is different (React handles reference equality)
-              setSavedReports(finalSorted);
+          if (cloudReports === null) {
+              if (!silent) setSyncError("Could not connect to sync server.");
+              return; 
           }
+          
+          const migratedCloud = cloudReports.map((r: any) => ({
+              ...r,
+              project: migrateProjectData(r.project)
+          }));
+          
+          const localReports = savedReportsRef.current;
+          const deletedIds = deletedReportIdsRef.current;
+          
+          const cloudMap = new Map(migratedCloud.map(r => [r.id, r]));
+          
+          // Base merge on cloud reports that haven't been deleted locally
+          // If a cloud report is in our deleted list, we ignore it AND try to delete it from cloud again
+          const validCloudReports = migratedCloud.filter(r => !deletedIds.includes(r.id));
+          
+          // Re-trigger delete for zombies
+          const zombies = migratedCloud.filter(r => deletedIds.includes(r.id));
+          if (zombies.length > 0) {
+              // Fire and forget delete
+              Promise.all(zombies.map(z => CloudService.deleteReport(z.id))).catch(console.error);
+          }
+
+          const merged = [...validCloudReports];
+          const reportsToPush: Report[] = [];
+
+          localReports.forEach(localR => {
+               const cloudR = cloudMap.get(localR.id);
+               
+               if (!cloudR) {
+                   // Exists Locally but NOT on Cloud
+                   // Assume it's a new report created offline -> Keep & Push
+                   merged.push(localR);
+                   reportsToPush.push(localR);
+               } else {
+                   // Exists in Both
+                   if (deletedIds.includes(localR.id)) {
+                       // Should be deleted, skip
+                   } else if (localR.lastModified > cloudR.lastModified) {
+                       // Local is newer -> Keep Local & Push update to cloud
+                       // Replace the cloud version in merged array
+                       const idx = merged.findIndex(m => m.id === localR.id);
+                       if (idx !== -1) merged[idx] = localR;
+                       else merged.push(localR); // Should exist, but safety check
+                       reportsToPush.push(localR);
+                   }
+                   // Else: Cloud is newer -> Keep Cloud (already in merged)
+               }
+          });
+
+          // Bi-directional Sync: Push local changes
+          if (reportsToPush.length > 0) {
+               await Promise.all(reportsToPush.map(r => CloudService.saveReport(r)));
+          }
+          
+          const finalSorted = merged.sort((a, b) => b.lastModified - a.lastModified);
+          
+          // Update local state
+          setSavedReports(finalSorted);
+          
       } catch (err) {
           console.error("Sync Error", err);
+          if (!silent) setSyncError("Sync failed unexpectedly.");
       } finally {
           if (!silent) setIsSyncing(false);
       }
   };
 
-  // 2. Cloud Sync (When User Changes)
+  // 2. Cloud Sync Polling
   useEffect(() => {
     if (currentUser) {
         refreshReports();
-        
-        // Setup polling
         const interval = setInterval(() => {
-            refreshReports(true); // Silent update
+            refreshReports(true);
         }, 15000); 
-
         return () => clearInterval(interval);
     }
   }, [currentUser]);
 
-  // 3. Save Changes (Routing to Local vs Cloud)
+  // 3. Save Changes
   const saveToStorage = (reports: Report[]) => {
-      // Always save to local state for UI
-      // The useEffect above will handle writing to localStorage automatically
       setSavedReports(reports);
   };
 
@@ -280,7 +316,6 @@ export default function App() {
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
-  
   const [project, setProject] = useState<ProjectDetails>(INITIAL_PROJECT_STATE);
   const [locations, setLocations] = useState<LocationGroup[]>(EMPTY_LOCATIONS);
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
@@ -401,7 +436,6 @@ export default function App() {
       }
   }, [activeReportId, savedReports]);
 
-  // PWA and Theme Effects
   useEffect(() => {
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(ios);
@@ -490,10 +524,9 @@ export default function App() {
   // Handlers for List View
   const handleCreateNew = () => {
     const now = Date.now();
-    if (now - lastCreationRef.current < 1000) return; // Debounce
+    if (now - lastCreationRef.current < 1000) return; 
     lastCreationRef.current = now;
 
-    // Start creation animation state
     setIsCreating(true);
 
     const newProject = INITIAL_PROJECT_STATE;
@@ -508,18 +541,15 @@ export default function App() {
     setProject(newProject);
     setLocations(newLocations);
     
-    // Updates
     const newReportList = [newReport, ...savedReports];
     saveToStorage(newReportList);
     
-    // If logged in, push new report immediately
     if (currentUser) {
         CloudService.saveReport(newReport);
     }
 
     setActiveReportId(newReport.id);
     
-    // Reset animation state after transition
     setTimeout(() => {
         setIsCreating(false);
     }, 800);
@@ -543,11 +573,16 @@ export default function App() {
           const idToDelete = reportToDelete;
           
           setTimeout(() => {
+              // 1. Remove from local state
               const newList = savedReports.filter(r => r.id !== idToDelete);
               saveToStorage(newList);
               
+              // 2. Add to deleted IDs tracker (for sync)
+              setDeletedReportIds(prev => [...prev, idToDelete]);
+
+              // 3. Attempt cloud delete
               if (currentUser) {
-                  CloudService.deleteReport(idToDelete);
+                  CloudService.deleteReport(idToDelete).catch(console.error);
               }
 
               if (activeReportId === idToDelete) {
@@ -564,26 +599,22 @@ export default function App() {
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       const newList = savedReports.filter(r => r.lastModified > thirtyDaysAgo);
       saveToStorage(newList);
-      // NOTE: Bulk delete not implemented in CloudService for brevity, would need to loop or add API
   };
   
   const handleUpdateReport = (updatedReport: Report) => {
       const newList = savedReports.map(r => r.id === updatedReport.id ? updatedReport : r);
       saveToStorage(newList);
       
-      // Sync specific report to cloud
       if (currentUser) {
           CloudService.saveReport(updatedReport);
       }
 
-      // Local state sync
       if (activeReportId === updatedReport.id) {
           setProject(updatedReport.project);
           setLocations(updatedReport.locations);
       }
   };
 
-  // Handlers for Dashboard
   const handleSelectLocation = (id: string) => {
     setActiveLocationId(id);
     window.history.pushState({ reportId: activeReportId, locationId: id }, '', '');
@@ -591,11 +622,8 @@ export default function App() {
 
   const handleBackFromLocation = () => {
     if (activeLocationId) {
-        // Find element to scroll to
         const el = document.getElementById(`loc-card-${activeLocationId}`);
-        // Go back
         window.history.back();
-        // Scroll will happen via popstate effect if needed, or we can trigger scroll here
         setScrollToLocations(true);
     } else {
         window.history.back();
@@ -615,7 +643,6 @@ export default function App() {
           const loc = newLocations[locIndex];
           newLocations[locIndex] = { ...loc, issues: [...loc.issues, issue] };
       } else {
-          // Add new location group if not exists
           newLocations.push({
               id: generateUUID(),
               name: locationName,
@@ -653,6 +680,14 @@ export default function App() {
              <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] bg-white/90 dark:bg-slate-800/90 backdrop-blur px-4 py-2 rounded-full shadow-lg border border-primary/20 flex items-center gap-2 animate-fade-in">
                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                  <span className="text-xs font-bold text-primary">Syncing...</span>
+             </div>
+        )}
+
+        {/* Sync Error Toast */}
+        {syncError && (
+             <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[300] bg-red-100 dark:bg-red-900/90 backdrop-blur px-6 py-3 rounded-full shadow-xl border border-red-500/20 flex items-center gap-2 animate-fade-in" onClick={() => setSyncError(null)}>
+                 <AlertCircle size={18} className="text-red-600 dark:text-red-200" />
+                 <span className="text-sm font-bold text-red-800 dark:text-red-100">{syncError}</span>
              </div>
         )}
 

@@ -13,9 +13,10 @@ const getAuthHeaders = async () => {
 };
 
 export const CloudService = {
-    async fetchReports(): Promise<Report[]> {
+    // Return null if fetch fails, empty array if successful but no reports
+    async fetchReports(): Promise<Report[] | null> {
         const headers = await getAuthHeaders();
-        if (!headers['Authorization']) return [];
+        if (!headers['Authorization']) return null;
 
         try {
             const response = await fetch('/.netlify/functions/reports', {
@@ -27,7 +28,7 @@ export const CloudService = {
             return await response.json();
         } catch (e) {
             console.error("Cloud Fetch Error:", e);
-            return [];
+            return null;
         }
     },
 
