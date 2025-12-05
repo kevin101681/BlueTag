@@ -732,9 +732,13 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose, o
 
     // Scroll Lock Effect
     useEffect(() => {
+        // Lock body and html to prevent background scroll
         document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+        
         return () => {
             document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
         };
     }, []);
 
@@ -807,7 +811,7 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose, o
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={handleClose}>
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in touch-none overscroll-none" onClick={handleClose}>
              <div className="bg-white dark:bg-slate-800 w-full max-w-4xl h-[90vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center shrink-0">
                     <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl">
@@ -900,9 +904,13 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
     // Scroll Lock Effect
     useEffect(() => {
+        // Lock body and html
         document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+        
         return () => {
             document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
         };
     }, []);
 
@@ -1208,7 +1216,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in touch-none overscroll-none">
             {isTemplateEditorOpen ? (
                 <TemplateEditorModal templates={templates} onUpdate={onUpdateTemplates} onClose={() => setIsTemplateEditorOpen(false)} />
             ) : (
