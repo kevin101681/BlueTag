@@ -4,9 +4,10 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 're
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
 import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
-import { AddIssueForm, LocationDetail } from './LocationDetail';
+import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
 import { createPortal } from 'react-dom';
+import { ImageEditor } from './ImageEditor';
 
 export interface DashboardProps {
   project: ProjectDetails;
@@ -600,6 +601,11 @@ export const LocationManagerModal = ({ locations, onUpdate, onClose }: { locatio
 
 export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: LocationGroup[], onUpdate: (locs: LocationGroup[]) => void, onClose: () => void }) => {
     const [localLocations, setLocalLocations] = useState(locations);
+    
+    // New state for photo management
+    const [editingPhoto, setEditingPhoto] = useState<{ locId: string, issueId: string, photoIndex: number } | null>(null);
+    const [uploadTarget, setUploadTarget] = useState<{ locId: string, issueId: string } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleDescChange = (locId: string, issueId: string, val: string) => {
         setLocalLocations(prev => prev.map(l => {
@@ -611,6 +617,90 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
         }));
     };
 
+    const handlePhotoCaptionChange = (locId: string, issueId: string, photoIndex: number, val: string) => {
+        setLocalLocations(prev => prev.map(l => {
+            if (l.id !== locId) return l;
+            return {
+                ...l,
+                issues: l.issues.map(i => {
+                    if (i.id !== issueId) return i;
+                    const newPhotos = [...i.photos];
+                    if (newPhotos[photoIndex]) {
+                        newPhotos[photoIndex] = { ...newPhotos[photoIndex], description: val };
+                    }
+                    return { ...i, photos: newPhotos };
+                })
+            };
+        }));
+    };
+
+    const handleDeletePhoto = (locId: string, issueId: string, photoIndex: number) => {
+        setLocalLocations(prev => prev.map(l => {
+            if (l.id !== locId) return l;
+            return {
+                ...l,
+                issues: l.issues.map(i => {
+                    if (i.id !== issueId) return i;
+                    return { ...i, photos: i.photos.filter((_, idx) => idx !== photoIndex) };
+                })
+            };
+        }));
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0] && uploadTarget) {
+            try {
+                const compressed = await compressImage(e.target.files[0]);
+                const newPhoto = {
+                     id: generateUUID(),
+                     url: compressed,
+                     description: ''
+                };
+
+                setLocalLocations(prev => prev.map(l => {
+                    if (l.id !== uploadTarget.locId) return l;
+                    return {
+                        ...l,
+                        issues: l.issues.map(i => {
+                            if (i.id !== uploadTarget.issueId) return i;
+                            return { ...i, photos: [...i.photos, newPhoto] };
+                        })
+                    };
+                }));
+
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                setUploadTarget(null);
+            } catch (err) {
+                console.error("Image upload failed", err);
+            }
+        }
+    };
+
+    const triggerUpload = (locId: string, issueId: string) => {
+        setUploadTarget({ locId, issueId });
+        fileInputRef.current?.click();
+    };
+
+    const handleSaveEditedPhoto = (newUrl: string) => {
+        if (editingPhoto) {
+             setLocalLocations(prev => prev.map(l => {
+                if (l.id !== editingPhoto.locId) return l;
+                return {
+                    ...l,
+                    issues: l.issues.map(i => {
+                        if (i.id !== editingPhoto.issueId) return i;
+                        const newPhotos = [...i.photos];
+                        if (newPhotos[editingPhoto.photoIndex]) {
+                            newPhotos[editingPhoto.photoIndex] = { ...newPhotos[editingPhoto.photoIndex], url: newUrl };
+                        }
+                        return { ...i, photos: newPhotos };
+                    })
+                };
+            }));
+            setEditingPhoto(null);
+        }
+    };
+
     const handleSave = () => {
         onUpdate(localLocations);
         onClose();
@@ -619,70 +709,135 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
     const totalItems = localLocations.reduce((acc, l) => acc + l.issues.length, 0);
 
     return createPortal(
-        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 w-full max-w-2xl h-[85vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                {/* Header with Title Centered and No X Button */}
-                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0 z-20">
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
-                        <h3 className="font-bold text-slate-800 dark:text-white">All Items ({totalItems})</h3>
+        <>
+            <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+                <div className="bg-white dark:bg-slate-800 w-full max-w-2xl h-[85vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                    {/* Header with Title Centered and No X Button */}
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0 z-20">
+                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
+                            <h3 className="font-bold text-slate-800 dark:text-white">All Items ({totalItems})</h3>
+                        </div>
                     </div>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
-                    <div className="pb-4">
-                        {localLocations.map(loc => {
-                            if (loc.issues.length === 0) return null;
-                            return (
-                                <div key={loc.id} className="relative">
-                                    {/* Clean Pill Header */}
-                                    <div className="sticky top-0 z-10 py-3 flex justify-center pointer-events-none">
-                                        <div className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 px-4 py-1.5 rounded-full shadow-sm pointer-events-auto">
-                                             <h4 className="font-bold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide">{loc.name}</h4>
+                    
+                    <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
+                        <div className="pb-4">
+                            {localLocations.map(loc => {
+                                if (loc.issues.length === 0) return null;
+                                return (
+                                    <div key={loc.id} className="relative">
+                                        {/* Clean Pill Header */}
+                                        <div className="sticky top-0 z-10 py-3 flex justify-center pointer-events-none">
+                                            <div className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 px-4 py-1.5 rounded-full shadow-sm pointer-events-auto">
+                                                 <h4 className="font-bold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide">{loc.name}</h4>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-3 px-4 pb-3">
+                                            {loc.issues.map((issue, idx) => (
+                                                <div key={issue.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                                                    
+                                                    <div className="flex justify-between items-start mb-2 gap-2">
+                                                        <div className="bg-primary/10 text-primary dark:bg-slate-700 dark:text-slate-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-1">
+                                                            {idx + 1}
+                                                        </div>
+                                                        <AutoResizeTextarea
+                                                            value={issue.description}
+                                                            onChange={(e) => handleDescChange(loc.id, issue.id, e.target.value)}
+                                                            className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[40px]"
+                                                            placeholder="Item description..."
+                                                        />
+                                                    </div>
+
+                                                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide ml-8 items-start">
+                                                        {issue.photos.map((photo, pIdx) => (
+                                                            <div key={pIdx} className="flex flex-col w-24 shrink-0 gap-1.5 group/wrapper">
+                                                                <div className="w-full aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo cursor-pointer">
+                                                                    <img 
+                                                                        src={photo.url} 
+                                                                        className="w-full h-full object-cover" 
+                                                                        onClick={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })}
+                                                                    />
+                                                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none">
+                                                                        <Edit2 size={16} className="text-white drop-shadow-md" />
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleDeletePhoto(loc.id, issue.id, pIdx);
+                                                                        }}
+                                                                        className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                </div>
+                                                                <input
+                                                                    value={photo.description || ""}
+                                                                    onChange={(e) => handlePhotoCaptionChange(loc.id, issue.id, pIdx, e.target.value)}
+                                                                    placeholder="Caption..."
+                                                                    className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-slate-200"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                        <button 
+                                                            onClick={() => triggerUpload(loc.id, issue.id)}
+                                                            className="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                                                            title="Add Photo"
+                                                        >
+                                                            <Camera size={20} />
+                                                            <span className="text-[9px] font-bold mt-1">Add</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                    <div className="space-y-3 px-4 pb-3">
-                                        {loc.issues.map(issue => (
-                                            <div key={issue.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                                                <textarea 
-                                                    value={issue.description}
-                                                    onChange={(e) => handleDescChange(loc.id, issue.id, e.target.value)}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none resize-none text-slate-800 dark:text-slate-200 text-sm font-medium mb-3 min-h-[80px] focus:ring-2 focus:ring-primary/20 transition-all"
-                                                />
-                                                {issue.photos.length > 0 && (
-                                                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                                                        {issue.photos.map(p => (
-                                                            <img key={p.id || generateUUID()} src={p.url} className="w-16 h-16 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0" />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        {totalItems === 0 && (
-                            <div className="text-center text-slate-400 py-10">No items found.</div>
-                        )}
+                                );
+                            })}
+                            {totalItems === 0 && (
+                                <div className="text-center text-slate-400 py-10">No items found.</div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20 flex gap-3">
+                        <button 
+                            onClick={onClose}
+                            className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleSave}
+                            className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                        >
+                            Save
+                        </button>
                     </div>
                 </div>
-
-                <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20 flex gap-3">
-                    <button 
-                        onClick={onClose}
-                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        onClick={handleSave}
-                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-                    >
-                        Save
-                    </button>
-                </div>
             </div>
-        </div>,
+
+            {/* Hidden File Input for Inline Adding */}
+            <input 
+                type="file" 
+                accept="image/*" 
+                capture="environment" 
+                ref={fileInputRef} 
+                className="hidden" 
+                onChange={handlePhotoUpload} 
+            />
+
+            {editingPhoto && (() => {
+                const issue = localLocations.find(l => l.id === editingPhoto.locId)?.issues.find(i => i.id === editingPhoto.issueId);
+                const photo = issue?.photos[editingPhoto.photoIndex];
+                if (!issue || !photo) return null;
+                return (
+                    <ImageEditor 
+                        imageUrl={photo.url}
+                        onSave={handleSaveEditedPhoto}
+                        onCancel={() => setEditingPhoto(null)}
+                    />
+                );
+            })()}
+        </>,
         document.body
     );
 };

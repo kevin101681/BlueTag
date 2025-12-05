@@ -9,7 +9,7 @@ import { analyzeDefectImage } from '../services/geminiService';
 import { createPortal } from 'react-dom';
 
 // --- Shared Helper ---
-const compressImage = (file: File): Promise<string> => {
+export const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -51,6 +51,42 @@ const compressImage = (file: File): Promise<string> => {
         reader.onerror = (err) => reject(err);
         reader.readAsDataURL(file);
     });
+};
+
+// --- Auto-Resize Textarea Component ---
+export const AutoResizeTextarea = ({ 
+    value, 
+    onChange, 
+    placeholder, 
+    className, 
+    autoFocus 
+}: { 
+    value: string, 
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void, 
+    placeholder?: string, 
+    className?: string,
+    autoFocus?: boolean
+}) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    useLayoutEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+        }
+    }, [value]);
+
+    return (
+        <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            className={`resize-none overflow-hidden ${className}`}
+            rows={1}
+            autoFocus={autoFocus}
+        />
+    );
 };
 
 export const DeleteConfirmationModal = ({ 
@@ -130,7 +166,8 @@ interface AddIssueFormProps {
   onSubmit: (issue: Issue, locationName?: string) => void;
   showLocationSelect?: boolean;
   availableLocations?: string[];
-  initialIssue?: Issue;
+  initialIssue?: Issue | null;
+  itemNumber?: number;
 }
 
 export const AddIssueForm: React.FC<AddIssueFormProps> = ({ 
@@ -138,7 +175,8 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     onSubmit, 
     showLocationSelect = false, 
     availableLocations,
-    initialIssue
+    initialIssue,
+    itemNumber
 }) => {
     const [description, setDescription] = useState(initialIssue?.description || "");
     const [photos, setPhotos] = useState<IssuePhoto[]>(initialIssue?.photos || []);
@@ -327,7 +365,12 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
             <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md overflow-y-auto animate-fade-in flex items-center justify-center min-h-full">
                 <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col animate-dialog-enter relative m-4">
                     <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0 z-10 rounded-t-[32px]">
-                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
+                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full flex items-center gap-3">
+                            {itemNumber !== undefined && (
+                                <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold shadow-sm">
+                                    {itemNumber}
+                                </div>
+                            )}
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white">
                                 {isEditing ? 'Edit Item' : 'Add Item'}
                             </h3>
@@ -347,6 +390,10 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                                                 className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity" 
                                                 onClick={() => setEditingPhotoIndex(idx)}
                                             />
+                                            {/* Edit Icon Always Visible */}
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                                                <Edit2 size={24} className="text-white drop-shadow-md" />
+                                            </div>
                                             <button 
                                                 onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
                                                 className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full transition-colors z-10"
@@ -420,12 +467,12 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                             </div>
                             
                             {/* Styled Text Box Container */}
-                            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-[24px] p-1 shadow-inner focus-within:ring-2 focus-within:ring-primary/50 transition-all">
-                                <textarea
+                            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-[24px] p-2 shadow-inner focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                                <AutoResizeTextarea
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Describe the issue..."
-                                    className="w-full bg-transparent p-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none min-h-[120px] resize-none"
+                                    className="w-full bg-transparent p-2 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none"
                                     autoFocus
                                 />
                             </div>
@@ -491,7 +538,12 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     const [localIssues, setLocalIssues] = useState<Issue[]>(location.issues);
     const [isAddIssueOpen, setIsAddIssueOpen] = useState(false);
     const [issueToDelete, setIssueToDelete] = useState<string | null>(null);
-    const [issueToEdit, setIssueToEdit] = useState<Issue | null>(null);
+    const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
+
+    // Inline Photo Editing State
+    const [editingPhoto, setEditingPhoto] = useState<{ issueId: string, photoIndex: number } | null>(null);
+    const [uploadIssueId, setUploadIssueId] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -503,15 +555,42 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     const handleDescriptionChange = (id: string, val: string) => {
         setLocalIssues(prev => prev.map(i => i.id === id ? { ...i, description: val } : i));
     };
+    
+    const handlePhotoCaptionChange = (issueId: string, photoIndex: number, val: string) => {
+        setLocalIssues(prev => prev.map(i => {
+            if (i.id === issueId) {
+                const newPhotos = [...i.photos];
+                if (newPhotos[photoIndex]) {
+                    newPhotos[photoIndex] = { ...newPhotos[photoIndex], description: val };
+                }
+                return { ...i, photos: newPhotos };
+            }
+            return i;
+        }));
+    };
 
-    const handleAddNew = (issue: Issue) => {
-        setLocalIssues(prev => [...prev, issue]);
+    const handleDeletePhoto = (issueId: string, photoIndex: number) => {
+         setLocalIssues(prev => prev.map(i => {
+            if (i.id === issueId) {
+                return { ...i, photos: i.photos.filter((_, idx) => idx !== photoIndex) };
+            }
+            return i;
+        }));
+    };
+
+    const handleSaveIssue = (issue: Issue) => {
+        setLocalIssues(prev => {
+            const exists = prev.some(i => i.id === issue.id);
+            if (exists) {
+                return prev.map(i => i.id === issue.id ? issue : i);
+            }
+            return [...prev, issue];
+        });
+        if (editingIssue) {
+            setEditingIssue(null);
+        }
     };
     
-    const handleUpdateIssue = (updatedIssue: Issue) => {
-        setLocalIssues(prev => prev.map(i => i.id === updatedIssue.id ? updatedIssue : i));
-    };
-
     const handleDelete = () => {
         if (issueToDelete) {
             setLocalIssues(prev => prev.filter(i => i.id !== issueToDelete));
@@ -522,6 +601,53 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     const handleSaveAll = () => {
         onUpdateLocation(localIssues);
         onBack();
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0] && uploadIssueId) {
+            try {
+                const compressed = await compressImage(e.target.files[0]);
+                const newPhoto: IssuePhoto = {
+                     id: generateUUID(),
+                     url: compressed,
+                     description: ''
+                };
+
+                setLocalIssues(prev => prev.map(i => {
+                    if (i.id === uploadIssueId) {
+                        return { ...i, photos: [...i.photos, newPhoto] };
+                    }
+                    return i;
+                }));
+
+                // Reset
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                setUploadIssueId(null);
+            } catch (err) {
+                console.error("Image upload failed", err);
+            }
+        }
+    };
+
+    const handleSaveEditedPhoto = (newUrl: string) => {
+        if (editingPhoto) {
+            setLocalIssues(prev => prev.map(i => {
+                if (i.id === editingPhoto.issueId) {
+                    const newPhotos = [...i.photos];
+                    if (newPhotos[editingPhoto.photoIndex]) {
+                         newPhotos[editingPhoto.photoIndex] = { ...newPhotos[editingPhoto.photoIndex], url: newUrl };
+                    }
+                    return { ...i, photos: newPhotos };
+                }
+                return i;
+            }));
+            setEditingPhoto(null);
+        }
+    };
+
+    const triggerUpload = (issueId: string) => {
+        setUploadIssueId(issueId);
+        fileInputRef.current?.click();
     };
 
     return createPortal(
@@ -556,43 +682,66 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                                          <div className="bg-primary/10 text-primary dark:bg-slate-700 dark:text-slate-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-1">
                                              {index + 1}
                                          </div>
-                                         <textarea 
+                                         <AutoResizeTextarea
                                             value={issue.description}
                                             onChange={(e) => handleDescriptionChange(issue.id, e.target.value)}
-                                            className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[80px] resize-none"
+                                            className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[40px]"
                                             placeholder="Item description..."
                                          />
                                          <div className="flex flex-col gap-1 shrink-0">
-                                             <button 
-                                                onClick={() => setIssueToEdit(issue)}
-                                                className="p-2 text-slate-300 hover:text-primary hover:bg-primary/10 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                                                title="Edit Item"
-                                             >
-                                                 <Edit2 size={18} />
-                                             </button>
-                                             <button 
+                                            <button 
                                                 onClick={() => setIssueToDelete(issue.id)}
-                                                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
-                                                title="Delete Item"
-                                             >
-                                                 <Trash2 size={18} />
-                                             </button>
+                                                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors shrink-0"
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
                                          </div>
                                     </div>
                                     
-                                    {issue.photos.length > 0 && (
-                                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide ml-8">
-                                            {issue.photos.map((photo, idx) => (
-                                                <div key={idx} className="w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide ml-8 items-start">
+                                        {issue.photos.map((photo, idx) => (
+                                            <div key={idx} className="flex flex-col w-28 shrink-0 gap-1.5 group/wrapper">
+                                                <div 
+                                                    className="w-full aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo cursor-pointer"
+                                                >
                                                     <img 
                                                         src={photo.url} 
                                                         alt="Thumbnail" 
                                                         className="w-full h-full object-cover" 
+                                                        onClick={() => setEditingPhoto({ issueId: issue.id, photoIndex: idx })}
                                                     />
+                                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none">
+                                                        <Edit2 size={16} className="text-white drop-shadow-md" />
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeletePhoto(issue.id, idx);
+                                                        }}
+                                                        className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                                <input
+                                                    value={photo.description || ""}
+                                                    onChange={(e) => handlePhotoCaptionChange(issue.id, idx, e.target.value)}
+                                                    placeholder="Caption..."
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-slate-200"
+                                                />
+                                            </div>
+                                        ))}
+                                        
+                                        <button 
+                                            onClick={() => triggerUpload(issue.id)}
+                                            className="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                                            title="Add Photo"
+                                        >
+                                            <Camera size={20} />
+                                            <span className="text-[9px] font-bold mt-1">Add</span>
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -621,27 +770,47 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 </div>
             </div>
 
-            {isAddIssueOpen && (
+            {/* Hidden File Input for Inline Adding */}
+            <input 
+                type="file" 
+                accept="image/*" 
+                capture="environment" 
+                ref={fileInputRef} 
+                className="hidden" 
+                onChange={handlePhotoUpload} 
+            />
+
+            {(isAddIssueOpen || editingIssue) && (
                 <AddIssueForm 
-                    onClose={() => setIsAddIssueOpen(false)}
-                    onSubmit={handleAddNew}
+                    onClose={() => {
+                        setIsAddIssueOpen(false);
+                        setEditingIssue(null);
+                    }}
+                    onSubmit={handleSaveIssue}
+                    initialIssue={editingIssue || undefined}
+                    itemNumber={editingIssue ? (localIssues.findIndex(i => i.id === editingIssue.id) + 1) : (localIssues.length + 1)}
                 />
             )}
             
-            {issueToEdit && (
-                <AddIssueForm 
-                    initialIssue={issueToEdit}
-                    onClose={() => setIssueToEdit(null)}
-                    onSubmit={handleUpdateIssue}
-                />
-            )}
-
             {issueToDelete && (
                 <DeleteConfirmationModal 
                     onConfirm={handleDelete}
                     onCancel={() => setIssueToDelete(null)}
                 />
             )}
+
+            {editingPhoto && (() => {
+                const issue = localIssues.find(i => i.id === editingPhoto.issueId);
+                const photo = issue?.photos[editingPhoto.photoIndex];
+                if (!issue || !photo) return null;
+                return (
+                    <ImageEditor 
+                        imageUrl={photo.url}
+                        onSave={handleSaveEditedPhoto}
+                        onCancel={() => setEditingPhoto(null)}
+                    />
+                );
+            })()}
         </>,
         document.body
     );
