@@ -49,7 +49,7 @@ interface ReportListProps {
 const DashboardWrapper = ({ 
     activeReport, 
     onUpdateReport, 
-    onSelectLocation,
+    onSelectLocation, 
     onBack, 
     isDarkMode, 
     toggleTheme,
@@ -196,7 +196,8 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
             >
                 <X size={28} />
             </button>
-        </div>
+        </div>,
+        document.body
     );
 };
 
