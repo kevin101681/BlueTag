@@ -97,3 +97,11 @@ export const DEFAULT_SIGN_OFF_TEMPLATES: SignOffTemplate[] = [
         ]
     }
 ];
+
+// Paste your Base64 image strings here for the Homeowner Manual
+export const HOMEOWNER_MANUAL_IMAGES: string[] = [
+    "", // Image 1 Base64
+    "", // Image 2 Base64
+    "", // Image 3 Base64
+    ""  // Image 4 Base64
+];

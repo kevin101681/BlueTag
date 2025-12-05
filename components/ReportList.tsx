@@ -1,11 +1,14 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
 import { Dashboard } from './Dashboard';
-import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User, BookOpen } from 'lucide-react';
+import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Palette, Image as ImageIcon, User, BookOpen, ArrowLeft, ArrowRight } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { BlueTagLogo } from './Logo';
 import { ReportCard } from './Dashboard';
+import { HOMEOWNER_MANUAL_IMAGES } from '../constants';
+import { useSwipe } from '../hooks/useSwipe';
 
 export type ThemeOption = 'light' | 'dark' | 'system';
 
@@ -78,6 +81,121 @@ const DashboardWrapper = ({
                 isExiting={isExiting}
                 onDelete={onDelete}
             />
+        </div>
+    );
+};
+
+const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
+    const images = HOMEOWNER_MANUAL_IMAGES;
+    const [currentPage, setCurrentPage] = useState(0);
+
+    const goNext = () => {
+        if (currentPage < images.length - 1) {
+            setCurrentPage(prev => prev + 1);
+        }
+    };
+
+    const goPrev = () => {
+        if (currentPage > 0) {
+            setCurrentPage(prev => prev - 1);
+        }
+    };
+
+    const swipeHandlers = useSwipe({
+        onSwipedLeft: goNext,
+        onSwipedRight: goPrev
+    });
+
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = ''; }
+    }, []);
+
+    const hasImages = images.some(img => img.length > 0);
+
+    return createPortal(
+        <div className="fixed inset-0 z-[300] bg-slate-900 flex flex-col items-center justify-center overflow-hidden animate-fade-in touch-none">
+            
+            {!hasImages && (
+                 <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
+                     <div className="max-w-md bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-white">
+                         <BookOpen size={48} className="mx-auto mb-4 opacity-50" />
+                         <h3 className="text-xl font-bold mb-2">Manual Not Configured</h3>
+                         <p className="text-white/70">Please add Base64 image strings to the configuration file to view the homeowner manual.</p>
+                     </div>
+                 </div>
+            )}
+
+            {/* Book Container */}
+            {hasImages && (
+                <div 
+                    className="relative w-full h-full max-w-3xl max-h-[90vh] perspective-container flex items-center justify-center"
+                    {...swipeHandlers}
+                    style={{ perspective: '2000px' }}
+                    onClick={(e) => {
+                         const width = e.currentTarget.clientWidth;
+                         const x = e.clientX;
+                         if (x > width / 2) goNext();
+                         else goPrev();
+                    }}
+                >
+                    {images.map((img, index) => {
+                        if (!img) return null;
+                        
+                        // Stack order: lower pages are behind
+                        // Current and future pages are stacked normally (0 on top of 1, etc)
+                        // But wait, standard stack is 0 at bottom in DOM. 
+                        // Let's force Z-index: 
+                        const zIndex = images.length - index;
+                        
+                        // Flip logic: 
+                        // If index < currentPage, it has flipped (-180deg)
+                        // If index === currentPage, it is flat (0deg)
+                        // If index > currentPage, it is flat (0deg) and underneath
+                        const isFlipped = index < currentPage;
+                        
+                        return (
+                            <div 
+                                key={index}
+                                className="absolute inset-4 md:inset-10 flex items-center justify-center backface-hidden transition-transform duration-700 ease-in-out origin-left shadow-2xl"
+                                style={{
+                                    zIndex: isFlipped ? 0 : zIndex, // Send flipped pages to back visually if needed, though rotate handles it mostly
+                                    transform: isFlipped ? 'rotateY(-130deg)' : 'rotateY(0deg)', // -130 allows seeing the previous page a bit like holding a book
+                                    opacity: isFlipped ? 0 : 1, // Fade out flipped pages for cleaner "single stack" look on mobile
+                                    pointerEvents: 'none',
+                                    backgroundColor: 'white'
+                                }}
+                            >
+                                <img 
+                                    src={img} 
+                                    className="max-w-full max-h-full object-contain shadow-md rounded-sm"
+                                    alt={`Page ${index + 1}`}
+                                />
+                                
+                                {/* Shadow overlay for depth during flip */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" style={{ opacity: isFlipped ? 1 : 0, transition: 'opacity 0.7s' }} />
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Controls / Indicators */}
+            {hasImages && (
+                <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
+                     <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full text-white/90 font-mono text-sm border border-white/10 pointer-events-auto">
+                         {currentPage + 1} / {images.length}
+                     </div>
+                </div>
+            )}
+
+            {/* Close FAB */}
+            <button 
+                onClick={onClose}
+                className="absolute bottom-8 right-8 w-14 h-14 bg-white text-slate-900 rounded-full shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[310]"
+            >
+                <X size={28} />
+            </button>
         </div>
     );
 };
@@ -484,6 +602,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
+    const [isManualOpen, setIsManualOpen] = useState(false);
 
     // Effect: If `isCreating` becomes true, we should probably select the newest report
     useEffect(() => {
@@ -539,7 +658,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                     </button>
 
                      <button 
-                        onClick={() => { /* Placeholder for Manual Action */ }}
+                        onClick={() => setIsManualOpen(true)}
                         className="w-[54px] h-[54px] rounded-2xl bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center"
                         title="Homeowner Manual"
                     >
@@ -619,6 +738,10 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                 deletingReportId={deletingReportId}
                 isDeleting={isDeleting}
             />
+
+            {isManualOpen && (
+                <HomeownerManualModal onClose={() => setIsManualOpen(false)} />
+            )}
         </div>
     );
 }

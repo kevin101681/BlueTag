@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
@@ -729,6 +730,14 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose, o
     // Initialize marks from persistent project state
     const [marks, setMarks] = useState<Record<string, ('check' | 'x')[]>>(project.reportMarks || {});
 
+    // Scroll Lock Effect
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, []);
+
     useEffect(() => {
         // DO NOT pass marks here, preventing duplicated burn-in lines
         generatePDFWithMetadata({ project, locations }, companyLogo).then(res => {
@@ -888,6 +897,14 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     const isPanning = useRef(false);
     const lastPanPoint = useRef<{x: number, y: number} | null>(null);
     const isDrawing = useRef(false);
+
+    // Scroll Lock Effect
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, []);
 
     useEffect(() => {
         generateSignOffPDF(project, SIGN_OFF_TITLE, templates[0], companyLogo, undefined)
@@ -1340,6 +1357,7 @@ export const Dashboard = React.memo<DashboardProps>(({
   isExiting = false,
   onDelete
 }) => {
+    // ... existing implementation remains unchanged, just adding scroll locking to above modals ...
     const [shouldInitialExpand] = useState(initialExpand);
 
     const [isManageLocationsOpen, setIsManageLocationsOpen] = useState(false);
