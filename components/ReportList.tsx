@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
 import { Dashboard } from './Dashboard';
@@ -194,8 +196,7 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
             >
                 <X size={28} />
             </button>
-        </div>,
-        document.body
+        </div>
     );
 };
 

@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, ReactNode, Component } from 'react';
 import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
@@ -67,10 +65,9 @@ interface ErrorBoundaryState {
 
 // Error Boundary to catch runtime crashes and prevent white screen
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
-
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: any) {
