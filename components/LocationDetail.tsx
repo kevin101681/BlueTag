@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
 import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check } from 'lucide-react';
@@ -346,10 +347,6 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                                                 className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity" 
                                                 onClick={() => setEditingPhotoIndex(idx)}
                                             />
-                                            {/* Edit Icon Always Visible */}
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                                                <Edit2 size={24} className="text-white drop-shadow-md" />
-                                            </div>
                                             <button 
                                                 onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
                                                 className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full transition-colors z-10"
@@ -494,6 +491,7 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     const [localIssues, setLocalIssues] = useState<Issue[]>(location.issues);
     const [isAddIssueOpen, setIsAddIssueOpen] = useState(false);
     const [issueToDelete, setIssueToDelete] = useState<string | null>(null);
+    const [issueToEdit, setIssueToEdit] = useState<Issue | null>(null);
 
     useEffect(() => {
         document.body.style.overflow = 'hidden';
@@ -510,6 +508,10 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
         setLocalIssues(prev => [...prev, issue]);
     };
     
+    const handleUpdateIssue = (updatedIssue: Issue) => {
+        setLocalIssues(prev => prev.map(i => i.id === updatedIssue.id ? updatedIssue : i));
+    };
+
     const handleDelete = () => {
         if (issueToDelete) {
             setLocalIssues(prev => prev.filter(i => i.id !== issueToDelete));
@@ -560,12 +562,22 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                                             className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[80px] resize-none"
                                             placeholder="Item description..."
                                          />
-                                         <button 
-                                            onClick={() => setIssueToDelete(issue.id)}
-                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors shrink-0"
-                                         >
-                                             <Trash2 size={18} />
-                                         </button>
+                                         <div className="flex flex-col gap-1 shrink-0">
+                                             <button 
+                                                onClick={() => setIssueToEdit(issue)}
+                                                className="p-2 text-slate-300 hover:text-primary hover:bg-primary/10 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                                                title="Edit Item"
+                                             >
+                                                 <Edit2 size={18} />
+                                             </button>
+                                             <button 
+                                                onClick={() => setIssueToDelete(issue.id)}
+                                                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                                                title="Delete Item"
+                                             >
+                                                 <Trash2 size={18} />
+                                             </button>
+                                         </div>
                                     </div>
                                     
                                     {issue.photos.length > 0 && (
@@ -616,6 +628,14 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 />
             )}
             
+            {issueToEdit && (
+                <AddIssueForm 
+                    initialIssue={issueToEdit}
+                    onClose={() => setIssueToEdit(null)}
+                    onSubmit={handleUpdateIssue}
+                />
+            )}
+
             {issueToDelete && (
                 <DeleteConfirmationModal 
                     onConfirm={handleDelete}

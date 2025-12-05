@@ -271,30 +271,6 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const partnerFileInputRef = React.useRef<HTMLInputElement>(null);
 
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                if (ev.target?.result) {
-                    onUpdateLogo(ev.target.result as string);
-                }
-            };
-            reader.readAsDataURL(e.target.files[0]);
-        }
-    };
-
-    const handlePartnerLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                if (ev.target?.result) {
-                    onUpdatePartnerLogo(ev.target.result as string);
-                }
-            };
-            reader.readAsDataURL(e.target.files[0]);
-        }
-    };
-
     const THEME_COLORS = [
         '#60a5fa', // Blue (Default)
         '#f43f5e', // Rose
@@ -391,70 +367,6 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
                                     />
                                 ))}
                             </div>
-                    </div>
-                </div>
-
-                {/* Branding */}
-                <div className="space-y-3">
-                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Company Branding</h4>
-                    {/* Primary Logo */}
-                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            {companyLogo ? (
-                                <img src={companyLogo} className="w-12 h-12 object-contain bg-white rounded-lg p-1" alt="Logo" />
-                            ) : (
-                                <div className="w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400">
-                                    <Upload size={20} />
-                                </div>
-                            )}
-                            <div className="text-sm">
-                                <p className="font-bold text-slate-800 dark:text-white">Report Logo</p>
-                                <p className="text-slate-500 dark:text-slate-400 text-xs">Appears on PDFs</p>
-                            </div>
-                        </div>
-                        <button 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="px-3 py-1.5 bg-white dark:bg-slate-600 text-slate-700 dark:text-white text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors"
-                        >
-                            Change
-                        </button>
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            className="hidden" 
-                            accept="image/*"
-                            onChange={handleLogoUpload}
-                        />
-                    </div>
-
-                    {/* Partner Logo */}
-                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            {partnerLogo ? (
-                                <img src={partnerLogo} className="w-12 h-12 object-contain bg-white rounded-lg p-1" alt="Partner Logo" />
-                            ) : (
-                                <div className="w-12 h-12 bg-slate-200 dark:bg-slate-600 rounded-lg flex items-center justify-center text-slate-400">
-                                    <Upload size={20} />
-                                </div>
-                            )}
-                            <div className="text-sm">
-                                <p className="font-bold text-slate-800 dark:text-white">Co-branding Logo</p>
-                                <p className="text-slate-500 dark:text-slate-400 text-xs">Optional partner logo</p>
-                            </div>
-                        </div>
-                        <button 
-                            onClick={() => partnerFileInputRef.current?.click()}
-                            className="px-3 py-1.5 bg-white dark:bg-slate-600 text-slate-700 dark:text-white text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors"
-                        >
-                            Change
-                        </button>
-                        <input 
-                            type="file" 
-                            ref={partnerFileInputRef} 
-                            className="hidden" 
-                            accept="image/*"
-                            onChange={handlePartnerLogoUpload}
-                        />
                     </div>
                 </div>
 
@@ -596,7 +508,8 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         onSelectReport, 
         isCreating,
         deletingReportId,
-        isDeleting
+        isDeleting,
+        companyLogo
     } = props;
 
     const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
@@ -697,7 +610,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         onBack={() => {}} // No back button in this mode
                         isDarkMode={props.isDarkMode}
                         toggleTheme={() => props.onThemeChange(props.currentTheme === 'dark' ? 'light' : 'dark')}
-                        companyLogo={props.companyLogo}
+                        companyLogo={companyLogo}
                         signOffTemplates={props.signOffTemplates}
                         onUpdateTemplates={props.onUpdateTemplates}
                         isCreating={isCreating}
