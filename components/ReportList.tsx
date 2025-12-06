@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
 import { Dashboard } from './Dashboard';
@@ -339,16 +340,13 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-between">
-                                    <div className="text-sm text-slate-500 dark:text-slate-400">
-                                        Sign in to verify account status
-                                    </div>
+                                <div className="flex items-center justify-center w-full">
                                     <button 
                                         onClick={() => {
                                             if (onLogin) onLogin();
                                             onClose();
                                         }}
-                                        className="px-4 py-2 bg-white text-slate-700 dark:bg-slate-600 dark:text-white text-sm font-bold rounded-xl shadow-sm border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-all flex items-center gap-2"
+                                        className="w-full px-4 py-3 bg-white text-slate-700 dark:bg-slate-600 dark:text-white text-sm font-bold rounded-xl shadow-sm border border-slate-200 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500 transition-all flex items-center justify-center gap-2"
                                     >
                                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
