@@ -181,10 +181,6 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
                                     />
                                     {/* Inner Spine Shadow */}
                                     <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" />
-                                    {/* Page Number */}
-                                    <div className="absolute bottom-4 right-6 text-slate-400 font-mono text-xs select-none">
-                                        {index + 1}
-                                    </div>
                                 </div>
 
                                 {/* Back Face (Blank / Pattern) */}
@@ -206,17 +202,6 @@ const HomeownerManualModal = ({ onClose }: { onClose: () => void }) => {
                         );
                     })}
                     </div>
-                </div>
-            )}
-
-            {/* Hint / Indicators */}
-            {hasImages && (
-                <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none z-[305]">
-                     <div className="bg-black/50 backdrop-blur-md px-6 py-2 rounded-full text-white/90 font-medium text-sm border border-white/10 shadow-lg pointer-events-auto flex gap-4">
-                         <span className="opacity-60">Prev</span>
-                         <span className="font-mono">{currentPage} / {images.length}</span>
-                         <span className="opacity-60">Next</span>
-                     </div>
                 </div>
             )}
 
