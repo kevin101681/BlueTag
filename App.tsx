@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import React, { useState, useEffect, useRef, ReactNode, Component } from 'react';
 import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
@@ -67,12 +67,11 @@ interface ErrorBoundaryState {
 }
 
 // Error Boundary to catch runtime crashes and prevent white screen
-// Fix: Explicitly use React.Component and constructor to ensure props typing
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null
+  };
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
@@ -111,6 +110,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -125,6 +125,13 @@ export default function App() {
   const deletedReportIdsRef = useRef<string[]>(deletedReportIds);
   
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        setShowSplash(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Keep ref synchronized with state
   useEffect(() => {
@@ -672,6 +679,17 @@ export default function App() {
            if (r) handleUpdateReport({ ...r, locations: locs, lastModified: Date.now() });
       }
   };
+
+  // Splash Screen Render
+  if (showSplash) {
+      return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-200 dark:bg-slate-950 transition-colors duration-300">
+              <div className="w-64 h-64 animate-fade-in-up">
+                  <img src="/images/logo2.png" alt="BlueTag" className="w-full h-full object-contain drop-shadow-2xl" />
+              </div>
+          </div>
+      );
+  }
 
   return (
     <ErrorBoundary>
