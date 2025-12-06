@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, ReactNode, Component } from 'react';
+import React, { useState, useEffect, useRef, ReactNode } from 'react';
 import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
@@ -67,7 +67,7 @@ interface ErrorBoundaryState {
 }
 
 // Error Boundary to catch runtime crashes and prevent white screen
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null
@@ -111,6 +111,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [isSplashFading, setIsSplashFading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -127,10 +128,20 @@ export default function App() {
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-        setShowSplash(false);
+    // Start fading out after 2.5s
+    const fadeTimer = setTimeout(() => {
+        setIsSplashFading(true);
     }, 2500);
-    return () => clearTimeout(timer);
+
+    // Completely remove splash from DOM after fade completes (3.2s)
+    const hideTimer = setTimeout(() => {
+        setShowSplash(false);
+    }, 3200); 
+
+    return () => {
+        clearTimeout(fadeTimer);
+        clearTimeout(hideTimer);
+    };
   }, []);
 
   // Keep ref synchronized with state
@@ -683,7 +694,7 @@ export default function App() {
   // Splash Screen Render
   if (showSplash) {
       return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-200 dark:bg-slate-950 transition-colors duration-300">
+          <div className={`fixed inset-0 z-[9999] flex items-center justify-center bg-slate-200 dark:bg-slate-950 transition-opacity duration-700 ease-out ${isSplashFading ? 'opacity-0' : 'opacity-100 animate-fade-in'}`}>
               <div className="w-64 h-64 animate-fade-in-up">
                   <img src="/images/logo2.png" alt="BlueTag" className="w-full h-full object-contain drop-shadow-2xl" />
               </div>
