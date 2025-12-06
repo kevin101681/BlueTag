@@ -538,37 +538,50 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         onRefresh
     } = props;
 
-    const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
+    // Lazily initialize selection to avoid empty placeholder flash on load
+    const [internalSelectedId, setInternalSelectedId] = useState<string | null>(() => {
+        if (reports && reports.length > 0) {
+            const sorted = [...reports].sort((a, b) => b.lastModified - a.lastModified);
+            return sorted[0].id;
+        }
+        return null;
+    });
+
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
     const [isManualOpen, setIsManualOpen] = useState(false);
     const [reportViewStates, setReportViewStates] = useState<Record<string, { clientInfoCollapsed: boolean }>>({});
 
-    // Effect: If `isCreating` becomes true, we should probably select the newest report
+    // Ensure parent is synced when selection changes or on mount if we have a selection
+    useEffect(() => {
+        if (internalSelectedId) {
+            onSelectReport(internalSelectedId);
+        }
+    }, [internalSelectedId, onSelectReport]);
+
+    // Handle creation event: switch to the newly created report
     useEffect(() => {
         if (isCreating && reports.length > 0) {
             // Assuming the new report is at index 0 or we find the latest
             const latest = reports.reduce((prev, current) => (prev.lastModified > current.lastModified) ? prev : current);
             setInternalSelectedId(latest.id);
-            onSelectReport(latest.id); // Sync with parent
         }
-    }, [isCreating, reports, onSelectReport]);
+    }, [isCreating, reports]);
 
+    // Handle updates to reports list (e.g. initial load async)
     useEffect(() => {
         if (reports.length > 0 && !internalSelectedId) {
-            // Default to most recent
+            // Default to most recent if we have none selected
             const sorted = [...reports].sort((a, b) => b.lastModified - a.lastModified);
             setInternalSelectedId(sorted[0].id);
-            onSelectReport(sorted[0].id);
         } else if (reports.length === 0) {
             setInternalSelectedId(null);
         }
-    }, [reports.length]); 
+    }, [reports, internalSelectedId]); 
 
     const handleLocalSelect = (id: string) => {
         setInternalSelectedId(id);
-        onSelectReport(id);
         setIsSearchOpen(false);
     };
 
