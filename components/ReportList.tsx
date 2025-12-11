@@ -285,6 +285,38 @@ const SettingsModal = ({
 };
 
 const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, colorTheme, onColorThemeChange, installAvailable, onInstall, onDeleteOldReports, user, onLogin, onLogout, onRefresh }: any) => {
+    const [storageInfo, setStorageInfo] = React.useState({ used: '0 Bytes', total: '0 Bytes', percentage: 0, warning: false });
+    const [isClearing, setIsClearing] = React.useState(false);
+    
+    const refreshStorageInfo = React.useCallback(async () => {
+        const storageModule = await import('../services/storageService');
+        setStorageInfo(storageModule.getStorageInfo());
+    }, []);
+    
+    React.useEffect(() => {
+        // Import dynamically to avoid circular dependencies
+        refreshStorageInfo();
+    }, [refreshStorageInfo]);
+    
+    const handleClearCache = async () => {
+        if (!confirm('Clear all cached data? This will remove all reports but keep your settings. Make sure you have synced important reports to the cloud first.')) {
+            return;
+        }
+        
+        setIsClearing(true);
+        try {
+            const storageModule = await import('../services/storageService');
+            await storageModule.clearAllCaches();
+            await refreshStorageInfo();
+            alert('Cache cleared successfully! The app will reload.');
+            setTimeout(() => window.location.reload(), 500);
+        } catch (error) {
+            console.error('Error clearing cache', error);
+            alert('Error clearing cache. Please try again.');
+        } finally {
+            setIsClearing(false);
+        }
+    };
     
     return (
         <>
@@ -365,6 +397,25 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
                 <div className="space-y-3">
                     <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data & App</h4>
                     
+                    {/* Storage Usage */}
+                    <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Storage Usage</span>
+                            <span className={`text-xs font-bold ${storageInfo.warning ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                                {storageInfo.used} / {storageInfo.total}
+                            </span>
+                        </div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2 mb-2">
+                            <div 
+                                className={`h-2 rounded-full transition-all ${storageInfo.warning ? 'bg-red-500' : 'bg-primary'}`}
+                                style={{ width: `${Math.min(storageInfo.percentage, 100)}%` }}
+                            />
+                        </div>
+                        {storageInfo.warning && (
+                            <p className="text-xs text-red-500 font-medium">Storage nearly full. Consider clearing cache or deleting old reports.</p>
+                        )}
+                    </div>
+                    
                     {onRefresh && (
                         <button 
                             onClick={() => {
@@ -387,14 +438,37 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
                             Install App
                         </button>
                     )}
+                    
                     <button 
-                        onClick={() => {
-                            if (confirm("Delete all reports older than 30 days?")) onDeleteOldReports();
+                        onClick={async () => {
+                            if (confirm("Delete all reports older than 30 days?")) {
+                                onDeleteOldReports();
+                                // Refresh storage info after deletion
+                                setTimeout(() => refreshStorageInfo(), 500);
+                            }
                         }}
                         className="w-full p-4 bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                     >
                         <Trash2 size={20} />
                         Delete Old Reports (30+ Days)
+                    </button>
+                    
+                    <button 
+                        onClick={handleClearCache}
+                        disabled={isClearing}
+                        className="w-full p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isClearing ? (
+                            <>
+                                <RefreshCw size={20} className="animate-spin" />
+                                Clearing...
+                            </>
+                        ) : (
+                            <>
+                                <Trash2 size={20} />
+                                Clear All Cache & Reports
+                            </>
+                        )}
                     </button>
                 </div>
             </div>

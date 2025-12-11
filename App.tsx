@@ -4,6 +4,7 @@ import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTempla
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
 import { CloudService } from './services/cloudService';
+import { saveWithCleanup, getStorageInfo } from './services/storageService';
 import { AlertCircle } from 'lucide-react';
 
 // Global declaration for Netlify Identity
@@ -220,10 +221,11 @@ export default function App() {
   // Persistence Effects
   useEffect(() => {
       if (isDataLoaded) {
-          try {
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(savedReports));
-          } catch (e) {
-              console.error("Storage quota exceeded", e);
+          const success = saveWithCleanup(STORAGE_KEY, savedReports, savedReports);
+          if (!success) {
+              console.error("Storage quota exceeded and cleanup failed");
+              // Show error to user
+              setSyncError("Storage full. Please clear old reports or cache in Settings.");
           }
       }
   }, [savedReports, isDataLoaded]);
