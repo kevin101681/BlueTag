@@ -1,36 +1,67 @@
 /**
  * Storage Management Service
- * Handles localStorage quota checking, cleanup, and cache management
+ * Handles storage quota checking, cleanup, and cache management
+ * Uses IndexedDB for reports (large capacity) and localStorage for settings
  */
+
+import { IndexedDBService } from './indexedDBService';
 
 // Calculate the size of data in bytes (approximate)
 const calculateSize = (data: string): number => {
     return new Blob([data]).size;
 };
 
-// Get total localStorage usage
-export const getStorageUsage = (): { used: number; total: number; percentage: number } => {
+// Get storage usage (IndexedDB + localStorage settings)
+export const getStorageUsage = async (): Promise<{ used: number; total: number; percentage: number; source: string }> => {
     let used = 0;
-    const total = 5 * 1024 * 1024; // Approximate 5MB limit for localStorage
+    
+    // IndexedDB can use up to 50-60% of available disk space
+    // For most devices, we'll show a conservative estimate of available space
+    // Mobile: ~50% of available storage (often 10-50GB available)
+    // Desktop: ~50% of available storage (often 100GB+ available)
+    // We'll use a conservative estimate of 1GB as a "safe" limit to show users
+    const total = 1024 * 1024 * 1024; // 1GB conservative estimate (IndexedDB can actually use much more)
     
     try {
-        for (let key in localStorage) {
-            if (localStorage.hasOwnProperty(key)) {
-                const value = localStorage.getItem(key);
-                if (value) {
-                    used += calculateSize(key + value);
-                }
+        // Get IndexedDB usage (reports)
+        if (IndexedDBService.isAvailable()) {
+            const indexedDBUsage = await IndexedDBService.getStorageUsage();
+            used += indexedDBUsage.used;
+        }
+        
+        // Get localStorage usage (settings only - reports should be in IndexedDB)
+        const settingsToInclude = [
+            'cbs_punch_theme',
+            'cbs_color_theme',
+            'cbs_company_logo',
+            'cbs_partner_logo',
+            'cbs_sign_off_templates'
+        ];
+        
+        for (const key of settingsToInclude) {
+            const value = localStorage.getItem(key);
+            if (value) {
+                used += calculateSize(key + value);
             }
         }
+        
+        const source = IndexedDBService.isAvailable() ? 'IndexedDB (up to GBs)' : 'localStorage (~5MB)';
+        
+        return {
+            used,
+            total,
+            percentage: Math.min((used / total) * 100, 100),
+            source
+        };
     } catch (e) {
         console.error("Error calculating storage usage", e);
+        return {
+            used: 0,
+            total,
+            percentage: 0,
+            source: 'Unknown'
+        };
     }
-    
-    return {
-        used,
-        total,
-        percentage: (used / total) * 100
-    };
 };
 
 // Format bytes to human readable string
@@ -42,8 +73,18 @@ export const formatBytes = (bytes: number): string => {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 };
 
-// Clear all caches (localStorage + Service Worker cache)
+// Clear all caches (IndexedDB + localStorage + Service Worker cache)
 export const clearAllCaches = async (): Promise<void> => {
+    // Clear IndexedDB (reports)
+    if (IndexedDBService.isAvailable()) {
+        try {
+            await IndexedDBService.clearAll();
+            console.log('IndexedDB cleared');
+        } catch (e) {
+            console.error('Error clearing IndexedDB', e);
+        }
+    }
+    
     // Clear service worker cache
     if ('caches' in window) {
         try {
@@ -80,27 +121,28 @@ export const clearAllCaches = async (): Promise<void> => {
 };
 
 // Clear only old reports (older than X days) to free up space
-export const clearOldReports = (reports: any[], daysOld: number = 30): { removed: number; freedSpace: number } => {
+export const clearOldReports = async (reports: any[], daysOld: number = 30): Promise<{ removed: number; freedSpace: number }> => {
     const cutoffTime = Date.now() - (daysOld * 24 * 60 * 60 * 1000);
     let freedSpace = 0;
     let removed = 0;
     
     try {
         const oldReports = reports.filter(r => r.lastModified < cutoffTime);
-        const reportsData = localStorage.getItem('punchlist_reports');
+        const newReports = reports.filter(r => r.lastModified >= cutoffTime);
         
-        if (reportsData) {
-            const allReports: any[] = JSON.parse(reportsData);
-            const newReports = allReports.filter(r => r.lastModified >= cutoffTime);
+        if (oldReports.length > 0) {
+            const oldReportsData = JSON.stringify(oldReports);
+            freedSpace = calculateSize(oldReportsData);
+            removed = oldReports.length;
             
-            if (newReports.length < allReports.length) {
-                const oldReportsData = JSON.stringify(oldReports);
-                freedSpace = calculateSize(oldReportsData);
-                removed = oldReports.length;
-                
+            // Save to IndexedDB if available, otherwise localStorage
+            if (IndexedDBService.isAvailable()) {
+                await IndexedDBService.saveReports(newReports);
+            } else {
                 localStorage.setItem('punchlist_reports', JSON.stringify(newReports));
-                console.log(`Removed ${removed} old reports, freed approximately ${formatBytes(freedSpace)}`);
             }
+            
+            console.log(`Removed ${removed} old reports, freed approximately ${formatBytes(freedSpace)}`);
         }
     } catch (e) {
         console.error('Error clearing old reports', e);
@@ -110,8 +152,15 @@ export const clearOldReports = (reports: any[], daysOld: number = 30): { removed
 };
 
 // Try to save data with automatic cleanup on quota exceeded
-export const saveWithCleanup = (key: string, data: any, reports?: any[]): boolean => {
+export const saveWithCleanup = async (key: string, data: any, reports?: any[]): Promise<boolean> => {
     try {
+        // Use IndexedDB for reports if available
+        if (key === 'punchlist_reports' && IndexedDBService.isAvailable()) {
+            await IndexedDBService.saveReports(data);
+            return true;
+        }
+        
+        // Fallback to localStorage for settings
         const jsonData = JSON.stringify(data);
         localStorage.setItem(key, jsonData);
         return true;
@@ -122,11 +171,15 @@ export const saveWithCleanup = (key: string, data: any, reports?: any[]): boolea
             
             // Try clearing old reports first
             if (reports && key === 'punchlist_reports') {
-                const result = clearOldReports(reports, 30);
+                const result = await clearOldReports(reports, 30);
                 if (result.removed > 0) {
                     try {
-                        const jsonData = JSON.stringify(data);
-                        localStorage.setItem(key, jsonData);
+                        if (IndexedDBService.isAvailable()) {
+                            await IndexedDBService.saveReports(data);
+                        } else {
+                            const jsonData = JSON.stringify(data);
+                            localStorage.setItem(key, jsonData);
+                        }
                         console.log('Successfully saved after cleanup');
                         return true;
                     } catch (retryError) {
@@ -137,9 +190,13 @@ export const saveWithCleanup = (key: string, data: any, reports?: any[]): boolea
             
             // If still failing, try clearing more aggressively
             try {
-                clearOldReports(reports || [], 7); // Clear reports older than 7 days
-                const jsonData = JSON.stringify(data);
-                localStorage.setItem(key, jsonData);
+                await clearOldReports(reports || [], 7); // Clear reports older than 7 days
+                if (IndexedDBService.isAvailable()) {
+                    await IndexedDBService.saveReports(data);
+                } else {
+                    const jsonData = JSON.stringify(data);
+                    localStorage.setItem(key, jsonData);
+                }
                 console.log('Successfully saved after aggressive cleanup');
                 return true;
             } catch (finalError) {
@@ -154,15 +211,18 @@ export const saveWithCleanup = (key: string, data: any, reports?: any[]): boolea
 };
 
 // Get storage info for display
-export const getStorageInfo = (): { used: string; total: string; percentage: number; warning: boolean } => {
-    const usage = getStorageUsage();
+export const getStorageInfo = async (): Promise<{ used: string; total: string; percentage: number; warning: boolean; source: string }> => {
+    const usage = await getStorageUsage();
+    // Only warn if using more than 80% of our conservative 1GB estimate
+    // In practice, IndexedDB can store much more
     const warning = usage.percentage > 80;
     
     return {
         used: formatBytes(usage.used),
         total: formatBytes(usage.total),
         percentage: usage.percentage,
-        warning
+        warning,
+        source: usage.source
     };
 };
 

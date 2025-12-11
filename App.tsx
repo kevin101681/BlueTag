@@ -5,6 +5,7 @@ import { LocationDetail, DeleteConfirmationModal } from './components/LocationDe
 import { ReportList, ThemeOption } from './components/ReportList';
 import { CloudService } from './services/cloudService';
 import { saveWithCleanup, getStorageInfo } from './services/storageService';
+import { IndexedDBService, migrateFromLocalStorage } from './services/indexedDBService';
 import { AlertCircle } from 'lucide-react';
 
 // Global declaration for Netlify Identity
@@ -194,45 +195,81 @@ export default function App() {
 
   // --- STORAGE LOGIC ---
   
-  // 1. Initial Load (Local Storage)
+  // 1. Initial Load (IndexedDB with localStorage fallback and migration)
   useEffect(() => {
     if (typeof window !== 'undefined' && !isDataLoaded) {
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                const migrated = parsed.map((r: any) => ({
-                    ...r,
-                    project: migrateProjectData(r.project)
-                }));
-                setSavedReports(migrated);
+        const loadData = async () => {
+            try {
+                // First, migrate from localStorage to IndexedDB if needed
+                await migrateFromLocalStorage();
+                
+                // Load from IndexedDB if available
+                if (IndexedDBService.isAvailable()) {
+                    const reports = await IndexedDBService.loadReports();
+                    const deleted = await IndexedDBService.loadDeletedIds();
+                    
+                    if (reports.length > 0) {
+                        const migrated = reports.map((r: any) => ({
+                            ...r,
+                            project: migrateProjectData(r.project)
+                        }));
+                        setSavedReports(migrated);
+                    }
+                    
+                    if (deleted.length > 0) {
+                        setDeletedReportIds(deleted);
+                    }
+                } else {
+                    // Fallback to localStorage
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        const migrated = parsed.map((r: any) => ({
+                            ...r,
+                            project: migrateProjectData(r.project)
+                        }));
+                        setSavedReports(migrated);
+                    }
+                    const deleted = localStorage.getItem(DELETED_REPORTS_KEY);
+                    if (deleted) {
+                        setDeletedReportIds(JSON.parse(deleted));
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load local reports", e);
             }
-            const deleted = localStorage.getItem(DELETED_REPORTS_KEY);
-            if (deleted) {
-                setDeletedReportIds(JSON.parse(deleted));
-            }
-        } catch (e) {
-            console.error("Failed to load local reports", e);
-        }
-        setIsDataLoaded(true);
+            setIsDataLoaded(true);
+        };
+        
+        loadData();
     }
   }, []);
 
   // Persistence Effects
   useEffect(() => {
       if (isDataLoaded) {
-          const success = saveWithCleanup(STORAGE_KEY, savedReports, savedReports);
-          if (!success) {
-              console.error("Storage quota exceeded and cleanup failed");
-              // Show error to user
-              setSyncError("Storage full. Please clear old reports or cache in Settings.");
-          }
+          saveWithCleanup(STORAGE_KEY, savedReports, savedReports).then(success => {
+              if (!success) {
+                  console.error("Storage quota exceeded and cleanup failed");
+                  // Show error to user
+                  setSyncError("Storage full. Please clear old reports or cache in Settings.");
+              }
+          }).catch(err => {
+              console.error("Error saving reports", err);
+              setSyncError("Error saving reports. Please try again.");
+          });
       }
   }, [savedReports, isDataLoaded]);
 
   useEffect(() => {
       if (isDataLoaded) {
-          localStorage.setItem(DELETED_REPORTS_KEY, JSON.stringify(deletedReportIds));
+          if (IndexedDBService.isAvailable()) {
+              IndexedDBService.saveDeletedIds(deletedReportIds).catch(err => {
+                  console.error("Error saving deleted IDs", err);
+              });
+          } else {
+              localStorage.setItem(DELETED_REPORTS_KEY, JSON.stringify(deletedReportIds));
+          }
       }
   }, [deletedReportIds, isDataLoaded]);
 
@@ -617,9 +654,11 @@ export default function App() {
       }
   };
 
-  const handleDeleteOldReports = () => {
+  const handleDeleteOldReports = async () => {
+      const { clearOldReports } = await import('./services/storageService');
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       const newList = savedReports.filter(r => r.lastModified > thirtyDaysAgo);
+      await clearOldReports(savedReports, 30);
       saveToStorage(newList);
   };
   

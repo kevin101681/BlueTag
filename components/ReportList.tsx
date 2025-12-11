@@ -285,12 +285,13 @@ const SettingsModal = ({
 };
 
 const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, colorTheme, onColorThemeChange, installAvailable, onInstall, onDeleteOldReports, user, onLogin, onLogout, onRefresh }: any) => {
-    const [storageInfo, setStorageInfo] = React.useState({ used: '0 Bytes', total: '0 Bytes', percentage: 0, warning: false });
+    const [storageInfo, setStorageInfo] = React.useState({ used: '0 Bytes', total: '0 Bytes', percentage: 0, warning: false, source: 'IndexedDB (up to GBs)' });
     const [isClearing, setIsClearing] = React.useState(false);
     
     const refreshStorageInfo = React.useCallback(async () => {
         const storageModule = await import('../services/storageService');
-        setStorageInfo(storageModule.getStorageInfo());
+        const info = await storageModule.getStorageInfo();
+        setStorageInfo(info);
     }, []);
     
     React.useEffect(() => {
@@ -411,8 +412,9 @@ const SettingsContent = ({ onClose, isDarkMode, currentTheme, onThemeChange, col
                                 style={{ width: `${Math.min(storageInfo.percentage, 100)}%` }}
                             />
                         </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{storageInfo.source}</p>
                         {storageInfo.warning && (
-                            <p className="text-xs text-red-500 font-medium">Storage nearly full. Consider clearing cache or deleting old reports.</p>
+                            <p className="text-xs text-red-500 font-medium mt-1">Storage nearly full. Consider clearing cache or deleting old reports.</p>
                         )}
                     </div>
                     
