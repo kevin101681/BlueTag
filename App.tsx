@@ -881,7 +881,8 @@ export default function App() {
                 deletingReportId={reportToDelete}
                 isDeleting={isDeleteExiting}
                 onRefresh={() => refreshReports(false)}
-            />
+                />
+            </>
         )}
         
         {reportToDelete && (
