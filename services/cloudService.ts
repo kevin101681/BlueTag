@@ -1,4 +1,5 @@
 import { Report } from '../types';
+import { syncQueueService } from './syncQueueService';
 
 // Helper to get the JWT token from Netlify Identity
 const getAuthHeaders = async () => {
@@ -15,6 +16,11 @@ const getAuthHeaders = async () => {
 export const CloudService = {
     // Return null if fetch fails, empty array if successful but no reports
     async fetchReports(): Promise<Report[] | null> {
+        // If offline, return null to use local data
+        if (!syncQueueService.isOnline()) {
+            return null;
+        }
+
         const headers = await getAuthHeaders();
         if (!headers['Authorization']) return null;
 
@@ -36,16 +42,28 @@ export const CloudService = {
         const headers = await getAuthHeaders();
         if (!headers['Authorization']) return false;
 
+        // If offline, queue the operation
+        if (!syncQueueService.isOnline()) {
+            return await syncQueueService.enqueueSave(report);
+        }
+
         try {
             const response = await fetch('/.netlify/functions/reports', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(report)
             });
-            return response.ok;
+            
+            if (response.ok) {
+                return true;
+            } else {
+                // If save fails, queue it for retry
+                return await syncQueueService.enqueueSave(report);
+            }
         } catch (e) {
             console.error("Cloud Save Error:", e);
-            return false;
+            // Queue for retry when back online
+            return await syncQueueService.enqueueSave(report);
         }
     },
 
@@ -53,15 +71,27 @@ export const CloudService = {
         const headers = await getAuthHeaders();
         if (!headers['Authorization']) return false;
 
+        // If offline, queue the operation
+        if (!syncQueueService.isOnline()) {
+            return await syncQueueService.enqueueDelete(id);
+        }
+
         try {
             const response = await fetch(`/.netlify/functions/reports?id=${id}`, {
                 method: 'DELETE',
                 headers
             });
-            return response.ok;
+            
+            if (response.ok) {
+                return true;
+            } else {
+                // If delete fails, queue it for retry
+                return await syncQueueService.enqueueDelete(id);
+            }
         } catch (e) {
             console.error("Cloud Delete Error:", e);
-            return false;
+            // Queue for retry when back online
+            return await syncQueueService.enqueueDelete(id);
         }
     }
 };

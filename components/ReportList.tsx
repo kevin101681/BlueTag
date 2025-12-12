@@ -42,6 +42,8 @@ interface ReportListProps {
   deletingReportId?: string | null;
   isDeleting?: boolean;
   onRefresh?: () => void;
+  isOnline?: boolean;
+  queuedOperations?: number;
 }
 
 // Helper to check active

@@ -6,7 +6,8 @@ import { ReportList, ThemeOption } from './components/ReportList';
 import { CloudService } from './services/cloudService';
 import { saveWithCleanup, getStorageInfo } from './services/storageService';
 import { IndexedDBService, migrateFromLocalStorage } from './services/indexedDBService';
-import { AlertCircle } from 'lucide-react';
+import { syncQueueService } from './services/syncQueueService';
+import { AlertCircle, WifiOff, Wifi } from 'lucide-react';
 
 // Global declaration for Netlify Identity
 declare global {
@@ -111,12 +112,38 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+// Component to show brief online sync indicator
+const OnlineSyncIndicator = ({ isOnline, queuedOperations }: { isOnline: boolean; queuedOperations: number }) => {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (isOnline && queuedOperations > 0) {
+      setShow(true);
+      const timer = setTimeout(() => setShow(false), 3000); // Hide after 3 seconds
+      return () => clearTimeout(timer);
+    } else {
+      setShow(false);
+    }
+  }, [isOnline, queuedOperations]);
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed top-0 left-0 right-0 z-50 bg-green-500 dark:bg-green-600 text-white px-4 py-2 flex items-center justify-center gap-2 shadow-lg animate-fade-in">
+      <Wifi size={18} />
+      <span className="text-sm font-bold">Connected - Syncing {queuedOperations} changes...</span>
+    </div>
+  );
+};
+
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [queuedOperations, setQueuedOperations] = useState(0);
   
   // Reports State
   const [savedReports, setSavedReports] = useState<Report[]>([]);
@@ -154,6 +181,35 @@ export default function App() {
   useEffect(() => {
     deletedReportIdsRef.current = deletedReportIds;
   }, [deletedReportIds]);
+
+  // Online/Offline state management
+  useEffect(() => {
+    const unsubscribe = syncQueueService.subscribe((online) => {
+      setIsOnline(online);
+      if (online && currentUser) {
+        // Auto-sync when coming back online (defined later in file, will use ref or delay)
+        setTimeout(() => {
+          refreshReports(true);
+          syncQueueService.processQueue();
+        }, 500);
+      }
+    });
+
+    // Initial state
+    setIsOnline(syncQueueService.isOnline());
+    setQueuedOperations(syncQueueService.getQueueLength());
+
+    // Poll queue length periodically
+    const queueCheckInterval = setInterval(() => {
+      setQueuedOperations(syncQueueService.getQueueLength());
+    }, 2000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(queueCheckInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
 
   // Netlify Identity Effect
   useEffect(() => {
@@ -774,30 +830,49 @@ export default function App() {
                 }}
             />
         ) : (
-            <ReportList 
-                reports={savedReports}
-                onCreateNew={handleCreateNew}
-                onSelectReport={handleSelectReport}
-                onSelectLocation={handleSelectLocation}
-                onDeleteReport={handleDeleteReport}
-                onDeleteOldReports={handleDeleteOldReports}
-                onUpdateReport={handleUpdateReport}
-                isDarkMode={isDarkMode}
-                currentTheme={theme}
-                onThemeChange={setTheme}
-                colorTheme={colorTheme}
-                onColorThemeChange={setColorTheme}
-                user={currentUser}
-                onLogin={handleLogin}
-                onLogout={handleLogout}
-                companyLogo={companyLogo}
-                onUpdateLogo={setCompanyLogo}
-                partnerLogo={partnerLogo}
-                onUpdatePartnerLogo={setPartnerLogo}
-                installAvailable={!!installPrompt}
-                onInstall={handleInstallApp}
-                isIOS={isIOS}
-                isStandalone={isStandalone}
+            <>
+                {/* Offline Indicator */}
+                {!isOnline && (
+                    <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 dark:bg-yellow-600 text-white px-4 py-2 flex items-center justify-center gap-2 shadow-lg">
+                        <WifiOff size={18} />
+                        <span className="text-sm font-bold">Offline Mode - Changes will sync when connection is restored</span>
+                        {queuedOperations > 0 && (
+                            <span className="bg-white/20 px-2 py-1 rounded text-xs">
+                                {queuedOperations} pending
+                            </span>
+                        )}
+                    </div>
+                )}
+                
+                {/* Online Indicator (brief show on reconnect) */}
+                <OnlineSyncIndicator isOnline={isOnline} queuedOperations={queuedOperations} />
+                
+                <ReportList 
+                    reports={savedReports}
+                    onCreateNew={handleCreateNew}
+                    onSelectReport={handleSelectReport}
+                    onSelectLocation={handleSelectLocation}
+                    onDeleteReport={handleDeleteReport}
+                    onDeleteOldReports={handleDeleteOldReports}
+                    onUpdateReport={handleUpdateReport}
+                    isDarkMode={isDarkMode}
+                    currentTheme={theme}
+                    onThemeChange={setTheme}
+                    colorTheme={colorTheme}
+                    onColorThemeChange={setColorTheme}
+                    user={currentUser}
+                    onLogin={handleLogin}
+                    onLogout={handleLogout}
+                    companyLogo={companyLogo}
+                    onUpdateLogo={setCompanyLogo}
+                    partnerLogo={partnerLogo}
+                    onUpdatePartnerLogo={setPartnerLogo}
+                    installAvailable={!!installPrompt}
+                    onInstall={handleInstallApp}
+                    isIOS={isIOS}
+                    isStandalone={isStandalone}
+                    isOnline={isOnline}
+                    queuedOperations={queuedOperations}
                 isDashboardOpen={!!activeReportId}
                 signOffTemplates={signOffTemplates}
                 onUpdateTemplates={handleUpdateTemplates}
