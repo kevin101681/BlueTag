@@ -304,19 +304,19 @@ const drawProjectCard = (doc: jsPDF, project: ProjectDetails, startY: number): n
     doc.roundedRect(boxX, startY, boxWidth, finalBoxHeight, 8, 8, 'FD'); 
 
     let currentY = startY + paddingY + 4; 
-    const leftX = boxX + paddingX;
+    const centerX = boxX + (boxWidth / 2);
 
     doc.setFontSize(14);
     doc.setTextColor(30, 41, 59); 
     doc.setFont("helvetica", "bold");
-    doc.text(nameStr, leftX, currentY);
+    doc.text(nameStr, centerX, currentY, { align: 'center' });
 
     if (lotStr) {
         currentY += 6;
         doc.setFontSize(10);
         doc.setTextColor(100, 116, 139); 
         doc.setFont("helvetica", "bold");
-        doc.text(lotStr, leftX, currentY);
+        doc.text(lotStr, centerX, currentY, { align: 'center' });
     }
 
     if (detailFields.length > 0) {
@@ -327,8 +327,13 @@ const drawProjectCard = (doc: jsPDF, project: ProjectDetails, startY: number): n
         doc.setFont("helvetica", "normal");
 
         detailFields.forEach(line => {
-            drawSimpleIcon(doc, line.icon, leftX, currentY - 3, iconSize);
-            doc.text(line.value, leftX + iconSize + iconGap, currentY);
+            // Calculate center position for icon and text
+            const textWidth = doc.getTextWidth(line.value);
+            const totalWidth = iconSize + iconGap + textWidth;
+            const startX = centerX - (totalWidth / 2);
+            
+            drawSimpleIcon(doc, line.icon, startX, currentY - 3, iconSize);
+            doc.text(line.value, startX + iconSize + iconGap, currentY);
             currentY += lineHeight;
         });
     }
