@@ -279,8 +279,14 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                 if (fileInputRef.current) {
                     fileInputRef.current.value = '';
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Image compression failed", err);
+                const errorMessage = err?.message || "Failed to compress image";
+                if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
+                    alert("Storage quota exceeded. Please delete old reports or clear cache in Settings.");
+                } else {
+                    alert(`Failed to add photo: ${errorMessage}`);
+                }
             }
         }
     };
@@ -623,8 +629,14 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 // Reset
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 setUploadIssueId(null);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Image upload failed", err);
+                const errorMessage = err?.message || "Failed to add photo";
+                if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
+                    alert("Storage quota exceeded. Please delete old reports or clear cache in Settings.");
+                } else {
+                    alert(`Failed to add photo: ${errorMessage}`);
+                }
             }
         }
     };

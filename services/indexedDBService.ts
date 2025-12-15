@@ -67,13 +67,24 @@ export const IndexedDBService = {
                 const addRequest = store.add(report);
                 addRequest.onsuccess = () => resolve();
                 addRequest.onerror = () => {
+                    const error = addRequest.error;
+                    
                     // If key already exists, use put instead
-                    if (addRequest.error?.name === 'ConstraintError') {
+                    if (error?.name === 'ConstraintError') {
                         const putRequest = store.put(report);
                         putRequest.onsuccess = () => resolve();
-                        putRequest.onerror = () => reject(putRequest.error);
+                        putRequest.onerror = () => {
+                            // Check if it's a quota error
+                            if (putRequest.error?.name === 'QuotaExceededError') {
+                                reject(new Error('Storage quota exceeded. Please delete old reports or clear cache.'));
+                            } else {
+                                reject(putRequest.error);
+                            }
+                        };
+                    } else if (error?.name === 'QuotaExceededError') {
+                        reject(new Error('Storage quota exceeded. Please delete old reports or clear cache.'));
                     } else {
-                        reject(addRequest.error);
+                        reject(error);
                     }
                 };
             });

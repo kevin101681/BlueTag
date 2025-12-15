@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
-import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
+import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser, BookOpen } from 'lucide-react';
 import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
 import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage, DeleteConfirmationModal } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
@@ -32,6 +32,8 @@ export interface DashboardProps {
   onDelete?: (e: React.MouseEvent, rect?: DOMRect) => void;
   isClientInfoCollapsed?: boolean;
   onToggleClientInfo?: (collapsed: boolean) => void;
+  homeownerManualUrl?: string;
+  onHomeownerManualClick?: () => void;
 }
 
 // Map strings to Icon components for display
@@ -717,7 +719,15 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                 }));
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 setUploadTarget(null);
-            } catch (err) { console.error("Image upload failed", err); }
+            } catch (err: any) { 
+                console.error("Image upload failed", err);
+                const errorMessage = err?.message || "Failed to add photo";
+                if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
+                    alert("Storage quota exceeded. Please delete old reports or clear cache in Settings.");
+                } else {
+                    alert(`Failed to add photo: ${errorMessage}`);
+                }
+            }
         }
     };
     const triggerUpload = (locId: string, issueId: string) => {
@@ -1101,7 +1111,9 @@ export const Dashboard = React.memo<DashboardProps>(({
   isExiting = false,
   onDelete,
   isClientInfoCollapsed,
-  onToggleClientInfo
+  onToggleClientInfo,
+  homeownerManualUrl,
+  onHomeownerManualClick
 }) => {
     const [shouldInitialExpand] = useState(initialExpand);
 
@@ -1266,7 +1278,7 @@ export const Dashboard = React.memo<DashboardProps>(({
                             ))}
                         </div>
                         <div className="mt-6 flex justify-center">
-                            <div className="flex justify-center w-full">
+                            <div className="flex justify-center items-center gap-3 w-full flex-wrap">
                                 <button
                                     onClick={() => setDetailsCollapsed(true)}
                                     className="px-12 bg-white/10 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-full font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center justify-center gap-2 active:scale-[0.99] backdrop-blur-sm"
@@ -1274,6 +1286,21 @@ export const Dashboard = React.memo<DashboardProps>(({
                                     <Check size={18} />
                                     Save Info
                                 </button>
+                                {(homeownerManualUrl || onHomeownerManualClick) && (
+                                    <button
+                                        onClick={() => {
+                                            if (onHomeownerManualClick) {
+                                                onHomeownerManualClick();
+                                            } else if (homeownerManualUrl) {
+                                                window.open(homeownerManualUrl, '_blank', 'noopener,noreferrer');
+                                            }
+                                        }}
+                                        className="px-6 bg-white/10 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-full font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center justify-center gap-2 active:scale-[0.99] backdrop-blur-sm"
+                                    >
+                                        <BookOpen size={18} />
+                                        Homeowner Manual
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

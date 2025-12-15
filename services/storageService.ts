@@ -14,15 +14,29 @@ const calculateSize = (data: string): number => {
 // Get storage usage (IndexedDB + localStorage settings)
 export const getStorageUsage = async (): Promise<{ used: number; total: number; percentage: number; source: string }> => {
     let used = 0;
-    
-    // IndexedDB can use up to 50-60% of available disk space
-    // For most devices, we'll show a conservative estimate of available space
-    // Mobile: ~50% of available storage (often 10-50GB available)
-    // Desktop: ~50% of available storage (often 100GB+ available)
-    // We'll use a conservative estimate of 1GB as a "safe" limit to show users
-    const total = 1024 * 1024 * 1024; // 1GB conservative estimate (IndexedDB can actually use much more)
+    let total = 0;
     
     try {
+        // Try to get actual quota using StorageManager API (if available)
+        if ('storage' in navigator && 'estimate' in navigator.storage) {
+            try {
+                const estimate = await navigator.storage.estimate();
+                if (estimate.quota) {
+                    total = estimate.quota;
+                }
+            } catch (e) {
+                console.warn('Could not get storage estimate', e);
+            }
+        }
+        
+        // Fallback: Use a more generous estimate if StorageManager not available
+        // IndexedDB can typically use 50-60% of available disk space
+        // For devices with 36GB available, that could be ~18GB
+        if (total === 0) {
+            // Use 10GB as a more realistic conservative estimate instead of 1GB
+            total = 10 * 1024 * 1024 * 1024; // 10GB
+        }
+        
         // Get IndexedDB usage (reports)
         if (IndexedDBService.isAvailable()) {
             const indexedDBUsage = await IndexedDBService.getStorageUsage();
@@ -45,19 +59,22 @@ export const getStorageUsage = async (): Promise<{ used: number; total: number; 
             }
         }
         
-        const source = IndexedDBService.isAvailable() ? 'IndexedDB (up to GBs)' : 'localStorage (~5MB)';
+        const source = IndexedDBService.isAvailable() ? 'IndexedDB' : 'localStorage (~5MB)';
+        
+        // Only calculate percentage if we have a valid total
+        const percentage = total > 0 ? Math.min((used / total) * 100, 100) : 0;
         
         return {
             used,
             total,
-            percentage: Math.min((used / total) * 100, 100),
+            percentage,
             source
         };
     } catch (e) {
         console.error("Error calculating storage usage", e);
         return {
             used: 0,
-            total,
+            total: total || 10 * 1024 * 1024 * 1024,
             percentage: 0,
             source: 'Unknown'
         };
@@ -213,9 +230,10 @@ export const saveWithCleanup = async (key: string, data: any, reports?: any[]): 
 // Get storage info for display
 export const getStorageInfo = async (): Promise<{ used: string; total: string; percentage: number; warning: boolean; source: string }> => {
     const usage = await getStorageUsage();
-    // Only warn if using more than 80% of our conservative 1GB estimate
-    // In practice, IndexedDB can store much more
-    const warning = usage.percentage > 80;
+    // Only warn if using more than 90% of actual quota (if available)
+    // If we're using estimated quota, only warn if usage is very high (>95%)
+    // This prevents false warnings since IndexedDB can typically store much more
+    const warning = usage.percentage > (usage.total > 5 * 1024 * 1024 * 1024 ? 90 : 95);
     
     return {
         used: formatBytes(usage.used),

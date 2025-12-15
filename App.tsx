@@ -307,12 +307,30 @@ export default function App() {
           saveWithCleanup(STORAGE_KEY, savedReports, savedReports).then(success => {
               if (!success) {
                   console.error("Storage quota exceeded and cleanup failed");
-                  // Show error to user
-                  setSyncError("Storage full. Please clear old reports or cache in Settings.");
+                  // Only show error if it's a persistent issue
+                  setSyncError(prev => {
+                      if (!prev || !prev.includes("Storage")) {
+                          return "Storage full. Please clear old reports or cache in Settings.";
+                      }
+                      return prev;
+                  });
+              } else {
+                  // Clear any previous storage errors if save succeeds
+                  setSyncError(prev => {
+                      if (prev && prev.includes("Storage")) {
+                          return null;
+                      }
+                      return prev;
+                  });
               }
           }).catch(err => {
               console.error("Error saving reports", err);
-              setSyncError("Error saving reports. Please try again.");
+              const errorMessage = err?.message || "Error saving reports";
+              if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
+                  setSyncError("Storage quota exceeded. Please delete old reports or clear cache in Settings.");
+              } else {
+                  setSyncError(`Error saving reports: ${errorMessage}`);
+              }
           });
       }
   }, [savedReports, isDataLoaded]);
