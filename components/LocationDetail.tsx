@@ -2,12 +2,179 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
-import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check } from 'lucide-react';
+import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check, Loader2 } from 'lucide-react';
 import { PREDEFINED_LOCATIONS, generateUUID } from '../constants';
 import { ImageEditor } from './ImageEditor';
 import { analyzeDefectImage } from '../services/geminiService';
 import { uploadToCloudinary } from '../services/cloudinaryService';
 import { createPortal } from 'react-dom';
+
+// Thumbnail component for grid view (AddItemForm)
+const PhotoThumbnailGrid: React.FC<{
+    photo: IssuePhoto;
+    onEdit: () => void;
+    onDelete: () => void;
+    onDescriptionChange: (desc: string) => void;
+}> = ({ photo, onEdit, onDelete, onDescriptionChange }) => {
+    const [isLoading, setIsLoading] = useState(true);
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        setIsLoading(true);
+        setHasError(false);
+    }, [photo.url]);
+
+    return (
+        <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden relative group">
+            <div className="aspect-square w-full relative bg-slate-100 dark:bg-slate-800">
+                {/* Loading Spinner */}
+                {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                    </div>
+                )}
+                
+                {/* Error State */}
+                {hasError && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                        <div className="text-center p-2">
+                            <Camera className="h-8 w-8 text-slate-400 mx-auto mb-1" />
+                            <span className="text-xs text-slate-400">Failed to load</span>
+                        </div>
+                    </div>
+                )}
+                
+                <img 
+                    src={photo.url} 
+                    alt="Issue" 
+                    className={`w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                    onLoad={() => setIsLoading(false)}
+                    onError={() => {
+                        setIsLoading(false);
+                        setHasError(true);
+                    }}
+                    onClick={onEdit}
+                />
+                {/* Edit Icon Always Visible */}
+                {!isLoading && !hasError && (
+                    <>
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                            <Edit2 size={24} className="text-white drop-shadow-md" />
+                        </div>
+                        <button 
+                            onClick={onDelete}
+                            className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full transition-colors z-10"
+                        >
+                            <X size={14} />
+                        </button>
+                    </>
+                )}
+            </div>
+            <div className="p-2">
+                <input 
+                    type="text"
+                    value={photo.description || ""}
+                    onChange={(e) => onDescriptionChange(e.target.value)}
+                    placeholder="Caption..."
+                    className="w-full bg-white dark:bg-slate-800 text-xs px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-white"
+                />
+            </div>
+        </div>
+    );
+};
+
+// Thumbnail component with loading state
+const PhotoThumbnail: React.FC<{
+    photo: IssuePhoto;
+    onEdit: () => void;
+    onDelete: () => void;
+    onDescriptionChange: (desc: string) => void;
+    showCaption?: boolean;
+    size?: 'small' | 'medium' | 'large';
+}> = ({ photo, onEdit, onDelete, onDescriptionChange, showCaption = true, size = 'medium' }) => {
+    const [isLoading, setIsLoading] = useState(true);
+    const [hasError, setHasError] = useState(false);
+    const imgRef = useRef<HTMLImageElement>(null);
+
+    const sizeClasses = {
+        small: 'w-24',
+        medium: 'w-28',
+        large: 'w-full'
+    };
+
+    useEffect(() => {
+        // Reset loading state when photo URL changes
+        setIsLoading(true);
+        setHasError(false);
+    }, [photo.url]);
+
+    return (
+        <div className={`flex flex-col ${sizeClasses[size]} shrink-0 gap-1.5 group/wrapper`}>
+            <div 
+                className={`w-full aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo cursor-pointer bg-slate-100 dark:bg-slate-800`}
+            >
+                {/* Loading Spinner */}
+                {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 z-10">
+                        <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                    </div>
+                )}
+                
+                {/* Error State */}
+                {hasError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 z-10">
+                        <div className="text-center p-2">
+                            <Camera className="h-6 w-6 text-slate-400 mx-auto mb-1" />
+                            <span className="text-[10px] text-slate-400">Failed to load</span>
+                        </div>
+                    </div>
+                )}
+                
+                {/* Image */}
+                <img 
+                    ref={imgRef}
+                    src={photo.url} 
+                    alt="Thumbnail" 
+                    className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                    onLoad={() => setIsLoading(false)}
+                    onError={() => {
+                        setIsLoading(false);
+                        setHasError(true);
+                    }}
+                    onClick={onEdit}
+                />
+                
+                {/* Edit Overlay */}
+                {!isLoading && !hasError && (
+                    <>
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none">
+                            <Edit2 size={16} className="text-white drop-shadow-md" />
+                        </div>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete();
+                            }}
+                            className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                        >
+                            <X size={12} />
+                        </button>
+                    </>
+                )}
+            </div>
+            
+            {/* Caption Input */}
+            {showCaption && (
+                <input
+                    value={photo.description || ""}
+                    onChange={(e) => onDescriptionChange(e.target.value)}
+                    placeholder="Caption..."
+                    className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-slate-200"
+                />
+            )}
+        </div>
+    );
+};
 
 // --- Shared Helper (kept for backward compatibility, but now uses Cloudinary) ---
 export const compressImage = (file: File): Promise<string> => {
@@ -386,35 +553,13 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                             <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">Photos</label>
                             <div className="grid grid-cols-2 gap-3">
                                 {photos.map((photo, idx) => (
-                                    <div key={idx} className="bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden relative group">
-                                        <div className="aspect-square w-full relative">
-                                            <img 
-                                                src={photo.url} 
-                                                alt="Issue" 
-                                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity" 
-                                                onClick={() => setEditingPhotoIndex(idx)}
-                                            />
-                                            {/* Edit Icon Always Visible */}
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                                                <Edit2 size={24} className="text-white drop-shadow-md" />
-                                            </div>
-                                            <button 
-                                                onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
-                                                className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full transition-colors z-10"
-                                            >
-                                                <X size={14} />
-                                            </button>
-                                        </div>
-                                        <div className="p-2">
-                                            <input 
-                                                type="text"
-                                                value={photo.description || ""}
-                                                onChange={(e) => handlePhotoDescriptionChange(idx, e.target.value)}
-                                                placeholder="Caption..."
-                                                className="w-full bg-white dark:bg-slate-800 text-xs px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-white"
-                                            />
-                                        </div>
-                                    </div>
+                                    <PhotoThumbnailGrid
+                                        key={idx}
+                                        photo={photo}
+                                        onEdit={() => setEditingPhotoIndex(idx)}
+                                        onDelete={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
+                                        onDescriptionChange={(desc) => handlePhotoDescriptionChange(idx, desc)}
+                                    />
                                 ))}
                                 <button 
                                     onClick={() => fileInputRef.current?.click()}
@@ -712,36 +857,14 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                                     
                                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide ml-8 items-start">
                                         {issue.photos.map((photo, idx) => (
-                                            <div key={idx} className="flex flex-col w-28 shrink-0 gap-1.5 group/wrapper">
-                                                <div 
-                                                    className="w-full aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo cursor-pointer"
-                                                >
-                                                    <img 
-                                                        src={photo.url} 
-                                                        alt="Thumbnail" 
-                                                        className="w-full h-full object-cover" 
-                                                        onClick={() => setEditingPhoto({ issueId: issue.id, photoIndex: idx })}
-                                                    />
-                                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none">
-                                                        <Edit2 size={16} className="text-white drop-shadow-md" />
-                                                    </div>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDeletePhoto(issue.id, idx);
-                                                        }}
-                                                        className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"
-                                                    >
-                                                        <X size={12} />
-                                                    </button>
-                                                </div>
-                                                <input
-                                                    value={photo.description || ""}
-                                                    onChange={(e) => handlePhotoCaptionChange(issue.id, idx, e.target.value)}
-                                                    placeholder="Caption..."
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-slate-200"
-                                                />
-                                            </div>
+                                            <PhotoThumbnail
+                                                key={idx}
+                                                photo={photo}
+                                                onEdit={() => setEditingPhoto({ issueId: issue.id, photoIndex: idx })}
+                                                onDelete={() => handleDeletePhoto(issue.id, idx)}
+                                                onDescriptionChange={(desc) => handlePhotoCaptionChange(issue.id, idx, desc)}
+                                                size="medium"
+                                            />
                                         ))}
                                         
                                         <button 

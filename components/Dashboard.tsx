@@ -1,12 +1,70 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
-import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser, BookOpen } from 'lucide-react';
+import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser, BookOpen, Loader2 } from 'lucide-react';
 import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
 import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage, DeleteConfirmationModal } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
 import { createPortal } from 'react-dom';
 import { ImageEditor } from './ImageEditor';
+import { IssuePhoto } from '../types';
+
+// Small thumbnail component with loading state for Dashboard
+const PhotoThumbnailSmall: React.FC<{
+    photo: IssuePhoto;
+    onEdit: () => void;
+    onDelete: () => void;
+    onDescriptionChange: (desc: string) => void;
+}> = ({ photo, onEdit, onDelete, onDescriptionChange }) => {
+    const [isLoading, setIsLoading] = useState(true);
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        setIsLoading(true);
+        setHasError(false);
+    }, [photo.url]);
+
+    return (
+        <div className="flex flex-col w-24 shrink-0 gap-1.5 group/wrapper">
+            <div className="w-full aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo cursor-pointer bg-slate-100 dark:bg-slate-800">
+                {/* Loading Spinner */}
+                {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                        <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                    </div>
+                )}
+                
+                {/* Error State */}
+                {hasError && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                        <div className="text-center p-1">
+                            <Camera className="h-5 w-5 text-slate-400 mx-auto mb-0.5" />
+                            <span className="text-[9px] text-slate-400">Failed</span>
+                        </div>
+                    </div>
+                )}
+                
+                <img 
+                    src={photo.url} 
+                    className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                    onLoad={() => setIsLoading(false)}
+                    onError={() => {
+                        setIsLoading(false);
+                        setHasError(true);
+                    }}
+                    onClick={onEdit} 
+                />
+                {!isLoading && !hasError && (
+                    <>
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none"><Edit2 size={16} className="text-white drop-shadow-md" /></div>
+                        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"><X size={12} /></button>
+                    </>
+                )}
+            </div>
+            <input value={photo.description || ""} onChange={(e) => onDescriptionChange(e.target.value)} placeholder="Caption..." className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-slate-200" />
+        </div>
+    );
+};
 
 export interface DashboardProps {
   project: ProjectDetails;
@@ -790,14 +848,13 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                                                     </div>
                                                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide ml-8 items-start">
                                                         {issue.photos.map((photo, pIdx) => (
-                                                            <div key={pIdx} className="flex flex-col w-24 shrink-0 gap-1.5 group/wrapper">
-                                                                <div className="w-full aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo cursor-pointer">
-                                                                    <img src={photo.url} className="w-full h-full object-cover" onClick={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })} />
-                                                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none"><Edit2 size={16} className="text-white drop-shadow-md" /></div>
-                                                                    <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(loc.id, issue.id, pIdx); }} className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"><X size={12} /></button>
-                                                                </div>
-                                                                <input value={photo.description || ""} onChange={(e) => handlePhotoCaptionChange(loc.id, issue.id, pIdx, e.target.value)} placeholder="Caption..." className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-slate-200" />
-                                                            </div>
+                                                            <PhotoThumbnailSmall
+                                                                key={pIdx}
+                                                                photo={photo}
+                                                                onEdit={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })}
+                                                                onDelete={() => handleDeletePhoto(loc.id, issue.id, pIdx)}
+                                                                onDescriptionChange={(desc) => handlePhotoCaptionChange(loc.id, issue.id, pIdx, desc)}
+                                                            />
                                                         ))}
                                                         <button onClick={() => triggerUpload(loc.id, issue.id)} className="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Add Photo"><Camera size={20} /><span className="text-[9px] font-bold mt-1">Add</span></button>
                                                     </div>
