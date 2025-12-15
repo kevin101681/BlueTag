@@ -4,10 +4,27 @@ import { GoogleGenAI } from "@google/genai";
 // Ensure your build process or environment polyfills process.env.API_KEY correctly.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export const analyzeDefectImage = async (base64Image: string): Promise<string> => {
+export const analyzeDefectImage = async (imageUrl: string): Promise<string> => {
   try {
-    // Remove header if present (data:image/jpeg;base64,)
-    const cleanBase64 = base64Image.split(',')[1] || base64Image;
+    // Convert Cloudinary URL to base64 if needed
+    let cleanBase64: string;
+    if (imageUrl.startsWith('data:')) {
+      // Already base64
+      cleanBase64 = imageUrl.split(',')[1] || imageUrl;
+    } else {
+      // Convert URL to base64
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      cleanBase64 = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          resolve(base64data.split(',')[1] || base64data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',

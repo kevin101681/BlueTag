@@ -67,11 +67,33 @@ const getImageDimensions = (base64: string): Promise<{ width: number, height: nu
     });
 };
 
-const getImageFormat = (base64: string): string => {
-    if (!base64) return 'JPEG';
-    if (base64.includes('image/png')) return 'PNG';
-    if (base64.includes('image/jpeg') || base64.includes('image/jpg')) return 'JPEG';
-    const lower = base64.toLowerCase();
+// Helper to convert Cloudinary URL to base64 for jsPDF
+const urlToBase64 = async (url: string): Promise<string> => {
+    if (url.startsWith('data:')) {
+        return url; // Already base64
+    }
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error('Failed to convert URL to base64:', error);
+        return url; // Fallback to original URL
+    }
+};
+
+const getImageFormat = (imageData: string): string => {
+    if (!imageData) return 'JPEG';
+    if (imageData.startsWith('data:')) {
+        if (imageData.includes('image/png')) return 'PNG';
+        if (imageData.includes('image/jpeg') || imageData.includes('image/jpg')) return 'JPEG';
+    }
+    const lower = imageData.toLowerCase();
     if (lower.endsWith('.png')) return 'PNG';
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'JPEG';
     return 'JPEG';
@@ -1011,13 +1033,15 @@ export const generatePDFWithMetadata = async (
                   const photoId = photo.id || `${issue.id}_img_${i}`;
                   
                   try {
-                      const format = getImageFormat(photo.url);
+                      // Convert Cloudinary URL to base64 if needed
+                      const imageData = await urlToBase64(photo.url);
+                      const format = getImageFormat(imageData);
                       
                       // Explicit clipping path for rounded image
                       doc.saveGraphicsState();
                       doc.roundedRect(px, py, photoSize, photoSize, 3, 3, null); // Add path
                       doc.clip(); // Clip to path
-                      doc.addImage(photo.url, format, px, py, photoSize, photoSize);
+                      doc.addImage(imageData, format, px, py, photoSize, photoSize);
                       doc.restoreGraphicsState();
 
                       // Draw thicker white masking stroke to clean up square edges

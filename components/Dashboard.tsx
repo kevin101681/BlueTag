@@ -705,8 +705,10 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0] && uploadTarget) {
             try {
-                const compressed = await compressImage(e.target.files[0]);
-                const newPhoto = { id: generateUUID(), url: compressed, description: '' };
+                // Upload to Cloudinary instead of compressing to base64
+                const { uploadToCloudinary } = await import('../services/cloudinaryService');
+                const result = await uploadToCloudinary(e.target.files[0], 'bluetag/photos');
+                const newPhoto = { id: generateUUID(), url: result.url, description: '' };
                 setLocalLocations(prev => prev.map(l => {
                     if (l.id !== uploadTarget.locId) return l;
                     return {

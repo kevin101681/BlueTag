@@ -6,9 +6,10 @@ import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Sav
 import { PREDEFINED_LOCATIONS, generateUUID } from '../constants';
 import { ImageEditor } from './ImageEditor';
 import { analyzeDefectImage } from '../services/geminiService';
+import { uploadToCloudinary } from '../services/cloudinaryService';
 import { createPortal } from 'react-dom';
 
-// --- Shared Helper ---
+// --- Shared Helper (kept for backward compatibility, but now uses Cloudinary) ---
 export const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -272,21 +273,18 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             try {
-                const compressed = await compressImage(e.target.files[0]);
+                // Upload to Cloudinary instead of compressing to base64
+                const result = await uploadToCloudinary(e.target.files[0], 'bluetag/photos');
                 // Add unique ID for the new photo
-                setPhotos(prev => [...prev, { id: generateUUID(), url: compressed, description: '' }]);
+                setPhotos(prev => [...prev, { id: generateUUID(), url: result.url, description: '' }]);
                 // Reset input so same file can be selected again if needed
                 if (fileInputRef.current) {
                     fileInputRef.current.value = '';
                 }
             } catch (err: any) {
-                console.error("Image compression failed", err);
-                const errorMessage = err?.message || "Failed to compress image";
-                if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
-                    alert("Storage quota exceeded. Please delete old reports or clear cache in Settings.");
-                } else {
-                    alert(`Failed to add photo: ${errorMessage}`);
-                }
+                console.error("Image upload failed", err);
+                const errorMessage = err?.message || "Failed to upload image";
+                alert(`Failed to add photo: ${errorMessage}`);
             }
         }
     };
@@ -612,10 +610,11 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0] && uploadIssueId) {
             try {
-                const compressed = await compressImage(e.target.files[0]);
+                // Upload to Cloudinary instead of compressing to base64
+                const result = await uploadToCloudinary(e.target.files[0], 'bluetag/photos');
                 const newPhoto: IssuePhoto = {
                      id: generateUUID(),
-                     url: compressed,
+                     url: result.url,
                      description: ''
                 };
 
