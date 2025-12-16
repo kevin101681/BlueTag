@@ -1,70 +1,12 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
-import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser, BookOpen, Loader2 } from 'lucide-react';
-import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
+import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
+import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../pdfService';
 import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage, DeleteConfirmationModal } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
 import { createPortal } from 'react-dom';
 import { ImageEditor } from './ImageEditor';
-import { IssuePhoto } from '../types';
-
-// Small thumbnail component with loading state for Dashboard
-const PhotoThumbnailSmall: React.FC<{
-    photo: IssuePhoto;
-    onEdit: () => void;
-    onDelete: () => void;
-    onDescriptionChange: (desc: string) => void;
-}> = ({ photo, onEdit, onDelete, onDescriptionChange }) => {
-    const [isLoading, setIsLoading] = useState(true);
-    const [hasError, setHasError] = useState(false);
-
-    useEffect(() => {
-        setIsLoading(true);
-        setHasError(false);
-    }, [photo.url]);
-
-    return (
-        <div className="flex flex-col w-24 shrink-0 gap-1.5 group/wrapper">
-            <div className="w-full aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo cursor-pointer bg-slate-100 dark:bg-slate-800">
-                {/* Loading Spinner */}
-                {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center z-10">
-                        <Loader2 className="h-5 w-5 text-primary animate-spin" />
-                    </div>
-                )}
-                
-                {/* Error State */}
-                {hasError && (
-                    <div className="absolute inset-0 flex items-center justify-center z-10">
-                        <div className="text-center p-1">
-                            <Camera className="h-5 w-5 text-slate-400 mx-auto mb-0.5" />
-                            <span className="text-[9px] text-slate-400">Failed</span>
-                        </div>
-                    </div>
-                )}
-                
-                <img 
-                    src={photo.url} 
-                    className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                    onLoad={() => setIsLoading(false)}
-                    onError={() => {
-                        setIsLoading(false);
-                        setHasError(true);
-                    }}
-                    onClick={onEdit} 
-                />
-                {!isLoading && !hasError && (
-                    <>
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none"><Edit2 size={16} className="text-white drop-shadow-md" /></div>
-                        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"><X size={12} /></button>
-                    </>
-                )}
-            </div>
-            <input value={photo.description || ""} onChange={(e) => onDescriptionChange(e.target.value)} placeholder="Caption..." className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-slate-200" />
-        </div>
-    );
-};
 
 export interface DashboardProps {
   project: ProjectDetails;
@@ -90,8 +32,6 @@ export interface DashboardProps {
   onDelete?: (e: React.MouseEvent, rect?: DOMRect) => void;
   isClientInfoCollapsed?: boolean;
   onToggleClientInfo?: (collapsed: boolean) => void;
-  homeownerManualUrl?: string;
-  onHomeownerManualClick?: () => void;
 }
 
 // Map strings to Icon components for display
@@ -122,6 +62,8 @@ export interface ReportCardProps {
         onEmail?: () => void;
         onViewReport?: () => void;
         onViewSignOff?: () => void;
+        onDownloadReportPDF?: () => void;
+        onDownloadSignOffPDF?: () => void;
     };
     hasDocs?: boolean;
     onViewAllItems?: () => void;
@@ -148,9 +90,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
 
     const cardRef = useRef<HTMLDivElement>(null);
     
-    // Header Logic
-    const nameStr = fields[0]?.value || "Project";
-    const subtitle = fields[1]?.value || "";
+    // Header Logic - for contact info icons
     const detailFields = fields.slice(2);
     const hasContactInfo = detailFields.some(f => f.value && f.value.trim() !== "");
 
@@ -180,153 +120,138 @@ export const ReportCard: React.FC<ReportCardProps> = ({
     const getButtonStyle = (isActive: boolean) => {
         const base = "w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border";
         if (isActive) {
-            return `${base} bg-primary/10 dark:bg-primary/20 border-primary/20 dark:border-primary/30 text-primary hover:bg-primary/20 dark:hover:bg-primary/30`;
+            return `${base} bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid`;
         }
-        return `${base} bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-primary`;
+        return `${base} bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid`;
     };
 
     return (
         <div 
             ref={cardRef}
             onClick={!readOnly ? onClick : undefined}
-            className={`w-full bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-sm border border-slate-200 dark:border-slate-800 transition-all relative group flex flex-col ${
+            className={`w-full bg-surface dark:bg-gray-800 rounded-3xl px-4 py-6 shadow-sm border border-surface-outline-variant dark:border-gray-700 transition-all relative group flex flex-col ${
                 !readOnly && !isSelected ? 'hover:shadow-md hover:border-primary/50 cursor-pointer' : ''
-            } ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''}`}
+            } ${isSelected ? 'ring-2 ring-primary bg-primary-container/20' : ''}`}
         >
-            {/* Header: Stacked Pills */}
-            <div className="flex flex-col items-center gap-2 mb-6 relative z-10 w-full">
-                 {/* Decorative Line connecting to Name Pill center */}
-                 <div className="absolute top-[20px] left-0 right-0 h-px bg-slate-100 dark:bg-slate-800 -z-10" />
-
-                 {/* Name Pill - Smaller, Removed Pulse */}
-                 <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2 rounded-full flex items-center gap-3 border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900 z-20">
-                    <div className="w-2 h-2 rounded-full bg-primary shrink-0 animate-pulse" />
-                    <span className="text-base font-bold text-slate-700 dark:text-slate-200 truncate max-w-[50vw]">
-                        {nameStr}
-                    </span>
-                 </div>
-
-                 {/* Lot/Unit Pill - Only shown in header if NOT a search result (Main Card) */}
-                 {!isSearchResult && subtitle && (
-                    <div className="h-10 px-4 rounded-2xl flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900 shadow-sm z-20">
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 max-w-[40vw] truncate">
-                            {subtitle}
-                        </span>
+            {/* Client Info Section - Re-enabled for visual confirmation */}
+            {fields.length > 0 && (
+                <div className="mb-6 pb-6 border-b border-surface-outline-variant dark:border-gray-700">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {fields.map((field, idx) => {
+                            const IconComponent = getIconComponent(field.icon);
+                            const linkProps = getLinkProps(field);
+                            const hasValue = field.value && field.value.trim() !== '';
+                            
+                            if (!hasValue && idx >= 2) return null; // Skip empty detail fields
+                            
+                            return (
+                                <div 
+                                    key={field.id} 
+                                    className={`flex items-center gap-3 p-3 rounded-xl bg-surface-container dark:bg-gray-700 ${
+                                        linkProps.href ? 'hover:bg-surface-container-high dark:hover:bg-gray-600 transition-colors cursor-pointer' : ''
+                                    }`}
+                                    {...(linkProps.href ? { onClick: (e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (linkProps.href) window.open(linkProps.href, linkProps.target || '_self');
+                                    }} : {})}
+                                >
+                                    <div className="p-2 bg-surface dark:bg-gray-800 rounded-lg text-primary dark:text-primary shrink-0">
+                                        <IconComponent size={18} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-xs text-surface-on-variant dark:text-gray-400 font-medium mb-0.5">
+                                            {field.label}
+                                        </div>
+                                        <div className="text-sm text-surface-on dark:text-gray-200 font-semibold truncate">
+                                            {field.value || '—'}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
-                 )}
-            </div>
-
-            {/* Content Body: Gray Box with Contact Info Pills */}
-            {hasContactInfo && (
-                <div className="w-full mb-6 flex-1 flex flex-col items-center justify-center animate-fade-in">
-                     <div className="w-full px-3 py-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                        <div className="flex flex-wrap items-center justify-center gap-2 w-full">
-                            {detailFields.map(field => {
-                                if (!field.value) return null;
-                                const Icon = getIconComponent(field.icon);
-                                const linkProps = getLinkProps(field);
-                                const Wrapper = linkProps.href ? 'a' : 'div';
-                                const isInteractive = !!linkProps.href;
-                                
-                                return (
-                                    <Wrapper 
-                                        key={field.id}
-                                        className={`flex items-center justify-center gap-2 group/item px-4 py-2 rounded-2xl border shadow-sm transition-all max-w-full ${
-                                            isInteractive 
-                                                ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-primary dark:text-blue-400 font-semibold hover:border-primary/50 hover:shadow-md cursor-pointer' 
-                                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-medium'
-                                        }`}
-                                        {...linkProps}
-                                        onClick={linkProps.href ? (e) => e.stopPropagation() : undefined}
-                                    >
-                                        <Icon size={14} className="shrink-0 opacity-70" />
-                                        <span className="text-sm break-words leading-relaxed text-center line-clamp-1">{field.value}</span>
-                                    </Wrapper>
-                                );
-                            })}
-                        </div>
-                     </div>
                 </div>
             )}
-
-            {!hasContactInfo && <div className="mb-4"></div>}
             
             {/* Footer Row - Unified Group, Centered, Equal Spacing */}
-            <div className="flex items-center justify-center mt-auto w-full gap-2 sm:gap-3">
-                {/* Item Count */}
-                {onViewAllItems ? (
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onViewAllItems(); }}
-                        className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors active:scale-95 text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary"
-                    >
-                         <span className="text-xs sm:text-sm font-bold whitespace-nowrap">
-                            {issueCount} Items
-                        </span>
-                    </button>
-                ) : (
-                    <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink">
-                        <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                            {issueCount} Items
-                        </span>
-                    </div>
-                )}
-
-                {/* Lot/Unit Pill - Shown in footer for Search Results */}
-                {isSearchResult && subtitle && (
-                    <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink min-w-0">
-                        <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap truncate">
-                            {subtitle}
-                        </span>
-                    </div>
-                )}
-
+            <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-auto w-full overflow-x-auto">
                 {/* Actions */}
                 {actions && (
                     <>
                         <button 
-                            onClick={(e) => { e.stopPropagation(); actions.onViewReport?.(); }}
-                            className={getButtonStyle(isReportSaved)}
+                            onClick={(e) => { 
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('Report preview button clicked');
+                                actions.onViewReport?.(); 
+                            }}
+                            className={`h-12 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border px-3 sm:px-4 gap-1.5 ${
+                                isReportSaved 
+                                    ? 'bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid' 
+                                    : 'bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid'
+                            }`}
                             title="View/Generate Report"
+                            type="button"
                         >
-                            <FileText size={20} className="sm:w-[24px] sm:h-[24px]" />
+                            <FileText size={18} className="sm:w-[20px] sm:h-[20px]" />
+                            <span className="text-xs font-bold whitespace-nowrap">View Report</span>
                         </button>
                         <button 
-                            onClick={(e) => { e.stopPropagation(); actions.onViewSignOff?.(); }}
-                            className={getButtonStyle(isSignOffSaved)}
+                            onClick={(e) => { 
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('Sign off button clicked');
+                                actions.onViewSignOff?.(); 
+                            }}
+                            className={`h-12 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border px-3 sm:px-4 gap-1.5 ${
+                                isSignOffSaved 
+                                    ? 'bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid' 
+                                    : 'bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid'
+                            }`}
                             title="View/Sign Off"
+                            type="button"
                         >
-                            <PenTool size={20} className="sm:w-[24px] sm:h-[24px]" />
+                            <PenTool size={18} className="sm:w-[20px] sm:h-[20px]" />
+                            <span className="text-xs font-bold whitespace-nowrap">View Sign Off</span>
                         </button>
                         <button 
-                            onClick={(e) => { e.stopPropagation(); actions.onEmail?.(); }}
-                            className={getButtonStyle(isEmailActive)}
-                            title="Email Documents"
+                            onClick={(e) => { 
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('Download Report PDF button clicked');
+                                actions.onDownloadReportPDF?.(); 
+                            }}
+                            className={`h-12 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border px-3 sm:px-4 gap-1.5 ${
+                                isReportSaved 
+                                    ? 'bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid' 
+                                    : 'bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid'
+                            }`}
+                            title="Download Report PDF"
+                            type="button"
                         >
-                            <Mail size={20} className="sm:w-[24px] sm:h-[24px]" />
+                            <Download size={18} className="sm:w-[20px] sm:h-[20px]" />
+                            <span className="text-xs font-bold whitespace-nowrap">Download Report</span>
+                        </button>
+                        <button 
+                            onClick={(e) => { 
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('Download Sign Off PDF button clicked');
+                                actions.onDownloadSignOffPDF?.(); 
+                            }}
+                            className={`h-12 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border px-3 sm:px-4 gap-1.5 ${
+                                isSignOffSaved 
+                                    ? 'bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid' 
+                                    : 'bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid'
+                            }`}
+                            title="Download Sign Off PDF"
+                            type="button"
+                        >
+                            <Download size={18} className="sm:w-[20px] sm:h-[20px]" />
+                            <span className="text-xs font-bold whitespace-nowrap">Download Sign Off</span>
                         </button>
                     </>
-                )}
-
-                {/* Date Pill */}
-                <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink min-w-0">
-                    <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap truncate">
-                        {dateStr}
-                    </span>
-                </div>
-
-                {/* Delete Button */}
-                {onDelete && (
-                     <button 
-                         onClick={(e) => { 
-                             e.stopPropagation(); 
-                             const rect = cardRef.current?.getBoundingClientRect();
-                             onDelete(e, rect); 
-                         }}
-                         className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl sm:rounded-2xl transition-colors flex items-center justify-center shadow-sm active:scale-95 shrink-0"
-                         title="Delete Report"
-                     >
-                         <Trash2 size={20} className="sm:w-[24px] sm:h-[24px]" />
-                     </button>
                 )}
             </div>
             
@@ -450,7 +375,7 @@ const PDFCanvasPreview = ({
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-full w-full bg-slate-100 dark:bg-slate-900">
+            <div className="flex items-center justify-center h-full w-full bg-surface-container dark:bg-gray-800">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
         );
@@ -458,10 +383,10 @@ const PDFCanvasPreview = ({
 
     if (error) {
         return (
-            <div className="flex flex-col items-center justify-center h-full w-full bg-slate-100 dark:bg-slate-900 p-4 text-center">
+            <div className="flex flex-col items-center justify-center h-full w-full bg-surface-container dark:bg-gray-800 p-4 text-center">
                 <AlertCircle size={48} className="text-red-500 mb-4" />
                 <p className="text-red-500 font-medium">Could not render PDF preview.</p>
-                <p className="text-xs text-slate-400 mt-2">{error}</p>
+                <p className="text-xs text-surface-on-variant dark:text-gray-400 mt-2">{error}</p>
             </div>
         );
     }
@@ -593,8 +518,8 @@ const DetailInput = ({ field, onChange }: { field: ProjectField, onChange: (val:
     };
     
     return (
-        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl px-4 py-3 border border-slate-100 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary/50 transition-all shadow-sm flex items-center justify-between gap-3 h-[60px] relative z-10">
-            <Icon size={20} className="text-slate-400 shrink-0" />
+        <div className="bg-surface-container dark:bg-gray-700/50 rounded-2xl px-4 py-3 border border-surface-outline-variant dark:border-gray-600 focus-within:ring-2 focus-within:ring-primary/50 transition-all shadow-sm flex items-center justify-between gap-3 h-[60px] relative z-10">
+            <Icon size={20} className="text-surface-on-variant dark:text-gray-400 shrink-0" />
             <input 
                 type={isPhone ? "tel" : (autoCompleteType === 'email' ? 'email' : 'text')}
                 inputMode={isPhone ? "tel" : (autoCompleteType === 'email' ? 'email' : 'text')}
@@ -603,7 +528,7 @@ const DetailInput = ({ field, onChange }: { field: ProjectField, onChange: (val:
                 value={localValue}
                 onChange={handleChange}
                 placeholder={field.label}
-                className="w-full bg-transparent text-lg font-bold text-slate-800 dark:text-slate-200 outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                className="w-full bg-transparent text-lg font-bold text-surface-on dark:text-gray-200 outline-none placeholder:text-surface-on-variant dark:placeholder:text-gray-500"
             />
         </div>
     );
@@ -616,26 +541,26 @@ const LocationCard = React.memo(({ location, onClick }: { location: LocationGrou
     return (
         <button
             onClick={() => onClick(location.id)}
-            className="relative px-4 py-3 rounded-[20px] text-left transition-all duration-300 group overflow-hidden bg-white dark:bg-slate-700/30 border-2 border-slate-200 dark:border-slate-600 shadow-sm hover:shadow-xl hover:border-primary/50 dark:hover:border-slate-500/50 hover:-translate-y-1 w-full flex flex-row items-center justify-between gap-3 min-h-[60px]"
+            className="relative px-4 py-3 rounded-[20px] text-left transition-all duration-300 group overflow-hidden bg-surface dark:bg-gray-700/30 border-2 border-surface-outline-variant dark:border-gray-600 shadow-sm hover:shadow-xl hover:border-primary/50 dark:hover:border-primary/50 hover:-translate-y-1 w-full flex flex-row items-center justify-between gap-3 min-h-[60px]"
         >
             <div className="flex items-center gap-3 min-w-0 flex-1">
-                <span className="bg-primary dark:bg-slate-600 text-white text-sm font-bold px-2.5 py-0.5 rounded-2xl shadow-sm shadow-slate-200 dark:shadow-none shrink-0 min-w-[24px] text-center h-6 flex items-center justify-center">
+                <span className="bg-primary dark:bg-primary text-primary-on dark:text-primary-on text-sm font-bold px-2.5 py-0.5 rounded-2xl shadow-sm shadow-surface-outline-variant dark:shadow-none shrink-0 min-w-[24px] text-center h-6 flex items-center justify-center">
                     {issueCount}
                 </span>
 
                 {photoCount > 0 && (
-                    <span className="bg-primary dark:bg-slate-600 text-white text-xs font-bold px-2 py-0.5 rounded-2xl flex items-center justify-center gap-1 shrink-0 h-6 min-w-[24px] shadow-sm">
+                    <span className="bg-primary dark:bg-primary text-primary-on dark:text-primary-on text-xs font-bold px-2 py-0.5 rounded-2xl flex items-center justify-center gap-1 shrink-0 h-6 min-w-[24px] shadow-sm">
                         <Camera size={10} />
                         {photoCount}
                     </span>
                 )}
 
-                <h3 className="text-base font-bold text-primary dark:text-slate-200 tracking-tight truncate">
+                <h3 className="text-base font-bold text-primary dark:text-gray-200 tracking-tight truncate">
                     {location.name}
                 </h3>
             </div>
             
-            <div className="text-slate-400 dark:text-slate-400 shrink-0">
+            <div className="text-surface-on-variant dark:text-gray-400 shrink-0">
                 <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </div>
         </button>
@@ -662,36 +587,36 @@ export const LocationManagerModal = ({ locations, onUpdate, onClose }: { locatio
 
     return createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-xl overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0">
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
-                         <h3 className="font-bold text-slate-800 dark:text-white">Manage Locations</h3>
+            <div className="bg-surface dark:bg-gray-800 w-full max-w-lg rounded-3xl shadow-xl overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-surface-outline-variant dark:border-gray-700 flex justify-center items-center bg-surface dark:bg-gray-800 shrink-0">
+                    <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-full">
+                         <h3 className="font-bold text-surface-on dark:text-gray-100">Manage Locations</h3>
                     </div>
                 </div>
-                <div className="p-4 space-y-4 overflow-y-auto flex-1 bg-white dark:bg-slate-800">
+                <div className="p-4 space-y-4 overflow-y-auto flex-1 bg-surface dark:bg-gray-800">
                     <div className="flex gap-2">
-                        <input value={newLocName} onChange={e => setNewLocName(e.target.value)} placeholder="New Location..." className="flex-1 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none dark:text-white" />
+                        <input value={newLocName} onChange={e => setNewLocName(e.target.value)} placeholder="New Location..." className="flex-1 p-3 rounded-xl bg-surface-container dark:bg-gray-700 border border-surface-outline-variant dark:border-gray-600 outline-none dark:text-gray-200" />
                         <button onClick={handleAdd} className="bg-primary text-white p-3 rounded-xl"><Plus size={24} /></button>
                     </div>
                     <div className="space-y-2">
                         {localLocations.map(loc => (
-                            <div key={loc.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                                <span className="font-medium text-slate-700 dark:text-slate-200">{loc.name}</span>
+                            <div key={loc.id} className="flex justify-between items-center p-3 bg-surface-container dark:bg-gray-700/50 rounded-xl border border-surface-outline-variant dark:border-gray-600">
+                                <span className="font-medium text-surface-on dark:text-gray-200">{loc.name}</span>
                                 <button onClick={() => setLocalLocations(localLocations.filter(l => l.id !== loc.id))} className="text-red-500 p-2"><Trash2 size={18} /></button>
                             </div>
                         ))}
                     </div>
                 </div>
-                <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex gap-3 shrink-0 bg-white dark:bg-slate-800">
+                <div className="p-4 border-t border-surface-outline-variant dark:border-gray-700 flex gap-3 shrink-0 bg-surface dark:bg-gray-800">
                     <button 
                         onClick={onClose}
-                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                        className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-300 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600 transition-colors"
                     >
                         Cancel
                     </button>
                     <button 
                         onClick={handleSave}
-                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                        className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-200 bg-surface dark:bg-gray-800 border border-surface-outline-variant dark:border-gray-600 hover:bg-surface-container dark:hover:bg-gray-700 transition-colors shadow-sm"
                     >
                         Save
                     </button>
@@ -762,31 +687,52 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
     };
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0] && uploadTarget) {
+            const file = e.target.files[0];
             try {
-                // Upload to Cloudinary instead of compressing to base64
-                const { uploadToCloudinary } = await import('../services/cloudinaryService');
-                const result = await uploadToCloudinary(e.target.files[0], 'bluetag/photos');
-                const newPhoto = { id: generateUUID(), url: result.url, description: '' };
+                // Show thumbnail immediately using object URL (instant)
+                const tempUrl = URL.createObjectURL(file);
+                const tempPhoto = { id: generateUUID(), url: tempUrl, description: '' };
+                
+                // Add photo immediately with temp URL
                 setLocalLocations(prev => prev.map(l => {
                     if (l.id !== uploadTarget.locId) return l;
                     return {
                         ...l,
                         issues: l.issues.map(i => {
                             if (i.id !== uploadTarget.issueId) return i;
-                            return { ...i, photos: [...i.photos, newPhoto] };
+                            return { ...i, photos: [...i.photos, tempPhoto] };
                         })
                     };
                 }));
+                
+                // Compress image in background and replace temp URL
+                const compressed = await compressImage(file);
+                setLocalLocations(prev => prev.map(l => {
+                    if (l.id !== uploadTarget.locId) return l;
+                    return {
+                        ...l,
+                        issues: l.issues.map(i => {
+                            if (i.id !== uploadTarget.issueId) return i;
+                            return {
+                                ...i,
+                                photos: i.photos.map(p => 
+                                    p.id === tempPhoto.id ? { ...p, url: compressed } : p
+                                )
+                            };
+                        })
+                    };
+                }));
+                
+                // Clean up temporary object URL
+                URL.revokeObjectURL(tempUrl);
+                
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 setUploadTarget(null);
-            } catch (err: any) { 
+            } catch (err) { 
                 console.error("Image upload failed", err);
-                const errorMessage = err?.message || "Failed to add photo";
-                if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
-                    alert("Storage quota exceeded. Please delete old reports or clear cache in Settings.");
-                } else {
-                    alert(`Failed to add photo: ${errorMessage}`);
-                }
+                // Clean up on error
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                setUploadTarget(null);
             }
         }
     };
@@ -819,44 +765,45 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
     return createPortal(
         <>
             <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-                <div className="bg-white dark:bg-slate-800 w-full max-w-2xl h-[85vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0 z-20">
-                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full">
-                            <h3 className="font-bold text-slate-800 dark:text-white">All Items ({totalItems})</h3>
+                <div className="bg-surface dark:bg-gray-800 w-full max-w-2xl h-[85vh] rounded-3xl shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="p-4 border-b border-surface-outline-variant dark:border-gray-700 flex justify-center items-center bg-surface dark:bg-gray-800 shrink-0 z-20">
+                        <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-full">
+                            <h3 className="font-bold text-surface-on dark:text-gray-100">All Items ({totalItems})</h3>
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900/50">
+                    <div className="flex-1 overflow-y-auto bg-surface-container dark:bg-gray-900/50">
                         <div className="pb-4">
                             {localLocations.map(loc => {
                                 if (loc.issues.length === 0) return null;
                                 return (
                                     <div key={loc.id} className="relative">
                                         <div className="sticky top-0 z-10 py-3 flex justify-center pointer-events-none">
-                                            <div className="bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 px-4 py-1.5 rounded-full shadow-sm pointer-events-auto">
-                                                 <h4 className="font-bold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide">{loc.name}</h4>
+                                            <div className="bg-surface-container/95 dark:bg-gray-800/95 backdrop-blur-md border border-surface-outline-variant dark:border-gray-700 px-4 py-1.5 rounded-full shadow-sm pointer-events-auto">
+                                                 <h4 className="font-bold text-surface-on dark:text-gray-300 text-xs uppercase tracking-wide">{loc.name}</h4>
                                             </div>
                                         </div>
                                         <div className="space-y-3 px-4 pb-3">
                                             {loc.issues.map((issue, idx) => (
-                                                <div key={issue.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                                                <div key={issue.id} className="bg-surface dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-surface-outline-variant dark:border-gray-700">
                                                     <div className="flex justify-between items-start mb-2 gap-2">
-                                                        <div className="bg-primary/10 text-primary dark:bg-slate-700 dark:text-slate-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-1">
+                                                        <div className="bg-primary-container text-primary dark:bg-gray-700 dark:text-gray-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-1">
                                                             {idx + 1}
                                                         </div>
-                                                        <AutoResizeTextarea value={issue.description} onChange={(e) => handleDescChange(loc.id, issue.id, e.target.value)} className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[40px]" placeholder="Item description..." />
-                                                        <button onClick={() => setItemToDelete({ locId: loc.id, issueId: issue.id })} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors shrink-0" title="Delete Item"><Trash2 size={18} /></button>
+                                                        <AutoResizeTextarea value={issue.description} onChange={(e) => handleDescChange(loc.id, issue.id, e.target.value)} className="flex-1 bg-surface-container dark:bg-gray-700 rounded-xl p-3 text-sm text-surface-on dark:text-gray-200 border border-surface-outline-variant dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[40px]" placeholder="Item description..." />
+                                                        <button onClick={() => setItemToDelete({ locId: loc.id, issueId: issue.id })} className="p-2 text-surface-on-variant dark:text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors shrink-0" title="Delete Item"><Trash2 size={18} /></button>
                                                     </div>
                                                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide ml-8 items-start">
                                                         {issue.photos.map((photo, pIdx) => (
-                                                            <PhotoThumbnailSmall
-                                                                key={pIdx}
-                                                                photo={photo}
-                                                                onEdit={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })}
-                                                                onDelete={() => handleDeletePhoto(loc.id, issue.id, pIdx)}
-                                                                onDescriptionChange={(desc) => handlePhotoCaptionChange(loc.id, issue.id, pIdx, desc)}
-                                                            />
+                                                            <div key={pIdx} className="flex flex-col w-24 shrink-0 gap-1.5 group/wrapper">
+                                                                <div className="w-full aspect-square rounded-xl overflow-hidden border border-surface-outline-variant dark:border-gray-600 relative group/photo cursor-pointer">
+                                                                    <img src={photo.url} className="w-full h-full object-cover" onClick={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })} />
+                                                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none"><Edit2 size={16} className="text-white drop-shadow-md" /></div>
+                                                                    <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(loc.id, issue.id, pIdx); }} className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"><X size={12} /></button>
+                                                                </div>
+                                                                <input value={photo.description || ""} onChange={(e) => handlePhotoCaptionChange(loc.id, issue.id, pIdx, e.target.value)} placeholder="Caption..." className="w-full bg-surface-container dark:bg-gray-700 text-[10px] px-2 py-1.5 rounded-lg border border-surface-outline-variant dark:border-gray-600 outline-none focus:border-primary dark:text-gray-200" />
+                                                            </div>
                                                         ))}
-                                                        <button onClick={() => triggerUpload(loc.id, issue.id)} className="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Add Photo"><Camera size={20} /><span className="text-[9px] font-bold mt-1">Add</span></button>
+                                                        <button onClick={() => triggerUpload(loc.id, issue.id)} className="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-surface-outline-variant dark:border-gray-600 flex flex-col items-center justify-center text-surface-on-variant dark:text-gray-400 hover:text-primary hover:border-primary/50 hover:bg-surface-container dark:hover:bg-gray-700/50 transition-colors" title="Add Photo"><Camera size={20} /><span className="text-[9px] font-bold mt-1">Add</span></button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -864,12 +811,12 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                                     </div>
                                 );
                             })}
-                            {totalItems === 0 && <div className="text-center text-slate-400 py-10">No items found.</div>}
+                            {totalItems === 0 && <div className="text-center text-surface-on-variant dark:text-gray-400 py-10">No items found.</div>}
                         </div>
                     </div>
-                    <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20 flex gap-3">
-                        <button onClick={onClose} className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancel</button>
-                        <button onClick={handleSave} className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">Save</button>
+                    <div className="p-4 border-t border-surface-outline-variant dark:border-gray-700 bg-surface dark:bg-gray-800 shrink-0 z-20 flex gap-3">
+                        <button onClick={onClose} className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-300 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                        <button onClick={handleSave} className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-200 bg-surface dark:bg-gray-800 border border-surface-outline-variant dark:border-gray-600 hover:bg-surface-container dark:hover:bg-gray-700 transition-colors shadow-sm">Save</button>
                     </div>
                 </div>
             </div>
@@ -891,23 +838,23 @@ export const ClientInfoEditModal = ({ project, onUpdate, onClose }: { project: P
     const handleSave = () => { onUpdate({ ...project, fields }); onClose(); };
     return createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full"><h3 className="font-bold text-slate-800 dark:text-white">Edit Client Info</h3></div>
-                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors"><X size={20} /></button>
+            <div className="bg-surface dark:bg-gray-800 w-full max-w-lg rounded-3xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-surface-outline-variant dark:border-gray-700 flex justify-between items-center">
+                    <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-full"><h3 className="font-bold text-surface-on dark:text-gray-100">Edit Client Info</h3></div>
+                    <button onClick={onClose} className="p-2 bg-surface-container dark:bg-gray-700 rounded-full text-surface-on-variant hover:text-surface-on dark:text-gray-400 dark:hover:text-gray-100 transition-colors"><X size={20} /></button>
                 </div>
                 <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
                     {fields.map((field, i) => (
                         <div key={field.id} className="flex gap-2 items-center">
-                             <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-500"><Hash size={16}/></div>
-                             <input value={field.label} onChange={e => { const newF = [...fields]; newF[i] = { ...field, label: e.target.value }; setFields(newF); }} className="flex-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 dark:text-white" />
+                             <div className="p-2 bg-surface-container dark:bg-gray-700 rounded-lg text-surface-on-variant dark:text-gray-400"><Hash size={16}/></div>
+                             <input value={field.label} onChange={e => { const newF = [...fields]; newF[i] = { ...field, label: e.target.value }; setFields(newF); }} className="flex-1 p-2 bg-surface-container dark:bg-gray-700 rounded-lg border border-surface-outline-variant dark:border-gray-600 dark:text-gray-200" />
                              <button onClick={() => setFields(fields.filter((_, idx) => idx !== i))} className="text-red-500 p-2"><Trash2 size={16}/></button>
                         </div>
                     ))}
-                    <button onClick={() => setFields([...fields, { id: generateUUID(), label: 'New Field', value: '', icon: 'FileText' }])} className="w-full p-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-bold text-slate-600 dark:text-slate-300 mt-2">+ Add Field</button>
+                    <button onClick={() => setFields([...fields, { id: generateUUID(), label: 'New Field', value: '', icon: 'FileText' }])} className="w-full p-3 bg-surface-container dark:bg-gray-700 rounded-xl font-bold text-surface-on dark:text-gray-300 mt-2">+ Add Field</button>
                 </div>
-                <div className="p-4 border-t border-slate-100 dark:border-slate-700">
-                    <button onClick={handleSave} className="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white py-3.5 rounded-[20px] font-bold shadow-sm hover:shadow-md transition-all active:scale-95">Save Changes</button>
+                <div className="p-4 border-t border-surface-outline-variant dark:border-gray-700">
+                    <button onClick={handleSave} className="w-full bg-primary text-primary-on dark:text-primary-on py-3.5 rounded-[20px] font-bold shadow-sm hover:shadow-md transition-all active:scale-95">Save Changes</button>
                 </div>
             </div>
         </div>, document.body
@@ -973,16 +920,16 @@ export const ReportPreviewModal = ({ project, locations, companyLogo, onClose, o
 
     return createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={handleClose}>
-             <div className="bg-white dark:bg-slate-800 w-full max-w-4xl h-[90vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center shrink-0">
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl"><h3 className="font-bold text-slate-800 dark:text-white">Report Preview</h3></div>
+             <div className="bg-surface dark:bg-gray-800 w-full max-w-4xl h-[90vh] rounded-3xl shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-surface-outline-variant dark:border-gray-700 flex justify-center items-center shrink-0">
+                    <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-2xl"><h3 className="font-bold text-surface-on dark:text-gray-100">Report Preview</h3></div>
                 </div>
-                <div className="flex-1 overflow-auto bg-slate-200 dark:bg-slate-950 relative">
+                <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 relative">
                      {url ? <PDFCanvasPreview pdfUrl={url} onPageClick={handlePageClick} maps={maps} marks={marks} /> : <div className="flex justify-center p-10"><div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"/></div>}
                 </div>
-                <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex gap-3 shrink-0 bg-white dark:bg-slate-800">
-                    <button onClick={handleClose} className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancel</button>
-                    <button onClick={handleSave} className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">Save</button>
+                <div className="p-4 border-t border-surface-outline-variant dark:border-gray-700 flex gap-3 shrink-0 bg-surface dark:bg-gray-800">
+                    <button onClick={handleClose} className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-300 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                    <button onClick={handleSave} className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-200 bg-surface dark:bg-gray-800 border border-surface-outline-variant dark:border-gray-600 hover:bg-surface-container dark:hover:bg-gray-700 transition-colors shadow-sm">Save</button>
                 </div>
              </div>
         </div>, document.body
@@ -994,25 +941,25 @@ export const TemplateEditorModal = ({ templates, onUpdate, onClose }: any) => {
     const handleSave = () => { onUpdate(temp); onClose(); };
     return createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-             <div className="bg-white dark:bg-slate-800 w-full max-w-2xl h-[80vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 dark:text-white">Edit Templates</h3>
-                    <button onClick={onClose}><X size={20} className="text-slate-500" /></button>
+             <div className="bg-surface dark:bg-gray-800 w-full max-w-2xl h-[80vh] rounded-3xl shadow-xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                 <div className="p-4 border-b border-surface-outline-variant dark:border-gray-700 flex justify-between items-center">
+                    <h3 className="font-bold text-surface-on dark:text-gray-100">Edit Templates</h3>
+                    <button onClick={onClose}><X size={20} className="text-surface-on-variant dark:text-gray-400" /></button>
                 </div>
                 <div className="flex-1 overflow-auto p-6 space-y-6">
                     {temp.map((t: any, i: number) => (
                         <div key={t.id} className="space-y-4">
-                            <input value={t.name} onChange={e => { const n = [...temp]; n[i].name = e.target.value; setTemp(n); }} className="w-full font-bold text-lg bg-transparent border-b border-slate-200 dark:border-slate-700 outline-none dark:text-white" />
+                            <input value={t.name} onChange={e => { const n = [...temp]; n[i].name = e.target.value; setTemp(n); }} className="w-full font-bold text-lg bg-transparent border-b border-surface-outline-variant dark:border-gray-700 outline-none dark:text-gray-200" />
                             {t.sections.map((s: any, j: number) => (
-                                <div key={s.id} className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
-                                    <input value={s.title} onChange={e => { const n = [...temp]; n[i].sections[j].title = e.target.value; setTemp(n); }} className="w-full font-bold bg-transparent outline-none dark:text-white" />
-                                    <textarea value={s.body} onChange={e => { const n = [...temp]; n[i].sections[j].body = e.target.value; setTemp(n); }} className="w-full h-32 bg-transparent outline-none resize-none dark:text-slate-300" />
+                                    <div key={s.id} className="p-4 bg-surface-container dark:bg-gray-700 rounded-2xl border border-surface-outline-variant dark:border-gray-600 space-y-2">
+                                        <input value={s.title} onChange={e => { const n = [...temp]; n[i].sections[j].title = e.target.value; setTemp(n); }} className="w-full font-bold bg-transparent outline-none dark:text-gray-200" />
+                                        <textarea value={s.body} onChange={e => { const n = [...temp]; n[i].sections[j].body = e.target.value; setTemp(n); }} className="w-full h-32 bg-transparent outline-none resize-none dark:text-gray-300" />
                                 </div>
                             ))}
                         </div>
                     ))}
                 </div>
-                <div className="p-4 border-t border-slate-100 dark:border-slate-700">
+                <div className="p-4 border-t border-surface-outline-variant dark:border-gray-700">
                     <button onClick={handleSave} className="w-full bg-primary text-white p-3 rounded-xl font-bold">Save Templates</button>
                 </div>
              </div>
@@ -1098,19 +1045,19 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
     return createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
             {isTemplateEditorOpen ? ( <TemplateEditorModal templates={templates} onUpdate={onUpdateTemplates} onClose={() => setIsTemplateEditorOpen(false)} /> ) : (
-                <div className="bg-white dark:bg-slate-800 w-full max-w-2xl h-[90vh] rounded-[32px] shadow-xl flex flex-col overflow-hidden">
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center shrink-0 relative">
-                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl"><h3 className="font-bold text-slate-800 dark:text-white">Sign Off</h3></div>
-                        <button onClick={() => setIsTemplateEditorOpen(true)} className="absolute right-4 p-2 bg-slate-100 dark:bg-slate-700 rounded-2xl text-slate-500 hover:text-slate-800 dark:text-slate-400"><Settings size={20} className="text-slate-500 dark:text-slate-400" /></button>
+                <div className="bg-surface dark:bg-gray-800 w-full max-w-2xl h-[90vh] rounded-3xl shadow-xl flex flex-col overflow-hidden">
+                    <div className="p-4 border-b border-surface-outline-variant dark:border-gray-700 flex justify-center items-center shrink-0 relative">
+                        <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-2xl"><h3 className="font-bold text-surface-on dark:text-gray-100">Sign Off</h3></div>
+                        <button onClick={() => setIsTemplateEditorOpen(true)} className="absolute right-4 p-2 bg-surface-container dark:bg-gray-700 rounded-2xl text-surface-on-variant hover:text-surface-on dark:text-gray-400 dark:hover:text-gray-100"><Settings size={20} className="text-surface-on-variant dark:text-gray-400" /></button>
                     </div>
-                    <div ref={overlayRef} style={{ overflow: 'hidden' }} className="flex-1 bg-slate-200 dark:bg-slate-950 relative touch-none" onWheel={handleWheel}>
+                    <div ref={overlayRef} style={{ overflow: 'hidden' }} className="flex-1 bg-gray-100 dark:bg-gray-900 relative touch-none" onWheel={handleWheel}>
                          {pdfUrl ? ( <div className="relative min-h-full"><PDFCanvasPreview pdfUrl={pdfUrl} onAllPagesRendered={() => setResizeTrigger(prev => prev + 1)} /><canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, zIndex: 50, cursor: 'crosshair', touchAction: 'none' }} className="touch-none" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onLostPointerCapture={handlePointerUp} /></div> ) : ( <div className="flex justify-center p-10"><div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full"/></div> )}
                     </div>
-                    <div className="border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20">
-                        <div className="py-2 text-center select-none"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">2 Fingers to Scroll • Pen to Ink • 1 Finger to Erase</span></div>
+                    <div className="border-t border-surface-outline-variant dark:border-gray-700 bg-surface dark:bg-gray-800 shrink-0 z-20">
+                        <div className="py-2 text-center select-none"><span className="text-[10px] font-bold text-surface-on-variant dark:text-gray-400 uppercase tracking-wide">2 Fingers to Scroll • Pen to Ink • 1 Finger to Erase</span></div>
                         <div className="p-4 pt-0 flex gap-3">
-                            <button onClick={onClose} className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancel</button>
-                            <button onClick={handleSave} className="flex-1 py-3 rounded-[20px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">Save</button>
+                            <button onClick={onClose} className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-300 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                            <button onClick={handleSave} className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-200 bg-surface dark:bg-gray-800 border border-surface-outline-variant dark:border-gray-600 hover:bg-surface-container dark:hover:bg-gray-700 transition-colors shadow-sm">Save</button>
                         </div>
                     </div>
                 </div>
@@ -1132,16 +1079,16 @@ const EmailOptionsModal = ({ onClose, project, locations, companyLogo, signOffTe
     const handleEmailSignOff = async () => { setIsGenerating(true); try { const signOffFile = await generateSignOffFile(); await handleShare([signOffFile]); } catch (e) { console.error("Failed to generate sign off", e); } finally { setIsGenerating(false); } };
     return createPortal(
     <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-        <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl w-full max-w-sm p-6 animate-dialog-enter border border-slate-100 dark:border-slate-700">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 text-center">Share Documents</h3>
-            {isGenerating ? ( <div className="flex flex-col items-center justify-center py-8"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div><p className="text-slate-500 font-medium">Generating PDFs...</p></div> ) : (
+        <div onClick={(e) => e.stopPropagation()} className="bg-surface dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-sm p-6 animate-dialog-enter border border-surface-outline-variant dark:border-gray-700">
+            <h3 className="text-xl font-bold text-surface-on dark:text-gray-100 mb-6 text-center">Share Documents</h3>
+            {isGenerating ? ( <div className="flex flex-col items-center justify-center py-8"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div><p className="text-surface-on-variant dark:text-gray-400 font-medium">Generating PDFs...</p></div> ) : (
                 <div className="space-y-3">
                     <button onClick={handleEmailAll} className="w-full py-4 rounded-2xl font-bold text-white bg-primary hover:bg-primary/90 flex items-center justify-center gap-2"><Mail size={20} />Email All Docs</button>
-                    <button onClick={handleEmailReport} className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"><FileText size={20} />Email Report Only</button>
-                    <button onClick={handleEmailSignOff} className="w-full py-4 rounded-2xl font-bold text-slate-700 dark:text-white bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center gap-2"><PenTool size={20} />Email Sign Off Only</button>
+                    <button onClick={handleEmailReport} className="w-full py-4 rounded-2xl font-bold text-surface-on dark:text-gray-100 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600 flex items-center justify-center gap-2"><FileText size={20} />Email Report Only</button>
+                    <button onClick={handleEmailSignOff} className="w-full py-4 rounded-2xl font-bold text-surface-on dark:text-gray-100 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600 flex items-center justify-center gap-2"><PenTool size={20} />Email Sign Off Only</button>
                 </div>
             )}
-            <button onClick={onClose} disabled={isGenerating} className="w-full mt-6 py-3 rounded-full font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-50">Cancel</button>
+            <button onClick={onClose} disabled={isGenerating} className="w-full mt-6 py-3 rounded-full font-bold text-surface-on-variant dark:text-gray-400 hover:bg-surface-container dark:hover:bg-gray-800/50 disabled:opacity-50">Cancel</button>
         </div>
     </div>, document.body );
 };
@@ -1170,9 +1117,7 @@ export const Dashboard = React.memo<DashboardProps>(({
   isExiting = false,
   onDelete,
   isClientInfoCollapsed,
-  onToggleClientInfo,
-  homeownerManualUrl,
-  onHomeownerManualClick
+  onToggleClientInfo
 }) => {
     const [shouldInitialExpand] = useState(initialExpand);
 
@@ -1264,13 +1209,14 @@ export const Dashboard = React.memo<DashboardProps>(({
     
     return (
         <div 
-            className={`min-h-screen animate-fade-in ${embedded ? 'bg-transparent pb-0 pt-0' : 'bg-slate-200 dark:bg-slate-950 pb-32'}`}
+            className={`min-h-screen animate-fade-in ${embedded ? 'bg-gray-200 dark:bg-gray-950 pb-6 pt-6' : 'bg-gray-200 dark:bg-gray-950 pb-32'}`}
+            style={{ pointerEvents: 'auto' }}
         >
-            <div className={`max-w-3xl mx-auto ${embedded ? 'space-y-4 p-0' : 'p-6 space-y-8'} relative ${shouldInitialExpand ? 'animate-expand-sections origin-top overflow-hidden opacity-0' : ''}`}>
+            <div className={`max-w-3xl mx-auto ${embedded ? 'space-y-4 p-0 pt-8 pb-8' : 'p-6 space-y-8'} relative ${shouldInitialExpand ? 'animate-expand-sections origin-top overflow-hidden opacity-0' : ''}`} style={{ pointerEvents: 'auto' }}>
                 
                 {/* Active Report Card Header */}
                 <div 
-                    className={`${isCreating ? 'opacity-0 animate-slide-up' : ''} ${isExiting ? 'animate-scale-out' : ''}`} 
+                    className={`${isCreating ? 'opacity-0 animate-slide-up' : 'opacity-100'} ${isExiting ? 'animate-scale-out' : ''} ${embedded ? 'pt-8' : ''}`} 
                     style={{ 
                         animationDelay: '0ms',
                         animationFillMode: isCreating ? 'both' : undefined
@@ -1283,92 +1229,78 @@ export const Dashboard = React.memo<DashboardProps>(({
                         onDelete={onDelete}
                         hasDocs={hasDocs}
                         actions={{
-                            onEmail: () => setIsEmailOptionsOpen(true),
-                            onViewReport: () => setShowReportPreview(true),
-                            onViewSignOff: () => setShowSignOff(true)
+                            onEmail: () => {
+                                console.log('Email button clicked');
+                                setIsEmailOptionsOpen(true);
+                            },
+                            onViewReport: () => {
+                                console.log('Report preview button clicked, setting showReportPreview to true');
+                                setShowReportPreview(true);
+                            },
+                            onViewSignOff: () => {
+                                console.log('Sign off button clicked, setting showSignOff to true');
+                                setShowSignOff(true);
+                            },
+                            onDownloadReportPDF: async () => {
+                                console.log('Download Report PDF button clicked');
+                                try {
+                                    const getSafeName = () => {
+                                        const name = project.fields?.[0]?.value || "Project";
+                                        return name.replace(/[^a-z0-9]/gi, '_');
+                                    };
+                                    const res = await generatePDFWithMetadata({ project, locations }, companyLogo, project.reportMarks);
+                                    const blob = res.doc.output('blob');
+                                    const filename = `${getSafeName()} - New Home Completion List.pdf`;
+                                    
+                                    // Create download link
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = filename;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                } catch (error) {
+                                    console.error('Error downloading report PDF:', error);
+                                }
+                            },
+                            onDownloadSignOffPDF: async () => {
+                                console.log('Download Sign Off PDF button clicked');
+                                try {
+                                    const getSafeName = () => {
+                                        const name = project.fields?.[0]?.value || "Project";
+                                        return name.replace(/[^a-z0-9]/gi, '_');
+                                    };
+                                    const blobUrl = await generateSignOffPDF(project, SIGN_OFF_TITLE, signOffTemplates[0], companyLogo, project.signOffImage, project.signOffStrokes, 800, undefined, 16);
+                                    const blob = await fetch(blobUrl).then(r => r.blob());
+                                    const filename = `${getSafeName()} - Sign Off Sheet.pdf`;
+                                    
+                                    // Create download link
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = filename;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                } catch (error) {
+                                    console.error('Error downloading sign off PDF:', error);
+                                }
+                            }
                         }}
-                        onViewAllItems={() => setIsAllItemsOpen(true)}
+                        onViewAllItems={() => {
+                            console.log('View all items clicked, setting isAllItemsOpen to true');
+                            setIsAllItemsOpen(true);
+                        }}
                      />
-                </div>
-
-                {/* Project Details Form */}
-                <div 
-                    className={`bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-sm border border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out overflow-hidden ${animationClass} ${embedded && !shouldInitialExpand ? 'animate-fade-in' : ''} ${isCreating ? 'opacity-0 animate-slide-up' : ''} ${isExiting ? 'animate-slide-down-exit' : ''}`}
-                    style={{
-                        animationDelay: embedded && !shouldInitialExpand ? '0ms' : (isCreating ? '400ms' : '0ms'),
-                        animationFillMode: isCreating || isExiting ? 'both' : undefined
-                    }}
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3 w-full justify-center relative">
-                            {/* Edit Button Left */}
-                            <button
-                                onClick={() => setIsEditClientInfoOpen(true)}
-                                className="absolute left-0 p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors"
-                                title="Edit Info Schema"
-                            >
-                                <Pencil size={20} />
-                            </button>
-                            
-                            {/* Title Center - Updated to Rounded Full (Pill) */}
-                            <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2.5 rounded-full">
-                                <h2 className="text-lg font-bold text-slate-600 dark:text-slate-300">Client Information</h2>
-                            </div>
-
-                             {/* Collapse Right */}
-                             <button 
-                                onClick={() => setDetailsCollapsed(!isDetailsCollapsed)}
-                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                            >
-                                {isDetailsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isDetailsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[1000px] opacity-100'}`}>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2 animate-fade-in p-2">
-                            {(project.fields || []).map((field, idx) => (
-                                <div key={field.id} className={field.icon === 'MapPin' ? 'lg:col-span-2' : ''}>
-                                    <DetailInput
-                                        field={field}
-                                        onChange={(val) => handleFieldChange(idx, val)}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                        <div className="mt-6 flex justify-center">
-                            <div className="flex justify-center items-center gap-3 w-full flex-wrap">
-                                <button
-                                    onClick={() => setDetailsCollapsed(true)}
-                                    className="px-12 bg-white/10 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-full font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center justify-center gap-2 active:scale-[0.99] backdrop-blur-sm"
-                                >
-                                    <Check size={18} />
-                                    Save Info
-                                </button>
-                                {(homeownerManualUrl || onHomeownerManualClick) && (
-                                    <button
-                                        onClick={() => {
-                                            if (onHomeownerManualClick) {
-                                                onHomeownerManualClick();
-                                            } else if (homeownerManualUrl) {
-                                                window.open(homeownerManualUrl, '_blank', 'noopener,noreferrer');
-                                            }
-                                        }}
-                                        className="px-6 bg-white/10 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-full font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center justify-center gap-2 active:scale-[0.99] backdrop-blur-sm"
-                                    >
-                                        <BookOpen size={18} />
-                                        Homeowner Manual
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Locations Section */}
                 <div 
                     ref={locationsRef} 
-                    className={`bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-sm border border-slate-200 dark:border-slate-800 transition-all duration-300 ${animationClass} ${embedded && !shouldInitialExpand ? 'animate-fade-in' : ''} ${isCreating ? 'opacity-0 animate-slide-up' : ''} ${isExiting ? 'animate-slide-down-exit' : ''}`}
+                    className={`bg-surface dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-surface-outline-variant dark:border-gray-700 transition-all duration-300 ${animationClass} ${embedded && !shouldInitialExpand ? 'animate-fade-in' : ''} ${isCreating ? 'opacity-0 animate-slide-up' : ''} ${isExiting ? 'animate-slide-down-exit' : ''}`}
                     style={{
                         animationDelay: embedded && !shouldInitialExpand ? '100ms' : (isCreating ? '700ms' : '100ms'),
                         animationFillMode: isCreating || isExiting ? 'both' : undefined
@@ -1380,28 +1312,20 @@ export const Dashboard = React.memo<DashboardProps>(({
                             {/* Manage Locations Left */}
                             <button
                                 onClick={() => setIsManageLocationsOpen(true)}
-                                className="absolute left-0 p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors shrink-0 z-10"
+                                className="absolute left-0 p-3 bg-surface-container dark:bg-gray-700 rounded-2xl text-surface-on-variant hover:text-primary dark:text-gray-400 dark:hover:text-primary transition-colors shrink-0 z-10"
                                 title="Manage Locations"
                             >
                                 <Pencil size={20} />
                             </button>
 
                             {/* Title Center - Updated to Rounded Full (Pill) */}
-                            <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2.5 rounded-full">
-                                <h2 className="text-lg font-bold text-slate-600 dark:text-slate-300">Report Items</h2>
+                            <div className="bg-surface-container dark:bg-gray-700 px-6 py-2.5 rounded-full">
+                                <h2 className="text-lg font-bold text-surface-on dark:text-gray-200">Report Items</h2>
                             </div>
-
-                            {/* Collapse Right */}
-                            <button 
-                                onClick={() => setIsLocationsCollapsed(!isLocationsCollapsed)}
-                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0 z-10"
-                            >
-                                 {isLocationsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                            </button>
                         </div>
                     </div>
                     
-                    <div className={`transition-all duration-500 ease-in-out overflow-hidden pt-2 ${isLocationsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[5000px] opacity-100'}`}>
+                    <div className="transition-all duration-500 ease-in-out overflow-hidden pt-2">
                         {/* Search Row */}
                         <div className="flex justify-center mb-6 relative z-20 px-2">
                             <div className="w-full max-w-md relative">
@@ -1427,25 +1351,37 @@ export const Dashboard = React.memo<DashboardProps>(({
                                         }
                                     }}
                                     placeholder="Start typing to add a location"
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-5 py-3 text-left text-sm text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                                    className="w-full bg-surface-container dark:bg-gray-700 border border-surface-outline-variant dark:border-gray-600 rounded-full pl-14 pr-5 py-3 text-left text-sm text-surface-on dark:text-gray-200 font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                                 />
                                 
                                 {showLocationSuggestions && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl max-h-48 overflow-y-auto z-[100] animate-fade-in text-left">
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-surface dark:bg-gray-800 border border-surface-outline-variant dark:border-gray-700 rounded-2xl shadow-xl max-h-48 overflow-y-auto z-[200] animate-fade-in text-left">
                                         {filteredLocationSuggestions.length > 0 ? (
                                             filteredLocationSuggestions.map(loc => (
                                                 <button
                                                     key={loc}
-                                                    onClick={() => handleLocationSelect(loc)}
-                                                    className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-0 truncate"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        console.log('Location suggestion clicked:', loc);
+                                                        handleLocationSelect(loc);
+                                                    }}
+                                                    className="w-full text-left px-5 py-3 hover:bg-surface-container dark:hover:bg-gray-700 text-surface-on dark:text-gray-200 font-medium transition-colors border-b border-surface-outline-variant/50 dark:border-gray-700/50 last:border-0 truncate"
+                                                    type="button"
                                                 >
                                                     {loc}
                                                 </button>
                                             ))
                                         ) : (
                                             <button
-                                                 onClick={() => handleLocationSelect(locationSearch)}
-                                                 className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 text-primary dark:text-blue-400 font-bold transition-colors italic"
+                                                 onClick={(e) => {
+                                                     e.preventDefault();
+                                                     e.stopPropagation();
+                                                     console.log('Create new location clicked:', locationSearch);
+                                                     handleLocationSelect(locationSearch);
+                                                 }}
+                                                 className="w-full text-left px-5 py-3 hover:bg-surface-container dark:hover:bg-gray-700 text-primary dark:text-primary font-bold transition-colors italic"
+                                                 type="button"
                                              >
                                                  Create new: "{locationSearch}"
                                              </button>
@@ -1465,7 +1401,7 @@ export const Dashboard = React.memo<DashboardProps>(({
                             ))}
                             
                             {visibleLocations.length === 0 && (
-                                <div className="col-span-full py-8 text-center text-slate-400">
+                                <div className="col-span-full py-8 text-center text-surface-on-variant dark:text-gray-400">
                                     <p>No active items.</p>
                                 </div>
                             )}
@@ -1473,10 +1409,15 @@ export const Dashboard = React.memo<DashboardProps>(({
 
                          <div className="mt-8 flex justify-center pb-2">
                              <button 
-                                onClick={() => setIsAllItemsOpen(true)}
-                                className="px-12 bg-white/10 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-full font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all flex items-center justify-center gap-2 active:scale-[0.99] backdrop-blur-sm"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    console.log('View all items button clicked (from locations section)');
+                                    setIsAllItemsOpen(true);
+                                }}
+                                className="px-8 bg-surface-container dark:bg-gray-700 border border-surface-outline-variant dark:border-gray-600 text-surface-on dark:text-gray-200 py-2 rounded-full text-xs font-bold shadow-sm hover:bg-surface-container-high dark:hover:bg-gray-600 transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
                             >
-                                <Layers size={18} />
+                                <Layers size={14} />
                                 View All Items
                             </button>
                         </div>

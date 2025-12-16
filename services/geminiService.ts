@@ -1,32 +1,38 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize client directly with process.env.API_KEY as per guidelines
-// Ensure your build process or environment polyfills process.env.API_KEY correctly.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization - only create client when needed and if API key is available
+let ai: GoogleGenAI | null = null;
 
-export const analyzeDefectImage = async (imageUrl: string): Promise<string> => {
-  try {
-    // Convert Cloudinary URL to base64 if needed
-    let cleanBase64: string;
-    if (imageUrl.startsWith('data:')) {
-      // Already base64
-      cleanBase64 = imageUrl.split(',')[1] || imageUrl;
+function getAI(): GoogleGenAI | null {
+  if (!ai) {
+    // Check for API key in environment variables (Vite uses import.meta.env)
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.API_KEY;
+    if (apiKey) {
+      try {
+        ai = new GoogleGenAI({ apiKey });
+      } catch (error) {
+        console.warn('Failed to initialize GoogleGenAI:', error);
+        return null;
+      }
     } else {
-      // Convert URL to base64
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const reader = new FileReader();
-      cleanBase64 = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const base64data = reader.result as string;
-          resolve(base64data.split(',')[1] || base64data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      return null;
     }
+  }
+  return ai;
+}
 
-    const response = await ai.models.generateContent({
+export const analyzeDefectImage = async (base64Image: string): Promise<string> => {
+  const aiClient = getAI();
+  if (!aiClient) {
+    console.warn('GoogleGenAI not available - API key not set');
+    return 'AI analysis unavailable - API key not configured';
+  }
+
+  try {
+    // Remove header if present (data:image/jpeg;base64,)
+    const cleanBase64 = base64Image.split(',')[1] || base64Image;
+
+    const response = await aiClient.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: {
         role: 'user',
@@ -52,8 +58,14 @@ export const analyzeDefectImage = async (imageUrl: string): Promise<string> => {
 };
 
 export const suggestFix = async (issueDescription: string): Promise<string> => {
+    const aiClient = getAI();
+    if (!aiClient) {
+        console.warn('GoogleGenAI not available - API key not set');
+        return '';
+    }
+
     try {
-        const response = await ai.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
         });

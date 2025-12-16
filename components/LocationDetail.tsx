@@ -2,181 +2,13 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
-import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check, Loader2 } from 'lucide-react';
+import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check } from 'lucide-react';
 import { PREDEFINED_LOCATIONS, generateUUID } from '../constants';
 import { ImageEditor } from './ImageEditor';
 import { analyzeDefectImage } from '../services/geminiService';
-import { uploadToCloudinary } from '../services/cloudinaryService';
 import { createPortal } from 'react-dom';
 
-// Thumbnail component for grid view (AddItemForm)
-const PhotoThumbnailGrid: React.FC<{
-    photo: IssuePhoto;
-    onEdit: () => void;
-    onDelete: () => void;
-    onDescriptionChange: (desc: string) => void;
-}> = ({ photo, onEdit, onDelete, onDescriptionChange }) => {
-    const [isLoading, setIsLoading] = useState(true);
-    const [hasError, setHasError] = useState(false);
-
-    useEffect(() => {
-        setIsLoading(true);
-        setHasError(false);
-    }, [photo.url]);
-
-    return (
-        <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden relative group">
-            <div className="aspect-square w-full relative bg-slate-100 dark:bg-slate-800">
-                {/* Loading Spinner */}
-                {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center z-10">
-                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                    </div>
-                )}
-                
-                {/* Error State */}
-                {hasError && (
-                    <div className="absolute inset-0 flex items-center justify-center z-10">
-                        <div className="text-center p-2">
-                            <Camera className="h-8 w-8 text-slate-400 mx-auto mb-1" />
-                            <span className="text-xs text-slate-400">Failed to load</span>
-                        </div>
-                    </div>
-                )}
-                
-                <img 
-                    src={photo.url} 
-                    alt="Issue" 
-                    className={`w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                    onLoad={() => setIsLoading(false)}
-                    onError={() => {
-                        setIsLoading(false);
-                        setHasError(true);
-                    }}
-                    onClick={onEdit}
-                />
-                {/* Edit Icon Always Visible */}
-                {!isLoading && !hasError && (
-                    <>
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                            <Edit2 size={24} className="text-white drop-shadow-md" />
-                        </div>
-                        <button 
-                            onClick={onDelete}
-                            className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full transition-colors z-10"
-                        >
-                            <X size={14} />
-                        </button>
-                    </>
-                )}
-            </div>
-            <div className="p-2">
-                <input 
-                    type="text"
-                    value={photo.description || ""}
-                    onChange={(e) => onDescriptionChange(e.target.value)}
-                    placeholder="Caption..."
-                    className="w-full bg-white dark:bg-slate-800 text-xs px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-white"
-                />
-            </div>
-        </div>
-    );
-};
-
-// Thumbnail component with loading state
-const PhotoThumbnail: React.FC<{
-    photo: IssuePhoto;
-    onEdit: () => void;
-    onDelete: () => void;
-    onDescriptionChange: (desc: string) => void;
-    showCaption?: boolean;
-    size?: 'small' | 'medium' | 'large';
-}> = ({ photo, onEdit, onDelete, onDescriptionChange, showCaption = true, size = 'medium' }) => {
-    const [isLoading, setIsLoading] = useState(true);
-    const [hasError, setHasError] = useState(false);
-    const imgRef = useRef<HTMLImageElement>(null);
-
-    const sizeClasses = {
-        small: 'w-24',
-        medium: 'w-28',
-        large: 'w-full'
-    };
-
-    useEffect(() => {
-        // Reset loading state when photo URL changes
-        setIsLoading(true);
-        setHasError(false);
-    }, [photo.url]);
-
-    return (
-        <div className={`flex flex-col ${sizeClasses[size]} shrink-0 gap-1.5 group/wrapper`}>
-            <div 
-                className={`w-full aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group/photo cursor-pointer bg-slate-100 dark:bg-slate-800`}
-            >
-                {/* Loading Spinner */}
-                {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 z-10">
-                        <Loader2 className="h-6 w-6 text-primary animate-spin" />
-                    </div>
-                )}
-                
-                {/* Error State */}
-                {hasError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 z-10">
-                        <div className="text-center p-2">
-                            <Camera className="h-6 w-6 text-slate-400 mx-auto mb-1" />
-                            <span className="text-[10px] text-slate-400">Failed to load</span>
-                        </div>
-                    </div>
-                )}
-                
-                {/* Image */}
-                <img 
-                    ref={imgRef}
-                    src={photo.url} 
-                    alt="Thumbnail" 
-                    className={`w-full h-full object-cover transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                    onLoad={() => setIsLoading(false)}
-                    onError={() => {
-                        setIsLoading(false);
-                        setHasError(true);
-                    }}
-                    onClick={onEdit}
-                />
-                
-                {/* Edit Overlay */}
-                {!isLoading && !hasError && (
-                    <>
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none">
-                            <Edit2 size={16} className="text-white drop-shadow-md" />
-                        </div>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onDelete();
-                            }}
-                            className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"
-                        >
-                            <X size={12} />
-                        </button>
-                    </>
-                )}
-            </div>
-            
-            {/* Caption Input */}
-            {showCaption && (
-                <input
-                    value={photo.description || ""}
-                    onChange={(e) => onDescriptionChange(e.target.value)}
-                    placeholder="Caption..."
-                    className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none focus:border-primary dark:text-slate-200"
-                />
-            )}
-        </div>
-    );
-};
-
-// --- Shared Helper (kept for backward compatibility, but now uses Cloudinary) ---
+// --- Shared Helper ---
 export const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -287,7 +119,7 @@ export const DeleteConfirmationModal = ({
                 margin: 0,
                 transform: 'none'
             } : {}}
-            className={`bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl border-2 border-red-500/50 animate-pulse-border-red flex flex-col items-center text-center overflow-hidden transition-all duration-300 ${isExiting ? 'scale-95 opacity-0' : 'animate-dialog-enter'} ${targetRect ? 'justify-center p-2 box-border' : 'w-full max-w-sm p-6'}`}
+            className={`bg-surface dark:bg-gray-800 rounded-[32px] shadow-2xl border-2 border-red-500/50 animate-pulse-border-red flex flex-col items-center text-center overflow-hidden transition-all duration-300 ${isExiting ? 'scale-95 opacity-0' : 'animate-dialog-enter'} ${targetRect ? 'justify-center p-2 box-border' : 'w-full max-w-sm p-6'}`}
         >
             <div className={`w-full h-full flex flex-col items-center justify-center ${targetRect ? 'p-2' : ''}`}>
                 
@@ -298,8 +130,8 @@ export const DeleteConfirmationModal = ({
                 )}
                 
                 {!targetRect && (
-                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full mb-2 shrink-0">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
+                    <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-full mb-2 shrink-0">
+                        <h3 className="text-lg font-bold text-surface-on dark:text-gray-100">{title}</h3>
                     </div>
                 )}
                 
@@ -311,7 +143,7 @@ export const DeleteConfirmationModal = ({
                     <button 
                         onClick={onCancel}
                         disabled={isExiting}
-                        className="flex-1 py-3 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                        className="flex-1 py-3 rounded-[20px] font-bold text-surface-on dark:text-gray-300 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600 transition-colors"
                     >
                         Cancel
                     </button>
@@ -439,19 +271,33 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
             try {
-                // Upload to Cloudinary instead of compressing to base64
-                const result = await uploadToCloudinary(e.target.files[0], 'bluetag/photos');
-                // Add unique ID for the new photo
-                setPhotos(prev => [...prev, { id: generateUUID(), url: result.url, description: '' }]);
+                // Show thumbnail immediately using object URL (instant)
+                const tempUrl = URL.createObjectURL(file);
+                const tempPhoto = { id: generateUUID(), url: tempUrl, description: '' };
+                
+                // Add photo immediately with temp URL
+                setPhotos(prev => [...prev, tempPhoto]);
+                
+                // Compress image in background and replace temp URL
+                const compressed = await compressImage(file);
+                setPhotos(prev => prev.map(p => 
+                    p.id === tempPhoto.id ? { ...p, url: compressed } : p
+                ));
+                
+                // Clean up temporary object URL
+                URL.revokeObjectURL(tempUrl);
+                
                 // Reset input so same file can be selected again if needed
                 if (fileInputRef.current) {
                     fileInputRef.current.value = '';
                 }
-            } catch (err: any) {
-                console.error("Image upload failed", err);
-                const errorMessage = err?.message || "Failed to upload image";
-                alert(`Failed to add photo: ${errorMessage}`);
+            } catch (err) {
+                console.error("Image compression failed", err);
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
             }
         }
     };
@@ -534,9 +380,9 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     return createPortal(
         <>
             <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md overflow-y-auto animate-fade-in flex items-center justify-center min-h-full">
-                <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col animate-dialog-enter relative m-4">
-                    <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0 z-10 rounded-t-[32px]">
-                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full flex items-center gap-3">
+                <div className="bg-surface dark:bg-gray-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col animate-dialog-enter relative m-4">
+                    <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-surface dark:bg-gray-800 shrink-0 z-10 rounded-t-[32px]">
+                        <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-full flex items-center gap-3">
                             {itemNumber !== undefined && (
                                 <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold shadow-sm">
                                     {itemNumber}
@@ -550,20 +396,42 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
 
                     <div className="p-6 space-y-6">
                         <div>
-                            <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">Photos</label>
+                            <label className="inline-block bg-surface-container dark:bg-gray-700 text-surface-on dark:text-gray-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">Photos</label>
                             <div className="grid grid-cols-2 gap-3">
                                 {photos.map((photo, idx) => (
-                                    <PhotoThumbnailGrid
-                                        key={idx}
-                                        photo={photo}
-                                        onEdit={() => setEditingPhotoIndex(idx)}
-                                        onDelete={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
-                                        onDescriptionChange={(desc) => handlePhotoDescriptionChange(idx, desc)}
-                                    />
+                                    <div key={idx} className="bg-slate-50 dark:bg-slate-900 rounded-2xl border border-surface-outline-variant dark:border-gray-600 overflow-hidden relative group">
+                                        <div className="aspect-square w-full relative">
+                                            <img 
+                                                src={photo.url} 
+                                                alt="Issue" 
+                                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity" 
+                                                onClick={() => setEditingPhotoIndex(idx)}
+                                            />
+                                            {/* Edit Icon Always Visible */}
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                                                <Edit2 size={24} className="text-white drop-shadow-md" />
+                                            </div>
+                                            <button 
+                                                onClick={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
+                                                className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1.5 rounded-full transition-colors z-10"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="p-2">
+                                            <input 
+                                                type="text"
+                                                value={photo.description || ""}
+                                                onChange={(e) => handlePhotoDescriptionChange(idx, e.target.value)}
+                                                placeholder="Caption..."
+                                                className="w-full bg-surface dark:bg-gray-800 text-xs px-2 py-1.5 rounded-lg border border-surface-outline-variant dark:border-gray-600 outline-none focus:border-primary dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
                                 ))}
                                 <button 
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary dark:hover:text-white hover:border-primary/50 transition-colors"
+                                    className="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-surface-outline-variant dark:border-gray-600 flex flex-col items-center justify-center text-slate-400 hover:text-primary dark:hover:text-white hover:border-primary/50 transition-colors"
                                 >
                                     <Camera size={24} />
                                     <span className="text-[10px] font-bold mt-1">Add Photo</span>
@@ -582,7 +450,7 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                         <div>
                             {/* Header for Description */}
                             <div className="flex justify-between items-center mb-2">
-                                <label className="inline-block bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Description</label>
+                                <label className="inline-block bg-surface-container dark:bg-gray-700 text-surface-on dark:text-gray-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Description</label>
                                 <div className="flex items-center gap-3">
                                     {photos.length > 0 && (
                                         <button
@@ -592,8 +460,8 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                                                 isAnalyzing 
                                                     ? 'bg-primary/20 text-primary' 
                                                     : !isAnalyzing 
-                                                        ? 'bg-slate-100 dark:bg-slate-700 text-primary dark:text-blue-400 hover:bg-primary hover:text-white animate-breathing-glow ring-2 ring-primary/30'
-                                                        : 'bg-slate-100 dark:bg-slate-700 text-primary dark:text-blue-400 hover:bg-primary hover:text-white'
+                                                        ? 'bg-surface-container dark:bg-gray-700 text-primary dark:text-blue-400 hover:bg-primary hover:text-white animate-breathing-glow ring-2 ring-primary/30'
+                                                        : 'bg-surface-container dark:bg-gray-700 text-primary dark:text-blue-400 hover:bg-primary hover:text-white'
                                             }`}
                                             title="Analyze Image with AI"
                                         >
@@ -607,7 +475,7 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                                     
                                     <button 
                                     onClick={toggleListening}
-                                    className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                                    className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-surface-container dark:bg-gray-700 text-slate-500 dark:text-slate-400 hover:bg-surface-container-high dark:hover:bg-gray-600'}`}
                                     title={isListening ? 'Stop Recording' : 'Start Voice Input'}
                                     >
                                         {isListening ? <MicOff size={18} /> : <Mic size={18} />}
@@ -616,7 +484,7 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                             </div>
                             
                             {/* Styled Text Box Container */}
-                            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-[24px] p-2 shadow-inner focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                            <div className="bg-slate-50 dark:bg-slate-900 border border-surface-outline-variant dark:border-gray-600 rounded-[24px] p-2 shadow-inner focus-within:ring-2 focus-within:ring-primary/50 transition-all">
                                 <AutoResizeTextarea
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
@@ -634,7 +502,7 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                             className={`flex-1 py-3.5 rounded-[20px] font-bold transition-colors ${
                                 hasAddedItem && !isEditing
                                     ? 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20'
-                                    : 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                    : 'text-surface-on dark:text-gray-300 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600'
                             }`}
                         >
                             {hasAddedItem && !isEditing ? 'Done' : 'Cancel'}
@@ -754,33 +622,48 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0] && uploadIssueId) {
+            const file = e.target.files[0];
             try {
-                // Upload to Cloudinary instead of compressing to base64
-                const result = await uploadToCloudinary(e.target.files[0], 'bluetag/photos');
-                const newPhoto: IssuePhoto = {
-                     id: generateUUID(),
-                     url: result.url,
-                     description: ''
+                // Show thumbnail immediately using object URL (instant)
+                const tempUrl = URL.createObjectURL(file);
+                const tempPhoto: IssuePhoto = {
+                    id: generateUUID(),
+                    url: tempUrl,
+                    description: ''
                 };
 
+                // Add photo immediately with temp URL
                 setLocalIssues(prev => prev.map(i => {
                     if (i.id === uploadIssueId) {
-                        return { ...i, photos: [...i.photos, newPhoto] };
+                        return { ...i, photos: [...i.photos, tempPhoto] };
                     }
                     return i;
                 }));
 
+                // Compress image in background and replace temp URL
+                const compressed = await compressImage(file);
+                setLocalIssues(prev => prev.map(i => {
+                    if (i.id === uploadIssueId) {
+                        return {
+                            ...i,
+                            photos: i.photos.map(p => 
+                                p.id === tempPhoto.id ? { ...p, url: compressed } : p
+                            )
+                        };
+                    }
+                    return i;
+                }));
+
+                // Clean up temporary object URL
+                URL.revokeObjectURL(tempUrl);
+
                 // Reset
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 setUploadIssueId(null);
-            } catch (err: any) {
+            } catch (err) {
                 console.error("Image upload failed", err);
-                const errorMessage = err?.message || "Failed to add photo";
-                if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
-                    alert("Storage quota exceeded. Please delete old reports or clear cache in Settings.");
-                } else {
-                    alert(`Failed to add photo: ${errorMessage}`);
-                }
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                setUploadIssueId(null);
             }
         }
     };
@@ -810,11 +693,11 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
         <>
             <div className="fixed inset-0 z-[50] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
                 
-                <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-dialog-enter">
+                <div className="bg-surface dark:bg-gray-800 w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-dialog-enter">
                     
                     {/* Header: Centered Pill, No X */}
-                    <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-white dark:bg-slate-800 shrink-0 z-10">
-                        <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-2xl truncate max-w-[80%]">
+                    <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-center items-center bg-surface dark:bg-gray-800 shrink-0 z-10">
+                        <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-2xl truncate max-w-[80%]">
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white truncate">{location.name}</h3>
                         </div>
                     </div>
@@ -823,7 +706,7 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                         
                         <button
                             onClick={() => setIsAddIssueOpen(true)}
-                            className="w-full py-4 rounded-[24px] border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 text-slate-400 hover:text-primary dark:hover:text-white hover:border-primary/50 dark:hover:border-slate-500 bg-white dark:bg-slate-800 transition-all group active:scale-[0.99] shadow-sm"
+                            className="w-full py-4 rounded-[24px] border-2 border-dashed border-surface-outline-variant dark:border-gray-600 flex items-center justify-center gap-2 text-slate-400 hover:text-primary dark:hover:text-white hover:border-primary/50 dark:hover:border-slate-500 bg-surface dark:bg-gray-800 transition-all group active:scale-[0.99] shadow-sm"
                         >
                             <div className="w-10 h-10 rounded-2xl bg-slate-50 dark:bg-slate-900 shadow-sm flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
                                 <Plus size={20} />
@@ -833,21 +716,21 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
 
                         <div className="space-y-4">
                             {localIssues.map((issue, index) => (
-                                <div key={issue.id} className="bg-white dark:bg-slate-800 p-4 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-700 relative group">
+                                <div key={issue.id} className="bg-surface dark:bg-gray-800 p-4 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-700 relative group">
                                     <div className="flex justify-between items-start mb-2 gap-2">
-                                         <div className="bg-primary/10 text-primary dark:bg-slate-700 dark:text-slate-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-1">
+                                         <div className="bg-primary/10 text-primary dark:bg-slate-700 dark:text-surface-on-variant dark:text-gray-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-1">
                                              {index + 1}
                                          </div>
                                          <AutoResizeTextarea
                                             value={issue.description}
                                             onChange={(e) => handleDescriptionChange(issue.id, e.target.value)}
-                                            className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[40px]"
+                                            className="flex-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-200 border border-surface-outline-variant dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[40px]"
                                             placeholder="Item description..."
                                          />
                                          <div className="flex flex-col gap-1 shrink-0">
                                             <button 
                                                 onClick={() => setIssueToDelete(issue.id)}
-                                                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors shrink-0"
+                                                className="p-2 text-surface-on-variant dark:text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors shrink-0"
                                                 title="Delete"
                                             >
                                                 <Trash2 size={18} />
@@ -857,19 +740,41 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                                     
                                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide ml-8 items-start">
                                         {issue.photos.map((photo, idx) => (
-                                            <PhotoThumbnail
-                                                key={idx}
-                                                photo={photo}
-                                                onEdit={() => setEditingPhoto({ issueId: issue.id, photoIndex: idx })}
-                                                onDelete={() => handleDeletePhoto(issue.id, idx)}
-                                                onDescriptionChange={(desc) => handlePhotoCaptionChange(issue.id, idx, desc)}
-                                                size="medium"
-                                            />
+                                            <div key={idx} className="flex flex-col w-28 shrink-0 gap-1.5 group/wrapper">
+                                                <div 
+                                                    className="w-full aspect-square rounded-xl overflow-hidden border border-surface-outline-variant dark:border-gray-600 relative group/photo cursor-pointer"
+                                                >
+                                                    <img 
+                                                        src={photo.url} 
+                                                        alt="Thumbnail" 
+                                                        className="w-full h-full object-cover" 
+                                                        onClick={() => setEditingPhoto({ issueId: issue.id, photoIndex: idx })}
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none">
+                                                        <Edit2 size={16} className="text-white drop-shadow-md" />
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeletePhoto(issue.id, idx);
+                                                        }}
+                                                        className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </div>
+                                                <input
+                                                    value={photo.description || ""}
+                                                    onChange={(e) => handlePhotoCaptionChange(issue.id, idx, e.target.value)}
+                                                    placeholder="Caption..."
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 text-[10px] px-2 py-1.5 rounded-lg border border-surface-outline-variant dark:border-gray-600 outline-none focus:border-primary dark:text-slate-200"
+                                                />
+                                            </div>
                                         ))}
                                         
                                         <button 
                                             onClick={() => triggerUpload(issue.id)}
-                                            className="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                                            className="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-surface-outline-variant dark:border-gray-600 flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
                                             title="Add Photo"
                                         >
                                             <Camera size={20} />
@@ -887,10 +792,10 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                         )}
                     </div>
 
-                    <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 z-20 flex gap-3">
+                    <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-surface dark:bg-gray-800 shrink-0 z-20 flex gap-3">
                         <button 
                             onClick={onBack}
-                            className="flex-1 py-3.5 rounded-[20px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                            className="flex-1 py-3.5 rounded-[20px] font-bold text-surface-on dark:text-gray-300 bg-surface-container dark:bg-gray-700 hover:bg-surface-container-high dark:hover:bg-gray-600 transition-colors"
                         >
                             Cancel
                         </button>
