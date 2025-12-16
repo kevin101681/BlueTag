@@ -125,51 +125,78 @@ export const ReportCard: React.FC<ReportCardProps> = ({
         return `${base} bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid`;
     };
 
+    // Header Logic for standalone BlueTag layout
+    const nameStr = fields[0]?.value || "Project";
+    const subtitle = fields[1]?.value || "";
+    
     return (
         <div 
             ref={cardRef}
             onClick={!readOnly ? onClick : undefined}
-            className={`w-full bg-surface dark:bg-gray-800 rounded-3xl px-4 py-6 shadow-sm border border-surface-outline-variant dark:border-gray-700 transition-all relative group flex flex-col ${
+            className={`w-full bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-sm border border-slate-200 dark:border-slate-800 transition-all relative group flex flex-col ${
                 !readOnly && !isSelected ? 'hover:shadow-md hover:border-primary/50 cursor-pointer' : ''
-            } ${isSelected ? 'ring-2 ring-primary bg-primary-container/20' : ''}`}
+            } ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''}`}
         >
-            {/* Client Info Section - Re-enabled for visual confirmation */}
-            {fields.length > 0 && (
-                <div className="mb-6 pb-6 border-b border-surface-outline-variant dark:border-gray-700">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {fields.map((field, idx) => {
-                            const IconComponent = getIconComponent(field.icon);
-                            const linkProps = getLinkProps(field);
-                            const hasValue = field.value && field.value.trim() !== '';
-                            
-                            if (!hasValue && idx >= 2) return null; // Skip empty detail fields
-                            
-                            return (
-                                <div 
-                                    key={field.id} 
-                                    className={`flex items-center gap-3 p-3 rounded-xl bg-surface-container dark:bg-gray-700 ${
-                                        linkProps.href ? 'hover:bg-surface-container-high dark:hover:bg-gray-600 transition-colors cursor-pointer' : ''
-                                    }`}
-                                    {...(linkProps.href ? { onClick: (e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        if (linkProps.href) window.open(linkProps.href, linkProps.target || '_self');
-                                    }} : {})}
-                                >
-                                    <div className="p-2 bg-surface dark:bg-gray-800 rounded-lg text-primary dark:text-primary shrink-0">
-                                        <IconComponent size={18} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-xs text-surface-on-variant dark:text-gray-400 font-medium mb-0.5">
-                                            {field.label}
-                                        </div>
-                                        <div className="text-sm text-surface-on dark:text-gray-200 font-semibold truncate">
-                                            {field.value || '—'}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+            {/* Header: Stacked Pills - Standalone BlueTag Style */}
+            <div className="flex flex-col items-center gap-2 mb-6 relative z-10 w-full">
+                {/* Decorative Line connecting to Name Pill center */}
+                <div className="absolute top-[20px] left-0 right-0 h-px bg-slate-100 dark:bg-slate-800 -z-10" />
+
+                {/* Name Pill - Smaller, with Pulse */}
+                <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2 rounded-full flex items-center gap-3 border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900 z-20">
+                    <div className="w-2 h-2 rounded-full bg-primary shrink-0 animate-pulse" />
+                    <span className="text-base font-bold text-slate-700 dark:text-slate-200 truncate max-w-[50vw]">
+                        {nameStr}
+                    </span>
+                </div>
+
+                {/* Lot/Unit Pill - Only shown in header if NOT a search result (Main Card) */}
+                {!isSearchResult && subtitle && (
+                    <div className="h-10 px-4 rounded-2xl flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900 shadow-sm z-20">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 max-w-[40vw] truncate">
+                            {subtitle}
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {/* Content Body: Gray Box with Contact Info Pills - Standalone BlueTag Style */}
+            {hasContactInfo && (
+                <div className="w-full mb-6 flex-1 flex flex-col items-center justify-center animate-fade-in">
+                    <div className="w-full px-3 py-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                        <div className="flex flex-wrap items-center justify-center gap-2 w-full">
+                            {detailFields.map(field => {
+                                if (!field.value) return null;
+                                const Icon = getIconComponent(field.icon);
+                                const linkProps = getLinkProps(field);
+                                const Wrapper = linkProps.href ? 'a' : 'div';
+                                const isInteractive = !!linkProps.href;
+                                
+                                return (
+                                    <Wrapper 
+                                        key={field.id}
+                                        className={`flex items-center justify-center gap-2 group/item px-4 py-2 rounded-2xl border shadow-sm transition-all max-w-full ${
+                                            isInteractive 
+                                                ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:shadow-md cursor-pointer' 
+                                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'
+                                        }`}
+                                        href={linkProps.href}
+                                        target={linkProps.target}
+                                        rel={linkProps.rel}
+                                        onClick={linkProps.href ? (e: React.MouseEvent) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (linkProps.href) window.open(linkProps.href, linkProps.target || '_self');
+                                        } : undefined}
+                                    >
+                                        <Icon size={16} className={`shrink-0 ${isInteractive ? 'text-primary group-hover/item:scale-110 transition-transform' : 'text-slate-500 dark:text-slate-400'}`} />
+                                        <span className={`text-xs font-semibold truncate max-w-[200px] ${isInteractive ? 'text-slate-700 dark:text-slate-200' : 'text-slate-600 dark:text-slate-400'}`}>
+                                            {field.value}
+                                        </span>
+                                    </Wrapper>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             )}
