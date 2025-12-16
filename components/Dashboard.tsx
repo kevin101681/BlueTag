@@ -90,7 +90,9 @@ export const ReportCard: React.FC<ReportCardProps> = ({
 
     const cardRef = useRef<HTMLDivElement>(null);
     
-    // Header Logic - for contact info icons
+    // Header Logic for standalone BlueTag layout
+    const nameStr = fields[0]?.value || "Project";
+    const subtitle = fields[1]?.value || "";
     const detailFields = fields.slice(2);
     const hasContactInfo = detailFields.some(f => f.value && f.value.trim() !== "");
 
@@ -120,15 +122,11 @@ export const ReportCard: React.FC<ReportCardProps> = ({
     const getButtonStyle = (isActive: boolean) => {
         const base = "w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border";
         if (isActive) {
-            return `${base} bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid`;
+            return `${base} bg-primary/10 dark:bg-primary/20 border-primary/20 dark:border-primary/30 text-primary hover:bg-primary/20 dark:hover:bg-primary/30`;
         }
-        return `${base} bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid`;
+        return `${base} bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-primary`;
     };
 
-    // Header Logic for standalone BlueTag layout
-    const nameStr = fields[0]?.value || "Project";
-    const subtitle = fields[1]?.value || "";
-    
     return (
         <div 
             ref={cardRef}
@@ -200,9 +198,38 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                     </div>
                 </div>
             )}
+
+            {!hasContactInfo && <div className="mb-4"></div>}
             
-            {/* Footer Row - Unified Group, Centered, Equal Spacing */}
-            <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-auto w-full overflow-x-auto">
+            {/* Footer Row - Standalone BlueTag Style */}
+            <div className="flex items-center justify-center mt-auto w-full gap-2 sm:gap-3">
+                {/* Item Count */}
+                {onViewAllItems ? (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onViewAllItems(); }}
+                        className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors active:scale-95 text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary"
+                    >
+                        <span className="text-xs sm:text-sm font-bold whitespace-nowrap">
+                            {issueCount} Items
+                        </span>
+                    </button>
+                ) : (
+                    <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink">
+                        <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {issueCount} Items
+                        </span>
+                    </div>
+                )}
+
+                {/* Lot/Unit Pill - Shown in footer for Search Results */}
+                {isSearchResult && subtitle && (
+                    <div className="h-12 sm:h-14 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 sm:px-6 flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink min-w-0">
+                        <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap truncate">
+                            {subtitle}
+                        </span>
+                    </div>
+                )}
+
                 {/* Actions */}
                 {actions && (
                     <>
@@ -210,74 +237,40 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                             onClick={(e) => { 
                                 e.preventDefault();
                                 e.stopPropagation();
-                                console.log('Report preview button clicked');
                                 actions.onViewReport?.(); 
                             }}
-                            className={`h-12 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border px-3 sm:px-4 gap-1.5 ${
-                                isReportSaved 
-                                    ? 'bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid' 
-                                    : 'bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid'
-                            }`}
+                            className={getButtonStyle(isReportSaved)}
                             title="View/Generate Report"
                             type="button"
                         >
                             <FileText size={18} className="sm:w-[20px] sm:h-[20px]" />
-                            <span className="text-xs font-bold whitespace-nowrap">View Report</span>
                         </button>
                         <button 
                             onClick={(e) => { 
                                 e.preventDefault();
                                 e.stopPropagation();
-                                console.log('Sign off button clicked');
                                 actions.onViewSignOff?.(); 
                             }}
-                            className={`h-12 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border px-3 sm:px-4 gap-1.5 ${
-                                isSignOffSaved 
-                                    ? 'bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid' 
-                                    : 'bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid'
-                            }`}
+                            className={getButtonStyle(isSignOffSaved)}
                             title="View/Sign Off"
                             type="button"
                         >
                             <PenTool size={18} className="sm:w-[20px] sm:h-[20px]" />
-                            <span className="text-xs font-bold whitespace-nowrap">View Sign Off</span>
                         </button>
-                        <button 
-                            onClick={(e) => { 
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('Download Report PDF button clicked');
-                                actions.onDownloadReportPDF?.(); 
-                            }}
-                            className={`h-12 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border px-3 sm:px-4 gap-1.5 ${
-                                isReportSaved 
-                                    ? 'bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid' 
-                                    : 'bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid'
-                            }`}
-                            title="Download Report PDF"
-                            type="button"
-                        >
-                            <Download size={18} className="sm:w-[20px] sm:h-[20px]" />
-                            <span className="text-xs font-bold whitespace-nowrap">Download Report</span>
-                        </button>
-                        <button 
-                            onClick={(e) => { 
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('Download Sign Off PDF button clicked');
-                                actions.onDownloadSignOffPDF?.(); 
-                            }}
-                            className={`h-12 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors active:scale-95 shadow-sm shrink-0 border px-3 sm:px-4 gap-1.5 ${
-                                isSignOffSaved 
-                                    ? 'bg-primary-container dark:bg-primary/20 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary-container/80 dark:hover:bg-primary/30 border-solid' 
-                                    : 'bg-surface-container dark:bg-gray-700 border-surface-outline-variant dark:border-gray-600 text-surface-on-variant dark:text-gray-300 hover:bg-surface-container-high dark:hover:bg-gray-600 hover:text-primary border-solid'
-                            }`}
-                            title="Download Sign Off PDF"
-                            type="button"
-                        >
-                            <Download size={18} className="sm:w-[20px] sm:h-[20px]" />
-                            <span className="text-xs font-bold whitespace-nowrap">Download Sign Off</span>
-                        </button>
+                        {actions.onEmail && (
+                            <button 
+                                onClick={(e) => { 
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    actions.onEmail?.(); 
+                                }}
+                                className={getButtonStyle(isEmailActive)}
+                                title="Email Documents"
+                                type="button"
+                            >
+                                <Mail size={18} className="sm:w-[20px] sm:h-[20px]" />
+                            </button>
+                        )}
                     </>
                 )}
             </div>
@@ -1322,6 +1315,53 @@ export const Dashboard = React.memo<DashboardProps>(({
                             setIsAllItemsOpen(true);
                         }}
                      />
+                </div>
+
+                {/* Client Information Section - Standalone BlueTag Style */}
+                <div 
+                    className={`bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-sm border border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out overflow-hidden ${animationClass} ${embedded && !shouldInitialExpand ? 'animate-fade-in' : ''} ${isCreating ? 'opacity-0 animate-slide-up' : ''} ${isExiting ? 'animate-slide-down-exit' : ''}`}
+                    style={{
+                        animationDelay: embedded && !shouldInitialExpand ? '0ms' : (isCreating ? '400ms' : '0ms'),
+                        animationFillMode: isCreating || isExiting ? 'both' : undefined
+                    }}
+                >
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3 w-full justify-center relative">
+                            {/* Edit Button Left */}
+                            <button
+                                onClick={() => setIsEditClientInfoOpen(true)}
+                                className="absolute left-0 p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors"
+                                title="Edit Info Schema"
+                            >
+                                <Pencil size={20} />
+                            </button>
+                            
+                            {/* Title Center - Updated to Rounded Full (Pill) */}
+                            <div className="bg-slate-100 dark:bg-slate-800 px-6 py-2.5 rounded-full">
+                                <h2 className="text-lg font-bold text-slate-600 dark:text-slate-300">Client Information</h2>
+                            </div>
+
+                            {/* Collapse Right */}
+                            <button 
+                                onClick={() => setDetailsCollapsed(!isDetailsCollapsed)}
+                                className="absolute right-0 w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                {isDetailsCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isDetailsCollapsed ? 'max-h-0 opacity-0' : 'max-h-[1000px] opacity-100'}`}>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2 animate-fade-in p-2">
+                            {(project.fields || []).map((field, idx) => (
+                                <DetailInput 
+                                    key={field.id}
+                                    field={field}
+                                    onChange={(val) => handleFieldChange(idx, val)}
+                                />
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Locations Section */}
