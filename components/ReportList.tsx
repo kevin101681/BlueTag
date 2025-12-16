@@ -80,6 +80,7 @@ const DashboardWrapper = ({
                 onModalStateChange={() => {}}
                 signOffTemplates={signOffTemplates}
                 onUpdateTemplates={onUpdateTemplates}
+                embedded={false}
                 isCreating={isCreating}
                 isExiting={isExiting}
                 onDelete={onDelete}
