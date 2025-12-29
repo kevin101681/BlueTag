@@ -45,11 +45,11 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
     
     console.log('[Gemini] Sending request to Gemini API...', {
       imageSize: cleanBase64.length,
-      model: 'gemini-2.0-flash-exp'
+      model: 'gemini-3.0-flash'
     });
 
     const response = await aiClient.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-3.0-flash',
       contents: {
         role: 'user',
         parts: [
@@ -89,7 +89,7 @@ export const suggestFix = async (issueDescription: string): Promise<string> => {
 
     try {
         const response = await aiClient.models.generateContent({
-            model: 'gemini-2.0-flash-exp',
+            model: 'gemini-3.0-flash',
             contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
         });
         return response.text || "";
