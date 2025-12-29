@@ -10,7 +10,8 @@ import { IndexedDBService, migrateFromLocalStorage } from './services/indexedDBS
 import { syncQueueService } from './services/syncQueueService';
 import { AlertCircle, WifiOff, Wifi } from 'lucide-react';
 
-// v1.1.13 - Fixed circular dependency and module initialization
+// v1.1.14 - Fixed lazy instantiation
+console.log('[BlueTag] App module loaded v1.1.14');
 
 // Global declaration for Netlify Identity
 declare global {
