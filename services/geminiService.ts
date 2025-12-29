@@ -10,8 +10,7 @@ function getAI(): GoogleGenAI | null {
     
     console.log('[Gemini] Checking API key availability:', {
       hasApiKey: !!apiKey,
-      keyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : 'none',
-      env: import.meta.env
+      keyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : 'none'
     });
     
     if (apiKey) {
