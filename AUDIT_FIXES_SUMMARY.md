@@ -249,7 +249,6 @@ npm run dev
 Set these in: **Netlify UI → Site Settings → Environment Variables**
 
 ```env
-GEMINI_API_KEY=your-gemini-api-key
 CLOUDINARY_API_KEY=your-cloudinary-key
 CLOUDINARY_API_SECRET=your-cloudinary-secret
 DATABASE_URL=your-postgres-connection-string

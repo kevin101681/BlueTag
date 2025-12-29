@@ -2,10 +2,9 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
-import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check } from 'lucide-react';
+import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Save, Check } from 'lucide-react';
 import { PREDEFINED_LOCATIONS, generateUUID, MAX_IMAGE_SIZE_PX, IMAGE_QUALITY } from '../constants';
 import { ImageEditor } from './ImageEditor';
-import { analyzeDefectImage } from '../services/geminiService';
 import { createPortal } from 'react-dom';
 
 // --- Shared Helper ---
@@ -184,7 +183,6 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isListening, setIsListening] = useState(false);
     const recognitionRef = useRef<any>(null);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
     
     // Editor State
     const [editingPhotoIndex, setEditingPhotoIndex] = useState<number | null>(null);
@@ -320,26 +318,6 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
         }
     };
 
-    const analyzeLastPhoto = async () => {
-        if (photos.length === 0) return;
-        setIsAnalyzing(true);
-        const lastPhoto = photos[photos.length - 1];
-        try {
-            const analysis = await analyzeDefectImage(lastPhoto.url);
-            if (analysis) {
-                 setDescription(prev => {
-                     const separator = prev ? ' ' : '';
-                     if (prev.includes(analysis)) return prev;
-                     return prev + separator + analysis;
-                 });
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
-
     const handleSubmit = () => {
         if (!description.trim()) return;
         
@@ -450,27 +428,6 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                             <div className="flex justify-between items-center mb-2">
                                 <label className="inline-block bg-surface-container dark:bg-gray-700 text-surface-on dark:text-gray-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Description</label>
                                 <div className="flex items-center gap-3">
-                                    {photos.length > 0 && (
-                                        <button
-                                            onClick={analyzeLastPhoto}
-                                            disabled={isAnalyzing}
-                                            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
-                                                isAnalyzing 
-                                                    ? 'bg-primary/20 text-primary' 
-                                                    : !isAnalyzing 
-                                                        ? 'bg-surface-container dark:bg-gray-700 text-primary dark:text-blue-400 hover:bg-primary hover:text-white animate-breathing-glow ring-2 ring-primary/30'
-                                                        : 'bg-surface-container dark:bg-gray-700 text-primary dark:text-blue-400 hover:bg-primary hover:text-white'
-                                            }`}
-                                            title="Analyze Image with AI"
-                                        >
-                                            {isAnalyzing ? (
-                                                <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                            ) : (
-                                                <Sparkles size={18} />
-                                            )}
-                                        </button>
-                                    )}
-                                    
                                     <button 
                                     onClick={toggleListening}
                                     className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all shadow-sm ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-surface-container dark:bg-gray-700 text-slate-500 dark:text-slate-400 hover:bg-surface-container-high dark:hover:bg-gray-600'}`}
