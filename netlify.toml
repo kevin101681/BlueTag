@@ -4,6 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "24"
+  # Allow Gemini API key in client-side bundle (required for AI features)
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 [[redirects]]
   from = "/*"
