@@ -157,6 +157,14 @@ export default function App() {
   
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
 
+  // Initialize syncQueueService with CloudService methods on mount
+  useEffect(() => {
+    syncQueueService.setCloudService({
+      saveReport: CloudService.saveReport.bind(CloudService),
+      deleteReport: CloudService.deleteReport.bind(CloudService)
+    });
+  }, []);
+
   useEffect(() => {
     // Start fading out after 2.5s
     const fadeTimer = setTimeout(() => {

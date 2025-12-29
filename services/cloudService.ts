@@ -95,9 +95,3 @@ export const CloudService = {
         }
     }
 };
-
-// Initialize syncQueueService with CloudService methods to avoid circular dependency
-syncQueueService.setCloudService({
-    saveReport: CloudService.saveReport.bind(CloudService),
-    deleteReport: CloudService.deleteReport.bind(CloudService)
-});
