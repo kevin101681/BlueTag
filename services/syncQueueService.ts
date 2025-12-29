@@ -5,12 +5,6 @@
 
 import { Report } from '../types';
 
-// Type for cloud service operations to avoid circular dependency
-type CloudServiceType = {
-    saveReport: (report: Report) => Promise<boolean>;
-    deleteReport: (id: string) => Promise<boolean>;
-};
-
 export interface QueuedOperation {
     id: string;
     type: 'save' | 'delete';
@@ -28,16 +22,10 @@ class SyncQueueService {
     private isProcessing = false;
     private listeners: Array<(isOnline: boolean) => void> = [];
     private onlineStatus = navigator.onLine;
-    private cloudService: CloudServiceType | null = null;
 
     constructor() {
         this.loadQueue();
         this.setupOnlineListeners();
-    }
-
-    // Inject the cloud service to avoid circular dependency
-    setCloudService(service: CloudServiceType) {
-        this.cloudService = service;
     }
 
     private setupOnlineListeners() {
@@ -140,13 +128,16 @@ class SyncQueueService {
     }
 
     async processQueue(): Promise<void> {
-        if (this.isProcessing || !this.isOnline() || this.queue.length === 0 || !this.cloudService) {
+        if (this.isProcessing || !this.isOnline() || this.queue.length === 0) {
             return;
         }
 
         this.isProcessing = true;
 
         try {
+            // Lazy import CloudService to avoid circular dependency
+            const { CloudService } = await import('./cloudService');
+            
             const operationsToProcess = [...this.queue];
             const successfulOps: string[] = [];
             const failedOps: QueuedOperation[] = [];
@@ -156,9 +147,9 @@ class SyncQueueService {
                     let success = false;
 
                     if (op.type === 'save' && op.data) {
-                        success = await this.cloudService.saveReport(op.data);
+                        success = await CloudService.saveReport(op.data);
                     } else if (op.type === 'delete') {
-                        success = await this.cloudService.deleteReport(op.id);
+                        success = await CloudService.deleteReport(op.id);
                     }
 
                     if (success) {

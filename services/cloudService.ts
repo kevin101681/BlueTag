@@ -95,6 +95,3 @@ export const CloudService = {
         }
     }
 };
-
-// Initialize the sync queue service with CloudService after it's defined
-syncQueueService.setCloudService(CloudService);
