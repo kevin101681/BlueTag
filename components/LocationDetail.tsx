@@ -5,7 +5,6 @@ import { Issue, LocationGroup, IssuePhoto } from '../types';
 import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check } from 'lucide-react';
 import { PREDEFINED_LOCATIONS, generateUUID } from '../constants';
 import { ImageEditor } from './ImageEditor';
-import { analyzeDefectImage } from '../services/geminiService';
 import { createPortal } from 'react-dom';
 
 // --- Shared Helper ---
@@ -327,6 +326,8 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
         setIsAnalyzing(true);
         const lastPhoto = photos[photos.length - 1];
         try {
+            // Dynamic import to avoid initialization issues
+            const { analyzeDefectImage } = await import('../services/geminiService');
             const analysis = await analyzeDefectImage(lastPhoto.url);
             if (analysis) {
                  setDescription(prev => {
