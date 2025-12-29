@@ -221,4 +221,42 @@ class SyncQueueService {
     }
 }
 
-export const syncQueueService = new SyncQueueService();
+let instance: SyncQueueService | null = null;
+
+export const syncQueueService = {
+    getInstance(): SyncQueueService {
+        if (!instance) {
+            instance = new SyncQueueService();
+        }
+        return instance;
+    },
+    
+    // Proxy methods to the instance
+    setCloudService(service: CloudServiceMethods) {
+        this.getInstance().setCloudService(service);
+    },
+    isOnline(): boolean {
+        return this.getInstance().isOnline();
+    },
+    subscribe(listener: (isOnline: boolean) => void) {
+        return this.getInstance().subscribe(listener);
+    },
+    async enqueueSave(report: Report): Promise<boolean> {
+        return this.getInstance().enqueueSave(report);
+    },
+    async enqueueDelete(reportId: string): Promise<boolean> {
+        return this.getInstance().enqueueDelete(reportId);
+    },
+    async processQueue(): Promise<void> {
+        return this.getInstance().processQueue();
+    },
+    getQueueLength(): number {
+        return this.getInstance().getQueueLength();
+    },
+    getQueue(): QueuedOperation[] {
+        return this.getInstance().getQueue();
+    },
+    async clearQueue(): Promise<void> {
+        return this.getInstance().clearQueue();
+    }
+};
