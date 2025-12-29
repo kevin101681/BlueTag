@@ -6,7 +6,7 @@ let ai: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI | null {
   if (!ai) {
     // Check for API key in environment variables (Vite uses import.meta.env)
-    const apiKey = import.meta.env?.VITE_GEMINI_API_KEY;
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
     if (apiKey) {
       try {
         ai = new GoogleGenAI({ apiKey });
@@ -15,7 +15,6 @@ function getAI(): GoogleGenAI | null {
         return null;
       }
     } else {
-      console.warn('VITE_GEMINI_API_KEY not found in environment variables');
       return null;
     }
   }
