@@ -816,7 +816,13 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                                                         {issue.photos.map((photo, pIdx) => (
                                                             <div key={pIdx} className="flex flex-col w-24 shrink-0 gap-1.5 group/wrapper">
                                                                 <div className="w-full aspect-square rounded-xl overflow-hidden border border-surface-outline-variant dark:border-gray-600 relative group/photo cursor-pointer">
-                                                                    <img src={photo.url} className="w-full h-full object-cover" onClick={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })} />
+                                                                    <img 
+                                                                      src={photo.url} 
+                                                                      loading="lazy"
+                                                                      alt={photo.description || `Photo ${pIdx + 1}`}
+                                                                      className="w-full h-full object-cover" 
+                                                                      onClick={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })} 
+                                                                    />
                                                                     <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none"><Edit2 size={16} className="text-white drop-shadow-md" /></div>
                                                                     <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(loc.id, issue.id, pIdx); }} className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"><X size={12} /></button>
                                                                 </div>
@@ -858,23 +864,23 @@ export const ClientInfoEditModal = ({ project, onUpdate, onClose }: { project: P
     const handleSave = () => { onUpdate({ ...project, fields }); onClose(); };
     return createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-surface dark:bg-gray-800 w-full max-w-lg rounded-3xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-surface-outline-variant dark:border-gray-700 flex justify-between items-center">
-                    <div className="bg-surface-container dark:bg-gray-700 px-4 py-2 rounded-full"><h3 className="font-bold text-surface-on dark:text-gray-100">Edit Client Info</h3></div>
-                    <button onClick={onClose} className="p-2 bg-surface-container dark:bg-gray-700 rounded-full text-surface-on-variant hover:text-surface-on dark:text-gray-400 dark:hover:text-gray-100 transition-colors"><X size={20} /></button>
+            <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[32px] shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                    <div className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-full"><h3 className="font-bold text-slate-800 dark:text-white">Edit Client Info</h3></div>
+                    <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors"><X size={20} /></button>
                 </div>
                 <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
                     {fields.map((field, i) => (
                         <div key={field.id} className="flex gap-2 items-center">
-                             <div className="p-2 bg-surface-container dark:bg-gray-700 rounded-lg text-surface-on-variant dark:text-gray-400"><Hash size={16}/></div>
-                             <input value={field.label} onChange={e => { const newF = [...fields]; newF[i] = { ...field, label: e.target.value }; setFields(newF); }} className="flex-1 p-2 bg-surface-container dark:bg-gray-700 rounded-lg border border-surface-outline-variant dark:border-gray-600 dark:text-gray-200" />
+                             <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-500"><Hash size={16}/></div>
+                             <input value={field.label} onChange={e => { const newF = [...fields]; newF[i] = { ...field, label: e.target.value }; setFields(newF); }} className="flex-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 dark:text-white" />
                              <button onClick={() => setFields(fields.filter((_, idx) => idx !== i))} className="text-red-500 p-2"><Trash2 size={16}/></button>
                         </div>
                     ))}
-                    <button onClick={() => setFields([...fields, { id: generateUUID(), label: 'New Field', value: '', icon: 'FileText' }])} className="w-full p-3 bg-surface-container dark:bg-gray-700 rounded-xl font-bold text-surface-on dark:text-gray-300 mt-2">+ Add Field</button>
+                    <button onClick={() => setFields([...fields, { id: generateUUID(), label: 'New Field', value: '', icon: 'FileText' }])} className="w-full p-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-bold text-slate-600 dark:text-slate-300 mt-2">+ Add Field</button>
                 </div>
-                <div className="p-4 border-t border-surface-outline-variant dark:border-gray-700">
-                    <button onClick={handleSave} className="w-full bg-primary text-primary-on dark:text-primary-on py-3.5 rounded-[20px] font-bold shadow-sm hover:shadow-md transition-all active:scale-95">Save Changes</button>
+                <div className="p-4 border-t border-slate-100 dark:border-slate-700">
+                    <button onClick={handleSave} className="w-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white py-3.5 rounded-[20px] font-bold shadow-sm hover:shadow-md transition-all active:scale-95">Save Changes</button>
                 </div>
             </div>
         </div>, document.body

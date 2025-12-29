@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import React, { useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
+import type { NetlifyUser, NetlifyIdentityWidget } from './types/netlify';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
 import { CloudService } from './services/cloudService';
@@ -12,7 +13,7 @@ import { AlertCircle, WifiOff, Wifi } from 'lucide-react';
 // Global declaration for Netlify Identity
 declare global {
   interface Window {
-    netlifyIdentity: any;
+    netlifyIdentity?: NetlifyIdentityWidget;
   }
 }
 
@@ -139,7 +140,7 @@ const OnlineSyncIndicator = ({ isOnline, queuedOperations }: { isOnline: boolean
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<NetlifyUser | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -187,7 +188,7 @@ export default function App() {
     const unsubscribe = syncQueueService.subscribe((online) => {
       setIsOnline(online);
       if (online && currentUser) {
-        // Auto-sync when coming back online (defined later in file, will use ref or delay)
+        // Auto-sync when coming back online
         setTimeout(() => {
           refreshReports(true);
           syncQueueService.processQueue();
@@ -208,8 +209,7 @@ export default function App() {
       unsubscribe();
       clearInterval(queueCheckInterval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]);
+  }, [currentUser, refreshReports]);
 
   // Netlify Identity Effect
   useEffect(() => {
@@ -219,13 +219,13 @@ export default function App() {
         setCurrentUser(user);
       }
 
-      window.netlifyIdentity.on('init', (user: any) => {
+      window.netlifyIdentity.on('init', (user?: NetlifyUser) => {
          if (user) setCurrentUser(user);
       });
 
-      window.netlifyIdentity.on('login', (user: any) => {
-        setCurrentUser(user);
-        window.netlifyIdentity.close();
+      window.netlifyIdentity.on('login', (user?: NetlifyUser) => {
+        if (user) setCurrentUser(user);
+        window.netlifyIdentity?.close();
       });
 
       window.netlifyIdentity.on('logout', () => {
@@ -347,7 +347,7 @@ export default function App() {
       }
   }, [deletedReportIds, isDataLoaded]);
 
-  const refreshReports = async (silent = false) => {
+  const refreshReports = useCallback(async (silent = false) => {
       if (!currentUser) return;
       if (!silent) {
           setIsSyncing(true);
@@ -427,7 +427,7 @@ export default function App() {
       } finally {
           if (!silent) setIsSyncing(false);
       }
-  };
+  }, [currentUser]);
 
   // 2. Cloud Sync Polling
   useEffect(() => {
@@ -438,7 +438,7 @@ export default function App() {
         }, 15000); 
         return () => clearInterval(interval);
     }
-  }, [currentUser]);
+  }, [currentUser, refreshReports]);
 
   // 3. Save Changes
   const saveToStorage = (reports: Report[]) => {
@@ -811,7 +811,11 @@ export default function App() {
       return (
           <div className={`fixed inset-0 z-[9999] flex items-center justify-center bg-slate-200 dark:bg-slate-950 transition-opacity duration-700 ease-out ${isSplashFading ? 'opacity-0' : 'opacity-100 animate-fade-in'}`}>
               <div className="w-64 h-64 animate-fade-in-up">
-                  <img src="/images/logo2.png" alt="BlueTag" className="w-full h-full object-contain drop-shadow-2xl" />
+                  <img 
+                    src="/images/logo2.png" 
+                    alt="BlueTag" 
+                    className="w-full h-full object-contain drop-shadow-2xl"
+                  />
               </div>
           </div>
       );

@@ -686,7 +686,12 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                 {/* Center: Logo */}
                 <div className="flex-1 flex justify-center">
                     <div className="bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 rounded-3xl p-1.5">
-                        <img src={props.companyLogo} alt="Company Logo" className="w-14 h-14 object-contain" />
+                        <img 
+                          src={props.companyLogo} 
+                          alt="Company Logo" 
+                          loading="lazy"
+                          className="w-14 h-14 object-contain" 
+                        />
                     </div>
                 </div>
 

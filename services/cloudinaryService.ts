@@ -67,7 +67,10 @@ export async function uploadToCloudinary(
   }
 
   // Upload to Cloudinary
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'your-cloud-name';
+  const cloudName = (import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME;
+  if (!cloudName) {
+    throw new Error('VITE_CLOUDINARY_CLOUD_NAME environment variable is required. Please set it in your .env file.');
+  }
   const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
 
   const uploadResponse = await fetch(uploadUrl, {
@@ -111,4 +114,7 @@ export async function uploadMultipleToCloudinary(
   const uploadPromises = files.map(file => uploadToCloudinary(file, folder));
   return Promise.all(uploadPromises);
 }
+
+
+
 

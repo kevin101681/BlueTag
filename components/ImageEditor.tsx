@@ -84,6 +84,12 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
                 console.warn("Could not save history (likely CORS)", e);
             }
         };
+
+        // Cleanup function to free memory on unmount
+        return () => {
+            setHistory([]);
+            setSnapshot(null);
+        };
     }, [imageUrl]);
 
     const getCoords = (e: React.MouseEvent | React.TouchEvent) => {
