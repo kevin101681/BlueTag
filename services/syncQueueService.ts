@@ -3,8 +3,13 @@
  * Queues cloud operations when offline and processes them when online
  */
 
-import { CloudService } from './cloudService';
 import { Report } from '../types';
+
+// Type for cloud service operations to avoid circular dependency
+type CloudServiceType = {
+    saveReport: (report: Report) => Promise<boolean>;
+    deleteReport: (id: string) => Promise<boolean>;
+};
 
 export interface QueuedOperation {
     id: string;
@@ -23,10 +28,16 @@ class SyncQueueService {
     private isProcessing = false;
     private listeners: Array<(isOnline: boolean) => void> = [];
     private onlineStatus = navigator.onLine;
+    private cloudService: CloudServiceType | null = null;
 
     constructor() {
         this.loadQueue();
         this.setupOnlineListeners();
+    }
+
+    // Inject the cloud service to avoid circular dependency
+    setCloudService(service: CloudServiceType) {
+        this.cloudService = service;
     }
 
     private setupOnlineListeners() {
@@ -129,7 +140,7 @@ class SyncQueueService {
     }
 
     async processQueue(): Promise<void> {
-        if (this.isProcessing || !this.isOnline() || this.queue.length === 0) {
+        if (this.isProcessing || !this.isOnline() || this.queue.length === 0 || !this.cloudService) {
             return;
         }
 
@@ -145,9 +156,9 @@ class SyncQueueService {
                     let success = false;
 
                     if (op.type === 'save' && op.data) {
-                        success = await CloudService.saveReport(op.data);
+                        success = await this.cloudService.saveReport(op.data);
                     } else if (op.type === 'delete') {
-                        success = await CloudService.deleteReport(op.id);
+                        success = await this.cloudService.deleteReport(op.id);
                     }
 
                     if (success) {
