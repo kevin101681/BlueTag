@@ -3,7 +3,6 @@
  * Queues cloud operations when offline and processes them when online
  */
 
-import { CloudService } from './cloudService';
 import { Report } from '../types';
 
 export interface QueuedOperation {
@@ -18,15 +17,27 @@ const QUEUE_KEY = 'bluetag_sync_queue';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000; // 5 seconds
 
+// Type for CloudService methods
+type CloudServiceMethods = {
+    saveReport: (report: Report) => Promise<boolean>;
+    deleteReport: (id: string) => Promise<boolean>;
+};
+
 class SyncQueueService {
     private queue: QueuedOperation[] = [];
     private isProcessing = false;
     private listeners: Array<(isOnline: boolean) => void> = [];
     private onlineStatus = navigator.onLine;
+    private cloudService: CloudServiceMethods | null = null;
 
     constructor() {
         this.loadQueue();
         this.setupOnlineListeners();
+    }
+
+    // Initialize with CloudService methods to break circular dependency
+    setCloudService(service: CloudServiceMethods) {
+        this.cloudService = service;
     }
 
     private setupOnlineListeners() {
@@ -129,7 +140,7 @@ class SyncQueueService {
     }
 
     async processQueue(): Promise<void> {
-        if (this.isProcessing || !this.isOnline() || this.queue.length === 0) {
+        if (this.isProcessing || !this.isOnline() || this.queue.length === 0 || !this.cloudService) {
             return;
         }
 
@@ -145,9 +156,9 @@ class SyncQueueService {
                     let success = false;
 
                     if (op.type === 'save' && op.data) {
-                        success = await CloudService.saveReport(op.data);
+                        success = await this.cloudService.saveReport(op.data);
                     } else if (op.type === 'delete') {
-                        success = await CloudService.deleteReport(op.id);
+                        success = await this.cloudService.deleteReport(op.id);
                     }
 
                     if (success) {
@@ -211,4 +222,3 @@ class SyncQueueService {
 }
 
 export const syncQueueService = new SyncQueueService();
-
