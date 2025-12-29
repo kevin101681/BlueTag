@@ -1,11 +1,10 @@
 import { Client } from 'pg';
-import type { NetlifyFunctionHandler, NetlifyFunctionEvent, NetlifyFunctionContext } from '../../types/netlify';
 
 // Netlify/Neon integration often injects NETLIFY_DATABASE_URL. 
 // We check both standard DATABASE_URL and the Netlify specific one.
 const connectionString = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL;
 
-export const handler: NetlifyFunctionHandler = async (event: NetlifyFunctionEvent, context: NetlifyFunctionContext) => {
+export const handler = async (event: any, context: any) => {
   // 1. Security Check: Ensure user is logged in via Netlify Identity
   const user = context.clientContext?.user;
   if (!user) {
@@ -20,7 +19,7 @@ export const handler: NetlifyFunctionHandler = async (event: NetlifyFunctionEven
     console.error("Database connection string missing. Ensure DATABASE_URL or NETLIFY_DATABASE_URL is set.");
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Service temporarily unavailable. Please try again later." }),
+      body: JSON.stringify({ error: "Server misconfiguration: Missing Database URL." }),
     };
   }
 
@@ -29,9 +28,7 @@ export const handler: NetlifyFunctionHandler = async (event: NetlifyFunctionEven
   // 3. Database Connection
   const client = new Client({
     connectionString,
-    // Neon.tech and some serverless PostgreSQL providers require this
-    // In production, the connection is still encrypted, this just skips hostname verification
-    ssl: { rejectUnauthorized: false },
+    ssl: { rejectUnauthorized: false }, // Neon/Serverless often requires this setting
   });
 
   try {
@@ -113,7 +110,7 @@ export const handler: NetlifyFunctionHandler = async (event: NetlifyFunctionEven
     console.error('Database Error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Database operation failed. Please try again later." }),
+      body: JSON.stringify({ error: "Database operation failed", details: error.message }),
     };
   } finally {
     // Ensure client is closed to prevent hanging functions

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
-import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
+import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../pdfService';
 import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage, DeleteConfirmationModal } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
 import { createPortal } from 'react-dom';
@@ -816,13 +816,7 @@ export const AllItemsModal = ({ locations, onUpdate, onClose }: { locations: Loc
                                                         {issue.photos.map((photo, pIdx) => (
                                                             <div key={pIdx} className="flex flex-col w-24 shrink-0 gap-1.5 group/wrapper">
                                                                 <div className="w-full aspect-square rounded-xl overflow-hidden border border-surface-outline-variant dark:border-gray-600 relative group/photo cursor-pointer">
-                                                                    <img 
-                                                                      src={photo.url} 
-                                                                      loading="lazy"
-                                                                      alt={photo.description || `Photo ${pIdx + 1}`}
-                                                                      className="w-full h-full object-cover" 
-                                                                      onClick={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })} 
-                                                                    />
+                                                                    <img src={photo.url} className="w-full h-full object-cover" onClick={() => setEditingPhoto({ locId: loc.id, issueId: issue.id, photoIndex: pIdx })} />
                                                                     <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity pointer-events-none"><Edit2 size={16} className="text-white drop-shadow-md" /></div>
                                                                     <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(loc.id, issue.id, pIdx); }} className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity"><X size={12} /></button>
                                                                 </div>
