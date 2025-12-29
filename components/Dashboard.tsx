@@ -294,29 +294,62 @@ const PDFPageCanvas: React.FC<{
 }> = ({ page, pageIndex, onRenderSuccess, onPageClick, overlayElements }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
+    const [hasRendered, setHasRendered] = useState(false);
+
+    // Intersection Observer for lazy rendering
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && !hasRendered) {
+                        setIsVisible(true);
+                    }
+                });
+            },
+            {
+                rootMargin: '50px', // Start rendering 50px before visible
+                threshold: 0.01
+            }
+        );
+
+        observer.observe(container);
+        return () => observer.disconnect();
+    }, [hasRendered]);
 
     useEffect(() => {
-        if (canvasRef.current && page) {
-            const viewport = page.getViewport({ scale: 1.5 });
-            const canvas = canvasRef.current;
-            const context = canvas.getContext('2d');
-            
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            
-            canvas.style.width = '100%';
-            canvas.style.height = 'auto';
-            canvas.style.maxWidth = `${viewport.width}px`;
+        if (!isVisible || hasRendered || !canvasRef.current || !page) return;
 
-            const renderContext = {
-                canvasContext: context,
-                viewport: viewport,
-            };
-            page.render(renderContext).promise.then(() => {
-                if (onRenderSuccess) onRenderSuccess(canvas);
-            });
-        }
-    }, [page]);
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+
+        // Use lower scale on low-memory devices (< 4GB RAM)
+        const isLowMemory = navigator.deviceMemory && navigator.deviceMemory < 4;
+        const scale = isLowMemory ? 1.2 : 1.5;
+        
+        const viewport = page.getViewport({ scale });
+        
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        canvas.style.width = '100%';
+        canvas.style.height = 'auto';
+        canvas.style.maxWidth = `${viewport.width}px`;
+
+        const renderContext = {
+            canvasContext: context,
+            viewport: viewport,
+        };
+        
+        page.render(renderContext).promise.then(() => {
+            setHasRendered(true);
+            if (onRenderSuccess) onRenderSuccess(canvas);
+        });
+    }, [isVisible, hasRendered, page, onRenderSuccess]);
 
     return (
         <div 
@@ -328,8 +361,17 @@ const PDFPageCanvas: React.FC<{
                     onPageClick(e, pageIndex, rect);
                 }
             }}
+            style={{ minHeight: hasRendered ? 'auto' : '800px' }} // Reserve space while loading
         >
-            <canvas ref={canvasRef} className="shadow-lg rounded-sm bg-white pdf-page-canvas block w-full" />
+            {!hasRendered && isVisible && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+            )}
+            <canvas 
+                ref={canvasRef} 
+                className={`shadow-lg rounded-sm bg-white pdf-page-canvas block w-full transition-opacity ${hasRendered ? 'opacity-100' : 'opacity-0'}`} 
+            />
             <div className="absolute inset-0 pointer-events-none">
                 {overlayElements}
             </div>

@@ -67,7 +67,12 @@ export async function uploadToCloudinary(
   }
 
   // Upload to Cloudinary
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'your-cloud-name';
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  
+  if (!cloudName || cloudName === 'your-cloud-name') {
+    throw new Error('Cloudinary not configured. Please set VITE_CLOUDINARY_CLOUD_NAME in your environment variables.');
+  }
+  
   const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
 
   const uploadResponse = await fetch(uploadUrl, {

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { Issue, LocationGroup, IssuePhoto } from '../types';
 import { Plus, Camera, Trash2, X, Edit2, Mic, MicOff, ChevronDown, Sparkles, Save, Check } from 'lucide-react';
-import { PREDEFINED_LOCATIONS, generateUUID } from '../constants';
+import { PREDEFINED_LOCATIONS, generateUUID, MAX_IMAGE_SIZE_PX, IMAGE_QUALITY } from '../constants';
 import { ImageEditor } from './ImageEditor';
 import { analyzeDefectImage } from '../services/geminiService';
 import { createPortal } from 'react-dom';
@@ -17,19 +17,17 @@ export const compressImage = (file: File): Promise<string> => {
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
-                let height = img.height;
-                
-                const MAX_SIZE = 1200; 
+                let height = img.height; 
                 
                 if (width > height) {
-                    if (width > MAX_SIZE) {
-                        height *= MAX_SIZE / width;
-                        width = MAX_SIZE;
+                    if (width > MAX_IMAGE_SIZE_PX) {
+                        height *= MAX_IMAGE_SIZE_PX / width;
+                        width = MAX_IMAGE_SIZE_PX;
                     }
                 } else {
-                    if (height > MAX_SIZE) {
-                        width *= MAX_SIZE / height;
-                        height = MAX_SIZE;
+                    if (height > MAX_IMAGE_SIZE_PX) {
+                        width *= MAX_IMAGE_SIZE_PX / height;
+                        height = MAX_IMAGE_SIZE_PX;
                     }
                 }
                 
@@ -43,7 +41,7 @@ export const compressImage = (file: File): Promise<string> => {
                 }
                 
                 ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.7));
+                resolve(canvas.toDataURL('image/jpeg', IMAGE_QUALITY));
             };
             img.onerror = (err) => reject(err);
             img.src = event.target?.result as string;

@@ -1,6 +1,19 @@
-import React, { useState, useEffect, useRef, ReactNode } from 'react';
-import { INITIAL_PROJECT_STATE, EMPTY_LOCATIONS, generateUUID, DEFAULT_SIGN_OFF_TEMPLATES } from './constants';
+import React, { useState, useEffect, useRef, ReactNode, useCallback } from 'react';
+import { 
+  INITIAL_PROJECT_STATE, 
+  EMPTY_LOCATIONS, 
+  generateUUID, 
+  DEFAULT_SIGN_OFF_TEMPLATES,
+  SPLASH_FADE_START_MS,
+  SPLASH_HIDE_MS,
+  SYNC_INTERVAL_MS,
+  QUEUE_CHECK_INTERVAL_MS,
+  AUTO_SYNC_DELAY_MS,
+  MIN_CREATION_INTERVAL_MS,
+  DELETE_ANIMATION_DELAY_MS
+} from './constants';
 import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
+import { NetlifyIdentityUser } from './types/netlify-identity';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
 import { CloudService } from './services/cloudService';
@@ -8,13 +21,7 @@ import { saveWithCleanup, getStorageInfo } from './services/storageService';
 import { IndexedDBService, migrateFromLocalStorage } from './services/indexedDBService';
 import { syncQueueService } from './services/syncQueueService';
 import { AlertCircle, WifiOff, Wifi } from 'lucide-react';
-
-// Global declaration for Netlify Identity
-declare global {
-  interface Window {
-    netlifyIdentity: any;
-  }
-}
+import { ToastContainer, useToast } from './components/Toast';
 
 // Logo stored in public/images/logo.png
 const CompanyLogoAsset = "/images/logo.png";
@@ -139,11 +146,14 @@ const OnlineSyncIndicator = ({ isOnline, queuedOperations }: { isOnline: boolean
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<NetlifyIdentityUser | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queuedOperations, setQueuedOperations] = useState(0);
+  
+  // Toast notifications
+  const toast = useToast();
   
   // Reports State
   const [savedReports, setSavedReports] = useState<Report[]>([]);
@@ -157,15 +167,15 @@ export default function App() {
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Start fading out after 2.5s
+    // Start fading out after configured time
     const fadeTimer = setTimeout(() => {
         setIsSplashFading(true);
-    }, 2500);
+    }, SPLASH_FADE_START_MS);
 
-    // Completely remove splash from DOM after fade completes (3.2s)
+    // Completely remove splash from DOM after fade completes
     const hideTimer = setTimeout(() => {
         setShowSplash(false);
-    }, 3200); 
+    }, SPLASH_HIDE_MS); 
 
     return () => {
         clearTimeout(fadeTimer);
@@ -187,11 +197,11 @@ export default function App() {
     const unsubscribe = syncQueueService.subscribe((online) => {
       setIsOnline(online);
       if (online && currentUser) {
-        // Auto-sync when coming back online (defined later in file, will use ref or delay)
+        // Auto-sync when coming back online
         setTimeout(() => {
           refreshReports(true);
           syncQueueService.processQueue();
-        }, 500);
+        }, AUTO_SYNC_DELAY_MS);
       }
     });
 
@@ -202,7 +212,7 @@ export default function App() {
     // Poll queue length periodically
     const queueCheckInterval = setInterval(() => {
       setQueuedOperations(syncQueueService.getQueueLength());
-    }, 2000);
+    }, QUEUE_CHECK_INTERVAL_MS);
 
     return () => {
       unsubscribe();
@@ -219,12 +229,12 @@ export default function App() {
         setCurrentUser(user);
       }
 
-      window.netlifyIdentity.on('init', (user: any) => {
+      window.netlifyIdentity.on('init', (user) => {
          if (user) setCurrentUser(user);
       });
 
-      window.netlifyIdentity.on('login', (user: any) => {
-        setCurrentUser(user);
+      window.netlifyIdentity.on('login', (user) => {
+        if (user) setCurrentUser(user);
         window.netlifyIdentity.close();
       });
 
@@ -235,17 +245,17 @@ export default function App() {
     }
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = useCallback(() => {
       if (typeof window !== 'undefined' && window.netlifyIdentity) {
           window.netlifyIdentity.open();
       }
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
       if (typeof window !== 'undefined' && window.netlifyIdentity) {
           window.netlifyIdentity.logout();
       }
-  };
+  }, []);
 
   const [isDataLoaded, setIsDataLoaded] = useState(false); 
 
@@ -293,6 +303,7 @@ export default function App() {
                 }
             } catch (e) {
                 console.error("Failed to load local reports", e);
+                toast.error("Load Error", "Could not load your saved reports. Please refresh the page.");
             }
             setIsDataLoaded(true);
         };
@@ -307,13 +318,12 @@ export default function App() {
           saveWithCleanup(STORAGE_KEY, savedReports, savedReports).then(success => {
               if (!success) {
                   console.error("Storage quota exceeded and cleanup failed");
-                  // Only show error if it's a persistent issue
-                  setSyncError(prev => {
-                      if (!prev || !prev.includes("Storage")) {
-                          return "Storage full. Please clear old reports or cache in Settings.";
-                      }
-                      return prev;
-                  });
+                  toast.error(
+                      "Storage Full", 
+                      "Please delete old reports or clear cache in Settings to free up space.",
+                      0 // Don't auto-dismiss
+                  );
+                  setSyncError("Storage full. Please clear old reports or cache in Settings.");
               } else {
                   // Clear any previous storage errors if save succeeds
                   setSyncError(prev => {
@@ -327,8 +337,14 @@ export default function App() {
               console.error("Error saving reports", err);
               const errorMessage = err?.message || "Error saving reports";
               if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
+                  toast.error(
+                      "Storage Quota Exceeded",
+                      "Please delete old reports or clear cache in Settings.",
+                      0 // Don't auto-dismiss
+                  );
                   setSyncError("Storage quota exceeded. Please delete old reports or clear cache in Settings.");
               } else {
+                  toast.error("Save Error", errorMessage);
                   setSyncError(`Error saving reports: ${errorMessage}`);
               }
           });
@@ -359,7 +375,10 @@ export default function App() {
           const cloudReports = await CloudService.fetchReports();
           
           if (cloudReports === null) {
-              if (!silent) setSyncError("Could not connect to sync server.");
+              if (!silent) {
+                  setSyncError("Could not connect to sync server.");
+                  toast.error("Sync Failed", "Could not connect to sync server. Your data is saved locally.");
+              }
               return; 
           }
           
@@ -423,7 +442,10 @@ export default function App() {
           
       } catch (err) {
           console.error("Sync Error", err);
-          if (!silent) setSyncError("Sync failed unexpectedly.");
+          if (!silent) {
+              setSyncError("Sync failed unexpectedly.");
+              toast.error("Sync Error", "An unexpected error occurred. Your data is saved locally.");
+          }
       } finally {
           if (!silent) setIsSyncing(false);
       }
@@ -435,7 +457,7 @@ export default function App() {
         refreshReports();
         const interval = setInterval(() => {
             refreshReports(true);
-        }, 15000); 
+        }, SYNC_INTERVAL_MS); 
         return () => clearInterval(interval);
     }
   }, [currentUser]);
@@ -655,9 +677,9 @@ export default function App() {
   }, [partnerLogo]);
 
   // Handlers for List View
-  const handleCreateNew = () => {
+  const handleCreateNew = useCallback(() => {
     const now = Date.now();
-    if (now - lastCreationRef.current < 1000) return; 
+    if (now - lastCreationRef.current < MIN_CREATION_INTERVAL_MS) return; 
     lastCreationRef.current = now;
 
     setIsCreating(true);
@@ -686,19 +708,19 @@ export default function App() {
     setTimeout(() => {
         setIsCreating(false);
     }, 800);
-  };
+  }, [savedReports, currentUser]);
 
-  const handleSelectReport = (id: string) => {
+  const handleSelectReport = useCallback((id: string) => {
     const r = savedReports.find(rep => rep.id === id);
     if (r) {
         setActiveReportId(id);
     }
-  };
+  }, [savedReports]);
 
-  const handleDeleteReport = (id: string, rect?: DOMRect) => {
+  const handleDeleteReport = useCallback((id: string, rect?: DOMRect) => {
       setReportToDelete(id);
       setDeleteModalRect(rect || null);
-  };
+  }, []);
 
   const confirmDeleteReport = () => {
       if (reportToDelete) {
@@ -724,19 +746,19 @@ export default function App() {
               setReportToDelete(null);
               setDeleteModalRect(null);
               setIsDeleteExiting(false);
-          }, 300);
+          }, DELETE_ANIMATION_DELAY_MS);
       }
   };
 
-  const handleDeleteOldReports = async () => {
+  const handleDeleteOldReports = useCallback(async () => {
       const { clearOldReports } = await import('./services/storageService');
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       const newList = savedReports.filter(r => r.lastModified > thirtyDaysAgo);
       await clearOldReports(savedReports, 30);
       saveToStorage(newList);
-  };
+  }, [savedReports]);
   
-  const handleUpdateReport = (updatedReport: Report) => {
+  const handleUpdateReport = useCallback((updatedReport: Report) => {
       const newList = savedReports.map(r => r.id === updatedReport.id ? updatedReport : r);
       saveToStorage(newList);
       
@@ -748,14 +770,14 @@ export default function App() {
           setProject(updatedReport.project);
           setLocations(updatedReport.locations);
       }
-  };
+  }, [savedReports, currentUser, activeReportId]);
 
-  const handleSelectLocation = (id: string) => {
+  const handleSelectLocation = useCallback((id: string) => {
     setActiveLocationId(id);
     window.history.pushState({ reportId: activeReportId, locationId: id }, '', '');
-  };
+  }, [activeReportId]);
 
-  const handleBackFromLocation = () => {
+  const handleBackFromLocation = useCallback(() => {
     if (activeLocationId) {
         const el = document.getElementById(`loc-card-${activeLocationId}`);
         window.history.back();
@@ -763,9 +785,9 @@ export default function App() {
     } else {
         window.history.back();
     }
-  };
+  }, [activeLocationId]);
 
-  const handleAddIssueGlobal = (locationName: string, issue: Issue) => {
+  const handleAddIssueGlobal = useCallback((locationName: string, issue: Issue) => {
       if (!activeReportId) return;
 
       const report = savedReports.find(r => r.id === activeReportId);
@@ -790,21 +812,21 @@ export default function App() {
           locations: newLocations,
           lastModified: Date.now()
       });
-  };
+  }, [activeReportId, savedReports, handleUpdateReport]);
 
-  const handleUpdateProject = (details: ProjectDetails) => {
+  const handleUpdateProject = useCallback((details: ProjectDetails) => {
       if (activeReportId) {
           const r = savedReports.find(rep => rep.id === activeReportId);
           if (r) handleUpdateReport({ ...r, project: details, lastModified: Date.now() });
       }
-  };
+  }, [activeReportId, savedReports, handleUpdateReport]);
   
-  const handleUpdateLocations = (locs: LocationGroup[]) => {
+  const handleUpdateLocations = useCallback((locs: LocationGroup[]) => {
       if (activeReportId) {
            const r = savedReports.find(rep => rep.id === activeReportId);
            if (r) handleUpdateReport({ ...r, locations: locs, lastModified: Date.now() });
       }
-  };
+  }, [activeReportId, savedReports, handleUpdateReport]);
 
   // Splash Screen Render
   if (showSplash) {
@@ -918,6 +940,9 @@ export default function App() {
         )}
 
       </div>
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toast.toasts} onClose={toast.closeToast} />
     </ErrorBoundary>
   );
 }

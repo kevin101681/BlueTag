@@ -26,9 +26,10 @@ export const handler = async (event: any, context: any) => {
   const userId = user.sub; // Unique Google/Netlify User ID
 
   // 3. Database Connection
+  // Use proper SSL validation - Neon and most providers have valid certificates
   const client = new Client({
     connectionString,
-    ssl: { rejectUnauthorized: false }, // Neon/Serverless often requires this setting
+    ssl: connectionString?.includes('localhost') ? false : true,
   });
 
   try {

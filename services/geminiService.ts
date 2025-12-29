@@ -1,56 +1,31 @@
-import { GoogleGenAI } from "@google/genai";
-
-// Lazy initialization - only create client when needed and if API key is available
-let ai: GoogleGenAI | null = null;
-
-function getAI(): GoogleGenAI | null {
-  if (!ai) {
-    // Check for API key in environment variables (Vite uses import.meta.env)
-    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.API_KEY;
-    if (apiKey) {
-      try {
-        ai = new GoogleGenAI({ apiKey });
-      } catch (error) {
-        console.warn('Failed to initialize GoogleGenAI:', error);
-        return null;
-      }
-    } else {
-      return null;
-    }
-  }
-  return ai;
-}
+// Gemini AI service - now calls serverless function to keep API key secure
 
 export const analyzeDefectImage = async (base64Image: string): Promise<string> => {
-  const aiClient = getAI();
-  if (!aiClient) {
-    console.warn('GoogleGenAI not available - API key not set');
-    return 'AI analysis unavailable - API key not configured';
-  }
-
   try {
-    // Remove header if present (data:image/jpeg;base64,)
-    const cleanBase64 = base64Image.split(',')[1] || base64Image;
-
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-exp-1206',
-      contents: {
-        role: 'user',
-        parts: [
-            {
-                inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: cleanBase64
-                }
-            },
-            {
-                text: "Analyze this construction image. Identify the specific defect or issue shown (e.g., cracked drywall, chipped paint, ungrounded outlet). Provide a concise, professional 1-sentence description suitable for a formal construction punch list. Do not add conversational filler."
-            }
-        ]
-      }
+    const response = await fetch('/.netlify/functions/gemini-analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        base64Image,
+        analysisType: 'defect'
+      }),
     });
 
-    return response.text || "Could not analyze image.";
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Gemini analysis failed:', error);
+      
+      if (response.status === 500 && error.message?.includes('not configured')) {
+        return 'AI analysis unavailable - service not configured';
+      }
+      
+      return 'AI analysis unavailable';
+    }
+
+    const data = await response.json();
+    return data.result || "Could not analyze image.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
     return "AI analysis unavailable.";
@@ -58,20 +33,29 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
 };
 
 export const suggestFix = async (issueDescription: string): Promise<string> => {
-    const aiClient = getAI();
-    if (!aiClient) {
-        console.warn('GoogleGenAI not available - API key not set');
-        return '';
+  try {
+    // For text-only analysis, we'll create a simple text prompt
+    // Note: This is a placeholder - in production, you might want a separate endpoint
+    const response = await fetch('/.netlify/functions/gemini-analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        base64Image: '', // Empty for text-only
+        analysisType: 'fix',
+        textPrompt: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
+      }),
+    });
+
+    if (!response.ok) {
+      return '';
     }
 
-    try {
-        const response = await aiClient.models.generateContent({
-            model: 'gemini-exp-1206',
-            contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
-        });
-        return response.text || "";
-    } catch (error) {
-        console.error("Gemini Fix Suggestion Error:", error);
-        return "";
-    }
+    const data = await response.json();
+    return data.result || "";
+  } catch (error) {
+    console.error("Gemini Fix Suggestion Error:", error);
+    return "";
+  }
 };

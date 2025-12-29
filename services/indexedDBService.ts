@@ -215,7 +215,7 @@ const formatBytes = (bytes: number): string => {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 };
 
-// Migrate data from localStorage to IndexedDB
+// Migrate data from localStorage to IndexedDB with rollback on failure
 export const migrateFromLocalStorage = async (): Promise<boolean> => {
     if (!IndexedDBService.isAvailable()) {
         console.warn('IndexedDB not available, cannot migrate');
@@ -233,18 +233,51 @@ export const migrateFromLocalStorage = async (): Promise<boolean> => {
         const reportsData = localStorage.getItem('punchlist_reports');
         const deletedData = localStorage.getItem('punchlist_deleted_ids');
 
+        if (!reportsData && !deletedData) {
+            return true; // Nothing to migrate
+        }
+
+        let reports: any[] = [];
+        let deletedIds: string[] = [];
+
         if (reportsData) {
-            const reports = JSON.parse(reportsData);
-            await IndexedDBService.saveReports(reports);
-            console.log(`Migrated ${reports.length} reports to IndexedDB`);
+            reports = JSON.parse(reportsData);
         }
 
         if (deletedData) {
-            const deletedIds = JSON.parse(deletedData);
-            await IndexedDBService.saveDeletedIds(deletedIds);
+            deletedIds = JSON.parse(deletedData);
         }
 
-        return true;
+        // Attempt migration
+        try {
+            if (reports.length > 0) {
+                await IndexedDBService.saveReports(reports);
+                console.log(`Migrated ${reports.length} reports to IndexedDB`);
+            }
+
+            if (deletedIds.length > 0) {
+                await IndexedDBService.saveDeletedIds(deletedIds);
+            }
+
+            // Verify migration succeeded by reading back
+            const verifyReports = await IndexedDBService.loadReports();
+            const verifyDeleted = await IndexedDBService.loadDeletedIds();
+
+            if (verifyReports.length === reports.length && verifyDeleted.length === deletedIds.length) {
+                // Migration verified - clear localStorage as backup (keep for now as safety)
+                // We'll add a flag to indicate migration success
+                localStorage.setItem('punchlist_migration_complete', 'true');
+                console.log('Migration completed and verified successfully');
+                return true;
+            } else {
+                throw new Error('Migration verification failed - data count mismatch');
+            }
+        } catch (migrationError) {
+            console.error('Migration failed, keeping localStorage data intact', migrationError);
+            // Clear potentially corrupted IndexedDB data
+            await IndexedDBService.clearAll().catch(console.error);
+            throw migrationError;
+        }
     } catch (error) {
         console.error('Migration error', error);
         return false;

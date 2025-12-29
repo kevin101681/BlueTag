@@ -1,6 +1,20 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Check, Undo, ArrowRight, Pen, Circle as CircleIcon, ZoomIn, Redo, Type } from 'lucide-react';
+import { 
+  MAX_EDITOR_HISTORY, 
+  IMAGE_EDITOR_MAX_SIZE_PX, 
+  IMAGE_EDITOR_QUALITY,
+  DOUBLE_TAP_THRESHOLD_MS,
+  ANIMATION_DURATION_MS,
+  PEN_LINE_WIDTH,
+  ERASER_LINE_WIDTH,
+  ARROW_HEAD_LENGTH,
+  TEXT_FONT_SIZE,
+  TEXT_OUTLINE_WIDTH,
+  MIN_ZOOM,
+  MAX_ZOOM
+} from '../constants';
 
 interface ImageEditorProps {
     imageUrl: string;
@@ -9,8 +23,6 @@ interface ImageEditorProps {
 }
 
 type ToolType = 'arrow' | 'pen' | 'circle' | 'text';
-
-const MAX_HISTORY = 15; // Limit history to prevent memory crash on mobile
 
 export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCancel }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -57,17 +69,16 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
         img.crossOrigin = "anonymous"; 
         img.onload = () => {
             // Resize if too large to prevent memory issues and huge save files
-            const MAX_SIZE = 1200;
             let w = img.width;
             let h = img.height;
             
-            if (w > MAX_SIZE || h > MAX_SIZE) {
+            if (w > IMAGE_EDITOR_MAX_SIZE_PX || h > IMAGE_EDITOR_MAX_SIZE_PX) {
                 if (w > h) {
-                    h *= MAX_SIZE / w;
-                    w = MAX_SIZE;
+                    h *= IMAGE_EDITOR_MAX_SIZE_PX / w;
+                    w = IMAGE_EDITOR_MAX_SIZE_PX;
                 } else {
-                    w *= MAX_SIZE / h;
-                    h = MAX_SIZE;
+                    w *= IMAGE_EDITOR_MAX_SIZE_PX / h;
+                    h = IMAGE_EDITOR_MAX_SIZE_PX;
                 }
             }
 
@@ -115,7 +126,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
         const baseSize = Math.max(canvasRef.current!.width, canvasRef.current!.height);
         const scale = Math.max(baseSize / 1000, 1); // Base scale on ~1000px image
         
-        ctx.lineWidth = 6 * scale;
+        ctx.lineWidth = PEN_LINE_WIDTH * scale;
         ctx.strokeStyle = "#ef4444"; // Red-500
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
@@ -125,7 +136,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
 
     const drawArrow = (ctx: CanvasRenderingContext2D, fromX: number, fromY: number, toX: number, toY: number) => {
         const scale = setupContext(ctx);
-        const headLen = 25 * scale; 
+        const headLen = ARROW_HEAD_LENGTH * scale; 
         const angle = Math.atan2(toY - fromY, toX - fromX);
         
         ctx.beginPath();
@@ -172,7 +183,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
             newHistory.push(newState);
 
             // Limit history size to prevent memory issues
-            if (newHistory.length > MAX_HISTORY) {
+            if (newHistory.length > MAX_EDITOR_HISTORY) {
                 newHistory.shift();
             }
             
@@ -266,14 +277,14 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
         
         const baseSize = Math.max(canvas.width, canvas.height);
         const scale = Math.max(baseSize / 1000, 1); 
-        const fontSize = 40 * scale;
+        const fontSize = TEXT_FONT_SIZE * scale;
         
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.textBaseline = 'middle';
         
         // Stroke (Outline)
         ctx.strokeStyle = 'white';
-        ctx.lineWidth = 6 * scale;
+        ctx.lineWidth = TEXT_OUTLINE_WIDTH * scale;
         ctx.lineJoin = 'round';
         ctx.strokeText(textValue, pendingText.x, pendingText.y);
         
@@ -292,13 +303,13 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
         const now = Date.now();
 
         // Double tap to reset
-        if (now - lastTapTime.current < 300 && e.touches.length === 1) {
+        if (now - lastTapTime.current < DOUBLE_TAP_THRESHOLD_MS && e.touches.length === 1) {
             setIsResetting(true);
-            setZoom(1);
+            setZoom(MIN_ZOOM);
             setPan({x: 0, y: 0});
             setIsDrawing(false);
             // Allow animation to play then remove transition class
-            setTimeout(() => setIsResetting(false), 300);
+            setTimeout(() => setIsResetting(false), ANIMATION_DURATION_MS);
             return;
         }
         lastTapTime.current = now;
@@ -342,7 +353,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
             
             if (initialPinchDist.current > 0) {
                 const scaleFactor = dist / initialPinchDist.current;
-                const newZoom = Math.min(Math.max(1, initialZoom.current * scaleFactor), 5);
+                const newZoom = Math.min(Math.max(MIN_ZOOM, initialZoom.current * scaleFactor), MAX_ZOOM);
                 setZoom(newZoom);
             }
 
@@ -404,7 +415,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ imageUrl, onSave, onCa
 
     const handleSave = () => {
         if (canvasRef.current) {
-            onSave(canvasRef.current.toDataURL('image/jpeg', 0.85));
+            onSave(canvasRef.current.toDataURL('image/jpeg', IMAGE_EDITOR_QUALITY));
         }
     };
 
