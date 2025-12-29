@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
 import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
-import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../pdfService';
+import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../services/pdfService';
 import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage, DeleteConfirmationModal } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
 import { createPortal } from 'react-dom';
