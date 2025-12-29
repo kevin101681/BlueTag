@@ -6,7 +6,7 @@ let ai: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI | null {
   if (!ai) {
     // Check for API key in environment variables (Vite uses import.meta.env)
-    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.API_KEY;
     if (apiKey) {
       try {
         ai = new GoogleGenAI({ apiKey });
@@ -33,7 +33,7 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
     const cleanBase64 = base64Image.split(',')[1] || base64Image;
 
     const response = await aiClient.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-exp-1206',
       contents: {
         role: 'user',
         parts: [
@@ -66,7 +66,7 @@ export const suggestFix = async (issueDescription: string): Promise<string> => {
 
     try {
         const response = await aiClient.models.generateContent({
-            model: 'gemini-2.0-flash-exp',
+            model: 'gemini-exp-1206',
             contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
         });
         return response.text || "";
