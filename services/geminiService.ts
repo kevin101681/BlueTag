@@ -6,7 +6,7 @@ let ai: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI | null {
   if (!ai) {
     // Check for API key in environment variables (Vite uses import.meta.env)
-    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.API_KEY;
+    const apiKey = import.meta.env?.VITE_GEMINI_API_KEY;
     if (apiKey) {
       try {
         ai = new GoogleGenAI({ apiKey });
@@ -15,6 +15,7 @@ function getAI(): GoogleGenAI | null {
         return null;
       }
     } else {
+      console.warn('VITE_GEMINI_API_KEY not found in environment variables');
       return null;
     }
   }
@@ -32,8 +33,9 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
     // Remove header if present (data:image/jpeg;base64,)
     const cleanBase64 = base64Image.split(',')[1] || base64Image;
 
+    // Use Gemini 3.0 Flash model
     const response = await aiClient.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.0-flash',
       contents: {
         role: 'user',
         parts: [
@@ -51,8 +53,12 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
     });
 
     return response.text || "Could not analyze image.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
+    // Provide more detailed error message
+    if (error?.message) {
+      return `AI analysis error: ${error.message}`;
+    }
     return "AI analysis unavailable.";
   }
 };
@@ -65,12 +71,13 @@ export const suggestFix = async (issueDescription: string): Promise<string> => {
     }
 
     try {
+        // Use Gemini 3.0 Flash model
         const response = await aiClient.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.0-flash',
             contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
         });
         return response.text || "";
-    } catch (error) {
+    } catch (error: any) {
         console.error("Gemini Fix Suggestion Error:", error);
         return "";
     }
