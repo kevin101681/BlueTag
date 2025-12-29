@@ -32,9 +32,8 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
     // Remove header if present (data:image/jpeg;base64,)
     const cleanBase64 = base64Image.split(',')[1] || base64Image;
 
-    // Use Gemini 3.0 Flash model
     const response = await aiClient.models.generateContent({
-      model: 'gemini-3.0-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: {
         role: 'user',
         parts: [
@@ -52,12 +51,8 @@ export const analyzeDefectImage = async (base64Image: string): Promise<string> =
     });
 
     return response.text || "Could not analyze image.";
-  } catch (error: any) {
+  } catch (error) {
     console.error("Gemini Analysis Error:", error);
-    // Provide more detailed error message
-    if (error?.message) {
-      return `AI analysis error: ${error.message}`;
-    }
     return "AI analysis unavailable.";
   }
 };
@@ -70,13 +65,12 @@ export const suggestFix = async (issueDescription: string): Promise<string> => {
     }
 
     try {
-        // Use Gemini 3.0 Flash model
         const response = await aiClient.models.generateContent({
-            model: 'gemini-3.0-flash',
+            model: 'gemini-2.0-flash-exp',
             contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
         });
         return response.text || "";
-    } catch (error: any) {
+    } catch (error) {
         console.error("Gemini Fix Suggestion Error:", error);
         return "";
     }
