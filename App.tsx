@@ -4,14 +4,10 @@ import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTempla
 import type { NetlifyUser, NetlifyIdentityWidget } from './types/netlify';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
-import { CloudService } from './services/cloudService';
-import { saveWithCleanup, getStorageInfo } from './services/storageService';
-import { IndexedDBService, migrateFromLocalStorage } from './services/indexedDBService';
-import { syncQueueService } from './services/syncQueueService';
 import { AlertCircle, WifiOff, Wifi } from 'lucide-react';
 
-// v1.1.14 - Fixed lazy instantiation
-console.log('[BlueTag] App module loaded v1.1.14');
+// v1.1.15 - Dynamic imports for services to break circular dependencies
+console.log('[BlueTag] App module loaded v1.1.15');
 
 // Global declaration for Netlify Identity
 declare global {
