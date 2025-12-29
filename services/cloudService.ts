@@ -13,7 +13,7 @@ const getAuthHeaders = async () => {
     return {};
 };
 
-const CloudServiceImpl = {
+export const CloudService = {
     // Return null if fetch fails, empty array if successful but no reports
     async fetchReports(): Promise<Report[] | null> {
         // If offline, return null to use local data
@@ -95,6 +95,3 @@ const CloudServiceImpl = {
         }
     }
 };
-
-// Export CloudService - just reference the implementation
-export const CloudService = CloudServiceImpl;

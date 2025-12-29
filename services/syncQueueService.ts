@@ -3,6 +3,7 @@
  * Queues cloud operations when offline and processes them when online
  */
 
+import { CloudService } from './cloudService';
 import { Report } from '../types';
 
 export interface QueuedOperation {
@@ -17,27 +18,15 @@ const QUEUE_KEY = 'bluetag_sync_queue';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000; // 5 seconds
 
-// Type for CloudService methods
-type CloudServiceMethods = {
-    saveReport: (report: Report) => Promise<boolean>;
-    deleteReport: (id: string) => Promise<boolean>;
-};
-
 class SyncQueueService {
     private queue: QueuedOperation[] = [];
     private isProcessing = false;
     private listeners: Array<(isOnline: boolean) => void> = [];
     private onlineStatus = navigator.onLine;
-    private cloudService: CloudServiceMethods | null = null;
 
     constructor() {
         this.loadQueue();
         this.setupOnlineListeners();
-    }
-
-    // Initialize with CloudService methods to break circular dependency
-    setCloudService(service: CloudServiceMethods) {
-        this.cloudService = service;
     }
 
     private setupOnlineListeners() {
@@ -140,7 +129,7 @@ class SyncQueueService {
     }
 
     async processQueue(): Promise<void> {
-        if (this.isProcessing || !this.isOnline() || this.queue.length === 0 || !this.cloudService) {
+        if (this.isProcessing || !this.isOnline() || this.queue.length === 0) {
             return;
         }
 
@@ -156,9 +145,9 @@ class SyncQueueService {
                     let success = false;
 
                     if (op.type === 'save' && op.data) {
-                        success = await this.cloudService.saveReport(op.data);
+                        success = await CloudService.saveReport(op.data);
                     } else if (op.type === 'delete') {
-                        success = await this.cloudService.deleteReport(op.id);
+                        success = await CloudService.deleteReport(op.id);
                     }
 
                     if (success) {
@@ -221,42 +210,5 @@ class SyncQueueService {
     }
 }
 
-let instance: SyncQueueService | null = null;
+export const syncQueueService = new SyncQueueService();
 
-export const syncQueueService = {
-    getInstance(): SyncQueueService {
-        if (!instance) {
-            instance = new SyncQueueService();
-        }
-        return instance;
-    },
-    
-    // Proxy methods to the instance
-    setCloudService(service: CloudServiceMethods) {
-        this.getInstance().setCloudService(service);
-    },
-    isOnline(): boolean {
-        return this.getInstance().isOnline();
-    },
-    subscribe(listener: (isOnline: boolean) => void) {
-        return this.getInstance().subscribe(listener);
-    },
-    async enqueueSave(report: Report): Promise<boolean> {
-        return this.getInstance().enqueueSave(report);
-    },
-    async enqueueDelete(reportId: string): Promise<boolean> {
-        return this.getInstance().enqueueDelete(reportId);
-    },
-    async processQueue(): Promise<void> {
-        return this.getInstance().processQueue();
-    },
-    getQueueLength(): number {
-        return this.getInstance().getQueueLength();
-    },
-    getQueue(): QueuedOperation[] {
-        return this.getInstance().getQueue();
-    },
-    async clearQueue(): Promise<void> {
-        return this.getInstance().clearQueue();
-    }
-};

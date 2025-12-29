@@ -2,54 +2,38 @@ import { GoogleGenAI } from "@google/genai";
 
 // Lazy initialization - only create client when needed and if API key is available
 let ai: GoogleGenAI | null = null;
-let initializationAttempted = false;
 
 function getAI(): GoogleGenAI | null {
-  if (initializationAttempted) {
-    return ai;
-  }
-  
-  initializationAttempted = true;
-  
-  try {
+  if (!ai) {
     // Check for API key in environment variables (Vite uses import.meta.env)
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-    
-    if (!apiKey) {
-      console.warn('[Gemini] API key not found. Set VITE_GEMINI_API_KEY in environment variables.');
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.API_KEY;
+    if (apiKey) {
+      try {
+        ai = new GoogleGenAI({ apiKey });
+      } catch (error) {
+        console.warn('Failed to initialize GoogleGenAI:', error);
+        return null;
+      }
+    } else {
       return null;
     }
-    
-    console.log('[Gemini] Initializing GoogleGenAI client...');
-    ai = new GoogleGenAI({ apiKey });
-    console.log('[Gemini] GoogleGenAI client initialized successfully');
-    return ai;
-  } catch (error) {
-    console.error('[Gemini] Failed to initialize GoogleGenAI:', error);
-    return null;
   }
+  return ai;
 }
 
-export async function analyzeDefectImage(base64Image: string): Promise<string> {
-  try {
-    console.log('[Gemini] Starting image analysis...');
-    
-    const aiClient = getAI();
-    if (!aiClient) {
-      console.warn('[Gemini] GoogleGenAI not available - API key not set');
-      return 'AI analysis unavailable - API key not configured';
-    }
+export const analyzeDefectImage = async (base64Image: string): Promise<string> => {
+  const aiClient = getAI();
+  if (!aiClient) {
+    console.warn('GoogleGenAI not available - API key not set');
+    return 'AI analysis unavailable - API key not configured';
+  }
 
+  try {
     // Remove header if present (data:image/jpeg;base64,)
     const cleanBase64 = base64Image.split(',')[1] || base64Image;
-    
-    console.log('[Gemini] Sending request to Gemini API...', {
-      imageSize: cleanBase64.length,
-      model: 'gemini-2.0-flash-exp'
-    });
 
     const response = await aiClient.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       contents: {
         role: 'user',
         parts: [
@@ -66,35 +50,28 @@ export async function analyzeDefectImage(base64Image: string): Promise<string> {
       }
     });
 
-    console.log('[Gemini] Received response');
-    const result = response.text || "Could not analyze image.";
-    console.log('[Gemini] Analysis complete');
-    return result;
+    return response.text || "Could not analyze image.";
   } catch (error) {
-    console.error("[Gemini] Analysis Error:", error);
-    // Return more detailed error for debugging
-    if (error instanceof Error) {
-      return `AI analysis error: ${error.message}`;
-    }
+    console.error("Gemini Analysis Error:", error);
     return "AI analysis unavailable.";
   }
-}
+};
 
-export async function suggestFix(issueDescription: string): Promise<string> {
-  try {
+export const suggestFix = async (issueDescription: string): Promise<string> => {
     const aiClient = getAI();
     if (!aiClient) {
-      console.warn('[Gemini] GoogleGenAI not available - API key not set');
-      return '';
+        console.warn('GoogleGenAI not available - API key not set');
+        return '';
     }
 
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
-    });
-    return response.text || "";
-  } catch (error) {
-    console.error("[Gemini] Fix Suggestion Error:", error);
-    return "";
-  }
-}
+    try {
+        const response = await aiClient.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `For the following construction defect: "${issueDescription}", suggest a concise standard repair method (max 20 words).`
+        });
+        return response.text || "";
+    } catch (error) {
+        console.error("Gemini Fix Suggestion Error:", error);
+        return "";
+    }
+};
