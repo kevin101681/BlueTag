@@ -20,11 +20,25 @@ export interface SignOffStroke {
     type: 'ink' | 'erase';
 }
 
+export interface SignOffRenderMeta {
+  /**
+   * Metrics captured from the on-screen PDF preview at the moment the user saved.
+   * Used to reliably re-embed ink/signature overlays later (download/email) even
+   * when device size/scale changes.
+   */
+  containerWidth: number;
+  pageHeight: number;
+  gapHeight: number;
+  contentX: number;
+  contentW: number;
+}
+
 export interface ProjectDetails {
   fields: ProjectField[];
   signOffImage?: string; // Base64 string of the signed document thumbnail
   reportPreviewImage?: string; // Base64 string of the marked-up report thumbnail
   signOffStrokes?: (Point[] | SignOffStroke)[]; // Array of strokes (legacy Point[] or new SignOffStroke)
+  signOffMeta?: SignOffRenderMeta;
   reportMarks?: Record<string, ('check' | 'x')[]>; // Persist report preview markups
 }
 

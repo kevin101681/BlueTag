@@ -1095,12 +1095,57 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         const observer = new ResizeObserver(() => { resizeCanvas(); }); observer.observe(overlay); resizeCanvas(); return () => observer.disconnect();
     }, [strokes, resizeTrigger]);
 
+    const getRenderMeta = () => {
+        const overlay = overlayRef.current;
+        const containerWidth = overlay ? overlay.scrollWidth : 800;
+
+        let gapHeight = 16;
+        let contentX = 0;
+        let contentW = containerWidth;
+        let pageHeight: number | undefined = undefined;
+
+        if (overlay) {
+            const canvasEl = overlay.querySelector('.pdf-page-canvas') as HTMLCanvasElement | null;
+            if (canvasEl) {
+                const canvasRect = canvasEl.getBoundingClientRect();
+                const overlayRect = overlay.getBoundingClientRect();
+                pageHeight = canvasRect.height || pageHeight;
+                contentX = (canvasRect.left - overlayRect.left) + overlay.scrollLeft;
+                contentW = canvasRect.width || contentW;
+
+                if (canvasEl.parentElement) {
+                    const style = window.getComputedStyle(canvasEl.parentElement);
+                    const mb = parseFloat(style.marginBottom);
+                    if (!isNaN(mb)) gapHeight = mb;
+                }
+            }
+        }
+
+        const fallbackPageHeight = pageHeight || (containerWidth * (297 / 210));
+
+        return { containerWidth, pageHeight: fallbackPageHeight, gapHeight, contentX, contentW };
+    };
+
     const handleSave = async () => {
-        const canvas = canvasRef.current; let signatureImage = undefined; if (canvas) { signatureImage = canvas.toDataURL('image/png'); }
-        onUpdateProject({ ...project, signOffStrokes: strokes, signOffImage: signatureImage });
-        const overlay = overlayRef.current; const containerWidth = overlay ? overlay.scrollWidth : 800; let pageHeight = undefined; let gapHeight = 16; let contentX = 0; let contentW = containerWidth;
-        if (overlay) { const canvasEl = overlay.querySelector('.pdf-page-canvas'); if (canvasEl) { const canvasRect = canvasEl.getBoundingClientRect(); pageHeight = canvasRect.height; const overlayRect = overlay.getBoundingClientRect(); contentX = (canvasRect.left - overlayRect.left) + overlay.scrollLeft; contentW = canvasRect.width; if (canvasEl.parentElement) { const style = window.getComputedStyle(canvasEl.parentElement); const mb = parseFloat(style.marginBottom); if (!isNaN(mb)) gapHeight = mb; } } }
-        const finalPdfUrl = await generateSignOffPDF(project, SIGN_OFF_TITLE, templates[0], companyLogo, signatureImage, undefined, containerWidth, pageHeight, gapHeight, contentX, contentW);
+        const canvas = canvasRef.current;
+        const signatureImage = canvas ? canvas.toDataURL('image/png') : undefined;
+        const meta = getRenderMeta();
+
+        onUpdateProject({ ...project, signOffStrokes: strokes, signOffImage: signatureImage, signOffMeta: meta });
+
+        const finalPdfUrl = await generateSignOffPDF(
+            project,
+            SIGN_OFF_TITLE,
+            templates[0],
+            companyLogo,
+            signatureImage,
+            strokes,
+            meta.containerWidth,
+            meta.pageHeight,
+            meta.gapHeight,
+            meta.contentX,
+            meta.contentW
+        );
         window.open(finalPdfUrl, '_blank'); onClose();
     };
 
@@ -1135,7 +1180,31 @@ const EmailOptionsModal = ({ onClose, project, locations, companyLogo, signOffTe
     const getSafeName = () => { const name = project.fields?.[0]?.value || "Project"; return name.replace(/[^a-z0-9]/gi, '_'); };
     const handleShare = async (files: File[], title?: string, text?: string) => { if (navigator.share && navigator.canShare && navigator.canShare({ files })) { try { await navigator.share({ files, title, text }); onClose(); } catch (error) { console.error("Share failed", error); } } else { alert("Sharing files is not supported on this browser/device."); } };
     const generateReportFile = async () => { const res = await generatePDFWithMetadata({ project, locations }, companyLogo, project.reportMarks); const blob = res.doc.output('blob'); const filename = `${getSafeName()} - New Home Completion List.pdf`; return new File([blob], filename, { type: 'application/pdf' }); };
-    const generateSignOffFile = async () => { const blobUrl = await generateSignOffPDF(project, SIGN_OFF_TITLE, signOffTemplates[0], companyLogo, project.signOffImage, project.signOffStrokes, 800, undefined, 16); const blob = await fetch(blobUrl).then(r => r.blob()); const filename = `${getSafeName()} - Sign Off Sheet.pdf`; return new File([blob], filename, { type: 'application/pdf' }); };
+    const generateSignOffFile = async () => {
+        const meta = project.signOffMeta;
+        const containerWidth = meta?.containerWidth ?? 800;
+        const pageHeight = meta?.pageHeight;
+        const gapHeight = meta?.gapHeight ?? 16;
+        const contentX = meta?.contentX ?? 0;
+        const contentW = meta?.contentW ?? containerWidth;
+
+        const blobUrl = await generateSignOffPDF(
+            project,
+            SIGN_OFF_TITLE,
+            signOffTemplates[0],
+            companyLogo,
+            project.signOffImage,
+            project.signOffStrokes,
+            containerWidth,
+            pageHeight,
+            gapHeight,
+            contentX,
+            contentW
+        );
+        const blob = await fetch(blobUrl).then(r => r.blob());
+        const filename = `${getSafeName()} - Sign Off Sheet.pdf`;
+        return new File([blob], filename, { type: 'application/pdf' });
+    };
     const handleEmailAll = async () => { setIsGenerating(true); try { const reportFile = await generateReportFile(); const signOffFile = await generateSignOffFile(); const safeProjectName = project.fields?.[0]?.value || "Project"; await handleShare([reportFile, signOffFile], `${safeProjectName} - Walk through docs`, "Here's the punch list and sign off sheet. The rewalk is scheduled for"); } catch (e) { console.error("Failed to generate files", e); } finally { setIsGenerating(false); } };
     const handleEmailReport = async () => { setIsGenerating(true); try { const reportFile = await generateReportFile(); await handleShare([reportFile]); } catch (e) { console.error("Failed to generate report", e); } finally { setIsGenerating(false); } };
     const handleEmailSignOff = async () => { setIsGenerating(true); try { const signOffFile = await generateSignOffFile(); await handleShare([signOffFile]); } catch (e) { console.error("Failed to generate sign off", e); } finally { setIsGenerating(false); } };
@@ -1334,7 +1403,26 @@ export const Dashboard = React.memo<DashboardProps>(({
                                         const name = project.fields?.[0]?.value || "Project";
                                         return name.replace(/[^a-z0-9]/gi, '_');
                                     };
-                                    const blobUrl = await generateSignOffPDF(project, SIGN_OFF_TITLE, signOffTemplates[0], companyLogo, project.signOffImage, project.signOffStrokes, 800, undefined, 16);
+                                    const meta = project.signOffMeta;
+                                    const containerWidth = meta?.containerWidth ?? 800;
+                                    const pageHeight = meta?.pageHeight;
+                                    const gapHeight = meta?.gapHeight ?? 16;
+                                    const contentX = meta?.contentX ?? 0;
+                                    const contentW = meta?.contentW ?? containerWidth;
+
+                                    const blobUrl = await generateSignOffPDF(
+                                        project,
+                                        SIGN_OFF_TITLE,
+                                        signOffTemplates[0],
+                                        companyLogo,
+                                        project.signOffImage,
+                                        project.signOffStrokes,
+                                        containerWidth,
+                                        pageHeight,
+                                        gapHeight,
+                                        contentX,
+                                        contentW
+                                    );
                                     const blob = await fetch(blobUrl).then(r => r.blob());
                                     const filename = `${getSafeName()} - Sign Off Sheet.pdf`;
                                     

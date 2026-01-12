@@ -776,8 +776,19 @@ export const generateSignOffPDF = async (
     }
 
     // Prefer image overlay (handling opacity/erasure correctly) over vector strokes
-    if (signatureImage && containerWidth && pageHeight) {
-        await drawSignatureImageOnPDF(doc, signatureImage, containerWidth, pageHeight, gapHeight || 16, contentX, contentW);
+    if (signatureImage && containerWidth) {
+        const resolvedPageHeight = pageHeight || (containerWidth * (297 / 210));
+        const resolvedContentX = contentX ?? 0;
+        const resolvedContentW = (contentW && contentW > 0) ? contentW : containerWidth;
+        await drawSignatureImageOnPDF(
+            doc,
+            signatureImage,
+            containerWidth,
+            resolvedPageHeight,
+            gapHeight || 16,
+            resolvedContentX,
+            resolvedContentW
+        );
     } else if (strokes && containerWidth && strokes.length > 0) {
         drawStrokesOnPDF(doc, strokes, containerWidth, pageHeight, gapHeight);
     }

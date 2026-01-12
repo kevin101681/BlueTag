@@ -44,6 +44,7 @@ interface ReportListProps {
   onRefresh?: () => void;
   isOnline?: boolean;
   queuedOperations?: number;
+  onModalStateChange?: (isOpen: boolean) => void;
 }
 
 // Helper to check active
@@ -62,7 +63,8 @@ const DashboardWrapper = ({
     onDelete,
     onAddIssueGlobal,
     isClientInfoCollapsed,
-    onToggleClientInfo
+    onToggleClientInfo,
+    onModalStateChange
 }: any) => {
     return (
         <div className="w-full h-full">
@@ -77,7 +79,7 @@ const DashboardWrapper = ({
                 isDarkMode={isDarkMode}
                 toggleTheme={toggleTheme}
                 companyLogo={companyLogo}
-                onModalStateChange={() => {}}
+                onModalStateChange={onModalStateChange || (() => {})}
                 signOffTemplates={signOffTemplates}
                 onUpdateTemplates={onUpdateTemplates}
                 embedded={false}
@@ -727,6 +729,7 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         isExiting={isExiting}
                         onDelete={(e: React.MouseEvent, rect?: DOMRect) => props.onDeleteReport(activeReport.id, rect)}
                         onAddIssueGlobal={props.onAddIssueGlobal}
+                        onModalStateChange={props.onModalStateChange}
                         isClientInfoCollapsed={reportViewStates[activeReport.id]?.clientInfoCollapsed ?? false}
                         onToggleClientInfo={(collapsed: boolean) => {
                              setReportViewStates(prev => ({

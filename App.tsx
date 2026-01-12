@@ -63,7 +63,10 @@ const migrateProjectData = (p: any): ProjectDetails => {
     return {
         fields: newFields,
         signOffImage: p.signOffImage,
-        reportPreviewImage: p.reportPreviewImage
+        reportPreviewImage: p.reportPreviewImage,
+        signOffStrokes: p.signOffStrokes,
+        signOffMeta: p.signOffMeta,
+        reportMarks: p.reportMarks
     };
 };
 
@@ -451,16 +454,20 @@ export default function App() {
       }
   };
 
+  const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
+
   // 2. Cloud Sync Polling
   useEffect(() => {
-    if (currentUser) {
-        refreshReports();
-        const interval = setInterval(() => {
-            refreshReports(true);
-        }, SYNC_INTERVAL_MS); 
-        return () => clearInterval(interval);
-    }
-  }, [currentUser]);
+    // Avoid swapping the active report/project while a modal is open (prevents
+    // the Sign Off preview from "refreshing" mid-signature).
+    if (!currentUser || isAnyModalOpen) return;
+
+    refreshReports();
+    const interval = setInterval(() => {
+        refreshReports(true);
+    }, SYNC_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [currentUser, isAnyModalOpen]);
 
   // 3. Save Changes
   const saveToStorage = (reports: Report[]) => {
@@ -582,6 +589,7 @@ export default function App() {
   }, []);
   
   useEffect(() => {
+      if (isAnyModalOpen) return;
       if (activeReportId && savedReports.length > 0) {
           const report = savedReports.find(r => r.id === activeReportId);
           if (report) {
@@ -589,7 +597,7 @@ export default function App() {
                setLocations(report.locations);
           }
       }
-  }, [activeReportId, savedReports]);
+  }, [activeReportId, savedReports, isAnyModalOpen]);
 
   useEffect(() => {
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
@@ -921,6 +929,7 @@ export default function App() {
                 deletingReportId={reportToDelete}
                 isDeleting={isDeleteExiting}
                 onRefresh={() => refreshReports(false)}
+                onModalStateChange={setIsAnyModalOpen}
                 />
             </>
         )}
