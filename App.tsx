@@ -4,8 +4,6 @@ import {
   EMPTY_LOCATIONS, 
   generateUUID, 
   DEFAULT_SIGN_OFF_TEMPLATES,
-  SPLASH_FADE_START_MS,
-  SPLASH_HIDE_MS,
   SYNC_INTERVAL_MS,
   QUEUE_CHECK_INTERVAL_MS,
   AUTO_SYNC_DELAY_MS,
@@ -147,8 +145,6 @@ const OnlineSyncIndicator = ({ isOnline, queuedOperations }: { isOnline: boolean
 };
 
 export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
-  const [isSplashFading, setIsSplashFading] = useState(false);
   const [currentUser, setCurrentUser] = useState<NetlifyIdentityUser | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -168,23 +164,6 @@ export default function App() {
   const deletedReportIdsRef = useRef<string[]>(deletedReportIds);
   
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Start fading out after configured time
-    const fadeTimer = setTimeout(() => {
-        setIsSplashFading(true);
-    }, SPLASH_FADE_START_MS);
-
-    // Completely remove splash from DOM after fade completes
-    const hideTimer = setTimeout(() => {
-        setShowSplash(false);
-    }, SPLASH_HIDE_MS); 
-
-    return () => {
-        clearTimeout(fadeTimer);
-        clearTimeout(hideTimer);
-    };
-  }, []);
 
   // Keep ref synchronized with state
   useEffect(() => {
@@ -835,17 +814,6 @@ export default function App() {
            if (r) handleUpdateReport({ ...r, locations: locs, lastModified: Date.now() });
       }
   }, [activeReportId, savedReports, handleUpdateReport]);
-
-  // Splash Screen Render
-  if (showSplash) {
-      return (
-          <div className={`fixed inset-0 z-[9999] flex items-center justify-center bg-slate-200 dark:bg-slate-950 transition-opacity duration-700 ease-out ${isSplashFading ? 'opacity-0' : 'opacity-100 animate-fade-in'}`}>
-              <div className="w-64 h-64 animate-fade-in-up">
-                  <img src="/images/logo2.png" alt="BlueTag" className="w-full h-full object-contain drop-shadow-2xl" />
-              </div>
-          </div>
-      );
-  }
 
   return (
     <ErrorBoundary>
