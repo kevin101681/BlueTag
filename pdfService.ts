@@ -647,7 +647,7 @@ const drawStrokesOnPDF = (doc: jsPDF, strokes: (Point[] | SignOffStroke)[], cont
     });
 };
 
-const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidth: number, screenPageHeight: number, screenGapHeight: number, contentX: number = 0, contentW: number = 0) => {
+const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidth: number, screenPageHeight: number, screenGapHeight: number, contentX: number = 0, contentY: number = 0, contentW: number = 0) => {
     return new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -667,6 +667,8 @@ const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidt
             
             // Horizontal Crop Calculation
             const sx = contentX * dpr;
+            // Vertical offset to account for padding/margin above first page
+            const topOffset = contentY * dpr;
             // Use provided content width for the slice, or default to full image width
             const sw = (contentW > 0) ? contentW * dpr : imgW;
 
@@ -682,8 +684,8 @@ const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidt
             for (let i = 1; i <= totalPages; i++) {
                 doc.setPage(i);
                 
-                // Calculate Source Y start for this page
-                const sy = (i - 1) * srcTotalH;
+                // Calculate Source Y start for this page, accounting for top offset
+                const sy = topOffset + ((i - 1) * srcTotalH);
                 
                 // Clear and draw slice
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -691,10 +693,11 @@ const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidt
                 // Dest:   canvas, dx=0, dy=0, dw=sw, dh=srcPageH
                 ctx.drawImage(img, sx, sy, sw, srcPageH, 0, 0, sw, srcPageH);
                 
-                const sliceData = canvas.toDataURL('image/png');
+                // Use JPEG with compression to reduce file size
+                const sliceData = canvas.toDataURL('image/jpeg', 0.85);
                 
                 // Draw slice onto PDF page, stretched to fit A4
-                doc.addImage(sliceData, 'PNG', 0, 0, pdfW, pdfH);
+                doc.addImage(sliceData, 'JPEG', 0, 0, pdfW, pdfH);
             }
             resolve();
         };
@@ -713,6 +716,7 @@ export const generateSignOffPDF = async (
     pageHeight?: number,
     gapHeight?: number,
     contentX?: number,
+    contentY?: number,
     contentW?: number
 ): Promise<string> => {
     let doc: jsPDF;
@@ -773,6 +777,7 @@ export const generateSignOffPDF = async (
     if (signatureImage && containerWidth) {
         const resolvedPageHeight = pageHeight || (containerWidth * (297 / 210));
         const resolvedContentX = contentX ?? 0;
+        const resolvedContentY = contentY ?? 0;
         const resolvedContentW = (contentW && contentW > 0) ? contentW : containerWidth;
         await drawSignatureImageOnPDF(
             doc,
@@ -781,6 +786,7 @@ export const generateSignOffPDF = async (
             resolvedPageHeight,
             gapHeight || 16,
             resolvedContentX,
+            resolvedContentY,
             resolvedContentW
         );
     } else if (strokes && containerWidth && strokes.length > 0) {

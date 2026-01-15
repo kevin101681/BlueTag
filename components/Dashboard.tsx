@@ -1101,6 +1101,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
         let gapHeight = 16;
         let contentX = 0;
+        let contentY = 0;
         let contentW = containerWidth;
         let pageHeight: number | undefined = undefined;
 
@@ -1111,6 +1112,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
                 const overlayRect = overlay.getBoundingClientRect();
                 pageHeight = canvasRect.height || pageHeight;
                 contentX = (canvasRect.left - overlayRect.left) + overlay.scrollLeft;
+                contentY = (canvasRect.top - overlayRect.top) + overlay.scrollTop;
                 contentW = canvasRect.width || contentW;
 
                 if (canvasEl.parentElement) {
@@ -1123,12 +1125,18 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
 
         const fallbackPageHeight = pageHeight || (containerWidth * (297 / 210));
 
-        return { containerWidth, pageHeight: fallbackPageHeight, gapHeight, contentX, contentW };
+        return { containerWidth, pageHeight: fallbackPageHeight, gapHeight, contentX, contentY, contentW };
     };
 
     const handleSave = async () => {
         const canvas = canvasRef.current;
-        const signatureImage = canvas ? canvas.toDataURL('image/png') : undefined;
+        let signatureImage: string | undefined = undefined;
+        
+        if (canvas) {
+            // Use JPEG with 0.85 quality instead of PNG to drastically reduce file size
+            signatureImage = canvas.toDataURL('image/jpeg', 0.85);
+        }
+        
         const meta = getRenderMeta();
 
         onUpdateProject({ ...project, signOffStrokes: strokes, signOffImage: signatureImage, signOffMeta: meta });
@@ -1144,6 +1152,7 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
             meta.pageHeight,
             meta.gapHeight,
             meta.contentX,
+            meta.contentY,
             meta.contentW
         );
         window.open(finalPdfUrl, '_blank'); onClose();
@@ -1186,6 +1195,7 @@ const EmailOptionsModal = ({ onClose, project, locations, companyLogo, signOffTe
         const pageHeight = meta?.pageHeight;
         const gapHeight = meta?.gapHeight ?? 16;
         const contentX = meta?.contentX ?? 0;
+        const contentY = meta?.contentY ?? 0;
         const contentW = meta?.contentW ?? containerWidth;
 
         const blobUrl = await generateSignOffPDF(
@@ -1199,6 +1209,7 @@ const EmailOptionsModal = ({ onClose, project, locations, companyLogo, signOffTe
             pageHeight,
             gapHeight,
             contentX,
+            contentY,
             contentW
         );
         const blob = await fetch(blobUrl).then(r => r.blob());
@@ -1408,6 +1419,7 @@ export const Dashboard = React.memo<DashboardProps>(({
                                     const pageHeight = meta?.pageHeight;
                                     const gapHeight = meta?.gapHeight ?? 16;
                                     const contentX = meta?.contentX ?? 0;
+                                    const contentY = meta?.contentY ?? 0;
                                     const contentW = meta?.contentW ?? containerWidth;
 
                                     const blobUrl = await generateSignOffPDF(
@@ -1421,6 +1433,7 @@ export const Dashboard = React.memo<DashboardProps>(({
                                         pageHeight,
                                         gapHeight,
                                         contentX,
+                                        contentY,
                                         contentW
                                     );
                                     const blob = await fetch(blobUrl).then(r => r.blob());

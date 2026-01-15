@@ -30,6 +30,7 @@ export interface SignOffRenderMeta {
   pageHeight: number;
   gapHeight: number;
   contentX: number;
+  contentY: number;
   contentW: number;
 }
 
