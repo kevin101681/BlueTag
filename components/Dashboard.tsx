@@ -1133,24 +1133,9 @@ export const SignOffModal = ({ project, companyLogo, onClose, onUpdateProject, t
         let signatureImage: string | undefined = undefined;
         
         if (canvas) {
-            // Create a temp canvas with white background for JPEG conversion
-            // (JPEG doesn't support transparency, so we need to composite over white)
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            
-            if (tempCtx) {
-                // Fill with white background
-                tempCtx.fillStyle = 'white';
-                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                
-                // Draw the ink canvas on top
-                tempCtx.drawImage(canvas, 0, 0);
-                
-                // Convert to JPEG with compression to reduce file size
-                signatureImage = tempCanvas.toDataURL('image/jpeg', 0.85);
-            }
+            // Use PNG to preserve transparency (so PDF content shows through)
+            // The overlay needs transparency where there's no ink
+            signatureImage = canvas.toDataURL('image/png');
         }
         
         const meta = getRenderMeta();

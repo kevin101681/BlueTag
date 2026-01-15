@@ -687,20 +687,19 @@ const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidt
                 // Calculate Source Y start for this page, accounting for top offset
                 const sy = topOffset + ((i - 1) * srcTotalH);
                 
-                // Fill with white background first (JPEG doesn't support transparency)
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Clear canvas to transparent
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Draw slice on top of white background
+                // Draw slice (preserving transparency where there's no ink)
                 // Source: img, sx=sx (crop left), sy=sy, sw=sw (crop width), sh=srcPageH
                 // Dest:   canvas, dx=0, dy=0, dw=sw, dh=srcPageH
                 ctx.drawImage(img, sx, sy, sw, srcPageH, 0, 0, sw, srcPageH);
                 
-                // Use JPEG with compression to reduce file size
-                const sliceData = canvas.toDataURL('image/jpeg', 0.85);
+                // Use PNG to preserve transparency so PDF content shows through
+                const sliceData = canvas.toDataURL('image/png');
                 
-                // Draw slice onto PDF page, stretched to fit A4
-                doc.addImage(sliceData, 'JPEG', 0, 0, pdfW, pdfH);
+                // Draw slice onto PDF page as an overlay
+                doc.addImage(sliceData, 'PNG', 0, 0, pdfW, pdfH);
             }
             resolve();
         };
