@@ -693,8 +693,11 @@ const drawSignatureImageOnPDF = async (doc: jsPDF, base64: string, containerWidt
                 // Calculate Source Y start for this page, accounting for top offset
                 const sy = topOffset + ((i - 1) * srcTotalH);
                 
-                // Clear and draw slice
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Fill with white background first (JPEG doesn't support transparency)
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw slice on top of white background
                 // Source: img, sx=sx (crop left), sy=sy, sw=sw (crop width), sh=srcPageH
                 // Dest:   canvas, dx=0, dy=0, dw=sw, dh=srcPageH
                 ctx.drawImage(img, sx, sy, sw, srcPageH, 0, 0, sw, srcPageH);
