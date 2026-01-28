@@ -36,6 +36,19 @@ export type CloudFetchResult =
     | { ok: true; reports: Report[] }
     | { ok: false; reason: CloudFetchFailureReason; status?: number; message: string };
 
+export interface ReportSummary {
+    id: string;
+    lastModified: number;
+}
+
+export type CloudIndexResult =
+    | { ok: true; summaries: ReportSummary[] }
+    | { ok: false; reason: CloudFetchFailureReason; status?: number; message: string };
+
+export type CloudSingleReportResult =
+    | { ok: true; report: Report }
+    | { ok: false; reason: CloudFetchFailureReason; status?: number; message: string };
+
 const safeJson = async (response: Response) => {
     try {
         return await response.json();
@@ -79,6 +92,86 @@ export const CloudService = {
             return { ok: true, reports };
         } catch (e: any) {
             console.error("Cloud Fetch Error:", e);
+            const message = e?.message || 'Network error';
+            return { ok: false, reason: 'network', message };
+        }
+    },
+
+    async fetchReportIndex(user?: NetlifyIdentityUser | null): Promise<CloudIndexResult> {
+        if (!syncQueueService.isOnline()) {
+            return { ok: false, reason: 'offline', message: 'Offline' };
+        }
+
+        const headers = await getAuthHeaders(user);
+        if (!headers?.Authorization) {
+            return { ok: false, reason: 'unauthorized', status: 401, message: 'Not logged in' };
+        }
+
+        try {
+            const response = await fetch('/.netlify/functions/reports?summary=1', {
+                method: 'GET',
+                headers
+            });
+
+            if (response.status === 401 || response.status === 403) {
+                const body = await safeJson(response);
+                const message = body?.error || 'Unauthorized';
+                return { ok: false, reason: 'unauthorized', status: response.status, message };
+            }
+
+            if (!response.ok) {
+                const body = await safeJson(response);
+                const message = body?.error || `Sync server error (${response.status})`;
+                return { ok: false, reason: 'server', status: response.status, message };
+            }
+
+            const summaries = (await response.json()) as ReportSummary[];
+            return { ok: true, summaries };
+        } catch (e: any) {
+            console.error("Cloud Index Error:", e);
+            const message = e?.message || 'Network error';
+            return { ok: false, reason: 'network', message };
+        }
+    },
+
+    async fetchReportById(id: string, user?: NetlifyIdentityUser | null): Promise<CloudSingleReportResult> {
+        if (!syncQueueService.isOnline()) {
+            return { ok: false, reason: 'offline', message: 'Offline' };
+        }
+
+        const headers = await getAuthHeaders(user);
+        if (!headers?.Authorization) {
+            return { ok: false, reason: 'unauthorized', status: 401, message: 'Not logged in' };
+        }
+
+        try {
+            const response = await fetch(`/.netlify/functions/reports?id=${encodeURIComponent(id)}`, {
+                method: 'GET',
+                headers
+            });
+
+            if (response.status === 401 || response.status === 403) {
+                const body = await safeJson(response);
+                const message = body?.error || 'Unauthorized';
+                return { ok: false, reason: 'unauthorized', status: response.status, message };
+            }
+
+            if (response.status === 404) {
+                const body = await safeJson(response);
+                const message = body?.error || 'Report not found';
+                return { ok: false, reason: 'server', status: 404, message };
+            }
+
+            if (!response.ok) {
+                const body = await safeJson(response);
+                const message = body?.error || `Sync server error (${response.status})`;
+                return { ok: false, reason: 'server', status: response.status, message };
+            }
+
+            const report = (await response.json()) as Report;
+            return { ok: true, report };
+        } catch (e: any) {
+            console.error("Cloud Fetch Report Error:", e);
             const message = e?.message || 'Network error';
             return { ok: false, reason: 'network', message };
         }

@@ -16,6 +16,7 @@ export const handler = async (event: any, context: any) => {
   if (!user) {
     return {
       statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: "Unauthorized. Please log in." }),
     };
   }
@@ -25,6 +26,7 @@ export const handler = async (event: any, context: any) => {
     console.error("Database connection string missing. Ensure DATABASE_URL or NETLIFY_DATABASE_URL is set.");
     return {
       statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: "Server misconfiguration: Missing Database URL." }),
     };
   }
@@ -53,18 +55,63 @@ export const handler = async (event: any, context: any) => {
     `);
 
     const method = event.httpMethod;
+    const qs = event.queryStringParameters || {};
 
     // GET: Fetch all reports for this user
     if (method === 'GET') {
+      // Summary endpoint: returns only IDs + last_modified to avoid >6MB Lambda responses.
+      // Use: /.netlify/functions/reports?summary=1
+      if (qs.summary === '1' || qs.summary === 'true') {
+        const result = await client.query(
+          'SELECT id, last_modified FROM reports WHERE user_id = $1 ORDER BY last_modified DESC',
+          [userId]
+        );
+
+        const summaries = result.rows.map((row: any) => ({
+          id: row.id,
+          lastModified: Number(row.last_modified) || 0,
+        }));
+
+        return {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(summaries),
+        };
+      }
+
+      // Single-report endpoint: /.netlify/functions/reports?id=<reportId>
+      if (qs.id) {
+        const result = await client.query(
+          'SELECT data FROM reports WHERE user_id = $1 AND id = $2 LIMIT 1',
+          [userId, qs.id]
+        );
+
+        if (result.rowCount === 0) {
+          return {
+            statusCode: 404,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: 'Report not found' }),
+          };
+        }
+
+        return {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(result.rows[0].data),
+        };
+      }
+
+      // Backward-compatible full fetch (may exceed Lambda limits for large accounts).
       const result = await client.query(
         'SELECT data FROM reports WHERE user_id = $1 ORDER BY last_modified DESC',
         [userId]
       );
-      
+
       const reports = result.rows.map((row: any) => row.data);
-      
+
       return {
         statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reports),
       };
     }
@@ -74,7 +121,7 @@ export const handler = async (event: any, context: any) => {
       const report = JSON.parse(event.body);
       
       if (!report.id) {
-         return { statusCode: 400, body: "Report ID missing" };
+         return { statusCode: 400, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: "Report ID missing" }) };
       }
 
       // Upsert query
@@ -91,6 +138,7 @@ export const handler = async (event: any, context: any) => {
 
       return {
         statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ success: true }),
       };
     }
@@ -100,13 +148,14 @@ export const handler = async (event: any, context: any) => {
       const { id } = event.queryStringParameters;
       
       if (!id) {
-          return { statusCode: 400, body: "ID missing" };
+          return { statusCode: 400, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: "ID missing" }) };
       }
 
       await client.query('DELETE FROM reports WHERE id = $1 AND user_id = $2', [id, userId]);
 
       return {
         statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ success: true }),
       };
     }
@@ -117,6 +166,7 @@ export const handler = async (event: any, context: any) => {
     console.error('Database Error:', error);
     return {
       statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: "Database operation failed", details: error.message }),
     };
   } finally {
