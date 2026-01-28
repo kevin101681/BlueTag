@@ -147,9 +147,11 @@ class SyncQueueService {
                     let success = false;
 
                     if (op.type === 'save' && op.data) {
-                        success = await CloudService.saveReport(op.data);
+                        // When processing the queue, do NOT re-enqueue on failure.
+                        success = await CloudService.saveReport(op.data, { fromQueue: true });
                     } else if (op.type === 'delete') {
-                        success = await CloudService.deleteReport(op.id);
+                        // When processing the queue, do NOT re-enqueue on failure.
+                        success = await CloudService.deleteReport(op.id, { fromQueue: true });
                     }
 
                     if (success) {
