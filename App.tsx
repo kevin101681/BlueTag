@@ -353,16 +353,16 @@ export default function App() {
       }
       
       try {
-          const result = await CloudService.fetchReports(currentUser);
-          if (!result.ok) {
+          const indexResult = await CloudService.fetchReportIndex(currentUser);
+          if (!indexResult.ok) {
               if (!silent) {
-                  if (result.reason === 'unauthorized') {
+                  if (indexResult.reason === 'unauthorized') {
                       setSyncError("Session expired. Please log in again to sync.");
                       toast.error("Sync Failed", "Your login session expired. Please log in again.");
-                  } else if (result.reason === 'server') {
+                  } else if (indexResult.reason === 'server') {
                       setSyncError("Sync server error.");
-                      toast.error("Sync Failed", result.message || "Sync server error. Your data is saved locally.");
-                  } else if (result.reason === 'offline') {
+                      toast.error("Sync Failed", indexResult.message || "Sync server error. Your data is saved locally.");
+                  } else if (indexResult.reason === 'offline') {
                       // Offline is handled elsewhere (banner); avoid noisy toast.
                       setSyncError(null);
                   } else {
@@ -373,64 +373,79 @@ export default function App() {
               return;
           }
 
-          const cloudReports = result.reports;
-          
-          const migratedCloud = cloudReports.map((r: any) => ({
-              ...r,
-              project: migrateProjectData(r.project)
-          }));
-          
+          const cloudSummaries = indexResult.summaries;
           const localReports = savedReportsRef.current;
           const deletedIds = deletedReportIdsRef.current;
-          
-          const cloudMap = new Map(migratedCloud.map(r => [r.id, r]));
-          
-          // Base merge on cloud reports that haven't been deleted locally
-          // If a cloud report is in our deleted list, we ignore it AND try to delete it from cloud again
-          const validCloudReports = migratedCloud.filter(r => !deletedIds.includes(r.id));
-          
-          // Re-trigger delete for zombies
-          const zombies = migratedCloud.filter(r => deletedIds.includes(r.id));
-          if (zombies.length > 0) {
-              // Fire and forget delete
-              Promise.all(zombies.map(z => CloudService.deleteReport(z.id))).catch(console.error);
+
+          const localMap = new Map(localReports.map(r => [r.id, r]));
+          const cloudMap = new Map(cloudSummaries.map(s => [s.id, s]));
+
+          // Re-trigger delete for zombies without fetching full payloads
+          const zombieIds = cloudSummaries
+              .map(s => s.id)
+              .filter(id => deletedIds.includes(id));
+          if (zombieIds.length > 0) {
+              Promise.all(zombieIds.map(id => CloudService.deleteReport(id, { user: currentUser }))).catch(console.error);
           }
 
-          const merged = [...validCloudReports];
           const reportsToPush: Report[] = [];
+          const reportIdsToPull: string[] = [];
 
-          localReports.forEach(localR => {
-               const cloudR = cloudMap.get(localR.id);
-               
-               if (!cloudR) {
-                   // Exists Locally but NOT on Cloud
-                   // Assume it's a new report created offline -> Keep & Push
-                   merged.push(localR);
-                   reportsToPush.push(localR);
-               } else {
-                   // Exists in Both
-                   if (deletedIds.includes(localR.id)) {
-                       // Should be deleted, skip
-                   } else if (localR.lastModified > cloudR.lastModified) {
-                       // Local is newer -> Keep Local & Push update to cloud
-                       // Replace the cloud version in merged array
-                       const idx = merged.findIndex(m => m.id === localR.id);
-                       if (idx !== -1) merged[idx] = localR;
-                       else merged.push(localR); // Should exist, but safety check
-                       reportsToPush.push(localR);
-                   }
-                   // Else: Cloud is newer -> Keep Cloud (already in merged)
-               }
-          });
-
-          // Bi-directional Sync: Push local changes
-          if (reportsToPush.length > 0) {
-               await Promise.all(reportsToPush.map(r => CloudService.saveReport(r, { user: currentUser })));
+          // Decide what to pull from cloud
+          for (const s of cloudSummaries) {
+              if (deletedIds.includes(s.id)) continue;
+              const local = localMap.get(s.id);
+              if (!local) {
+                  reportIdsToPull.push(s.id);
+              } else if (s.lastModified > local.lastModified) {
+                  reportIdsToPull.push(s.id);
+              }
           }
-          
-          const finalSorted = merged.sort((a, b) => b.lastModified - a.lastModified);
-          
-          // Update local state
+
+          // Decide what to push to cloud
+          for (const local of localReports) {
+              if (deletedIds.includes(local.id)) continue;
+              const cloud = cloudMap.get(local.id);
+              if (!cloud) {
+                  reportsToPush.push(local);
+              } else if (local.lastModified > cloud.lastModified) {
+                  reportsToPush.push(local);
+              }
+          }
+
+          // Pull updated/missing reports in small chunks to avoid large payloads
+          const pulledReports: Report[] = [];
+          const CHUNK = 5;
+          for (let i = 0; i < reportIdsToPull.length; i += CHUNK) {
+              const batch = reportIdsToPull.slice(i, i + CHUNK);
+              const results = await Promise.all(batch.map(id => CloudService.fetchReportById(id, currentUser)));
+              for (const r of results) {
+                  if (r.ok) pulledReports.push(r.report);
+              }
+          }
+
+          const migratedPulled = pulledReports.map((r: any) => ({
+              ...r,
+              project: migrateProjectData(r.project)
+          })) as Report[];
+
+          // Merge: start from local (excluding deletions), then overlay cloud-pulled updates
+          const mergedMap = new Map<string, Report>();
+          for (const local of localReports) {
+              if (deletedIds.includes(local.id)) continue;
+              mergedMap.set(local.id, local);
+          }
+          for (const cloud of migratedPulled) {
+              if (deletedIds.includes(cloud.id)) continue;
+              mergedMap.set(cloud.id, cloud);
+          }
+
+          // Push local changes after pulling (reduces conflicts)
+          if (reportsToPush.length > 0) {
+              await Promise.all(reportsToPush.map(r => CloudService.saveReport(r, { user: currentUser })));
+          }
+
+          const finalSorted = Array.from(mergedMap.values()).sort((a, b) => b.lastModified - a.lastModified);
           setSavedReports(finalSorted);
           
       } catch (err) {
