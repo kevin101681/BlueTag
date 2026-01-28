@@ -5,6 +5,12 @@ import { Client } from 'pg';
 const connectionString = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL;
 
 export const handler = async (event: any, context: any) => {
+  // Ensure the function can return without waiting on open handles.
+  // (Netlify uses AWS Lambda-style execution; this helps avoid edge cases.)
+  if (typeof context === 'object' && context) {
+    (context as any).callbackWaitsForEmptyEventLoop = false;
+  }
+
   // 1. Security Check: Ensure user is logged in via Netlify Identity
   const user = context.clientContext?.user;
   if (!user) {
@@ -115,6 +121,11 @@ export const handler = async (event: any, context: any) => {
     };
   } finally {
     // Ensure client is closed to prevent hanging functions
-    await client.end();
+    try {
+      await client.end();
+    } catch (e) {
+      // If connect() failed, end() can throw; never let cleanup crash the function
+      console.warn('Failed to close DB client cleanly', e);
+    }
   }
 };
