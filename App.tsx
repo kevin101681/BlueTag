@@ -353,16 +353,27 @@ export default function App() {
       }
       
       try {
-          // fetchReports returns null on error (e.g. connection failure), [] on success-but-empty
-          const cloudReports = await CloudService.fetchReports();
-          
-          if (cloudReports === null) {
+          const result = await CloudService.fetchReports(currentUser);
+          if (!result.ok) {
               if (!silent) {
-                  setSyncError("Could not connect to sync server.");
-                  toast.error("Sync Failed", "Could not connect to sync server. Your data is saved locally.");
+                  if (result.reason === 'unauthorized') {
+                      setSyncError("Session expired. Please log in again to sync.");
+                      toast.error("Sync Failed", "Your login session expired. Please log in again.");
+                  } else if (result.reason === 'server') {
+                      setSyncError("Sync server error.");
+                      toast.error("Sync Failed", result.message || "Sync server error. Your data is saved locally.");
+                  } else if (result.reason === 'offline') {
+                      // Offline is handled elsewhere (banner); avoid noisy toast.
+                      setSyncError(null);
+                  } else {
+                      setSyncError("Could not connect to sync server.");
+                      toast.error("Sync Failed", "Could not connect to sync server. Your data is saved locally.");
+                  }
               }
-              return; 
+              return;
           }
+
+          const cloudReports = result.reports;
           
           const migratedCloud = cloudReports.map((r: any) => ({
               ...r,
@@ -414,7 +425,7 @@ export default function App() {
 
           // Bi-directional Sync: Push local changes
           if (reportsToPush.length > 0) {
-               await Promise.all(reportsToPush.map(r => CloudService.saveReport(r)));
+               await Promise.all(reportsToPush.map(r => CloudService.saveReport(r, { user: currentUser })));
           }
           
           const finalSorted = merged.sort((a, b) => b.lastModified - a.lastModified);
@@ -687,7 +698,7 @@ export default function App() {
     saveToStorage(newReportList);
     
     if (currentUser) {
-        CloudService.saveReport(newReport);
+        CloudService.saveReport(newReport, { user: currentUser });
     }
 
     setActiveReportId(newReport.id);
@@ -724,7 +735,7 @@ export default function App() {
 
               // 3. Attempt cloud delete
               if (currentUser) {
-                  CloudService.deleteReport(idToDelete).catch(console.error);
+                  CloudService.deleteReport(idToDelete, { user: currentUser }).catch(console.error);
               }
 
               if (activeReportId === idToDelete) {
@@ -750,7 +761,7 @@ export default function App() {
       saveToStorage(newList);
       
       if (currentUser) {
-          CloudService.saveReport(updatedReport);
+          CloudService.saveReport(updatedReport, { user: currentUser });
       }
 
       if (activeReportId === updatedReport.id) {
