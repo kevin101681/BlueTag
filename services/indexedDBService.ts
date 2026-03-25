@@ -21,6 +21,8 @@ const getDB = (): Promise<IDBDatabase> => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
         request.onerror = () => {
+            // Reset so the next caller can attempt to open again
+            dbPromise = null;
             reject(request.error);
         };
 
@@ -61,27 +63,14 @@ export const IndexedDBService = {
             clearRequest.onerror = () => reject(clearRequest.error);
         });
 
-        // Add all reports
+        // Write all reports using put (handles both insert and update)
         for (const report of reports) {
             await new Promise<void>((resolve, reject) => {
-                const addRequest = store.add(report);
-                addRequest.onsuccess = () => resolve();
-                addRequest.onerror = () => {
-                    const error = addRequest.error;
-                    
-                    // If key already exists, use put instead
-                    if (error?.name === 'ConstraintError') {
-                        const putRequest = store.put(report);
-                        putRequest.onsuccess = () => resolve();
-                        putRequest.onerror = () => {
-                            // Check if it's a quota error
-                            if (putRequest.error?.name === 'QuotaExceededError') {
-                                reject(new Error('Storage quota exceeded. Please delete old reports or clear cache.'));
-                            } else {
-                                reject(putRequest.error);
-                            }
-                        };
-                    } else if (error?.name === 'QuotaExceededError') {
+                const putRequest = store.put(report);
+                putRequest.onsuccess = () => resolve();
+                putRequest.onerror = () => {
+                    const error = putRequest.error;
+                    if (error?.name === 'QuotaExceededError') {
                         reject(new Error('Storage quota exceeded. Please delete old reports or clear cache.'));
                     } else {
                         reject(error);

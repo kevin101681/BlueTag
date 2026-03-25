@@ -15,61 +15,65 @@ const calculateSize = (data: string): number => {
 export const getStorageUsage = async (): Promise<{ used: number; total: number; percentage: number; source: string }> => {
     let used = 0;
     let total = 0;
+    let estimateAvailable = false;
     
     try {
-        // Try to get actual quota using StorageManager API (if available)
+        // Prefer navigator.storage.estimate() — it returns actual on-disk bytes
+        // used by this origin (IndexedDB + caches + localStorage), and the real
+        // quota the browser has granted. This is far more accurate than
+        // JSON.stringify length, which ignores IndexedDB indexes, B-tree
+        // overhead, and service-worker caches.
         if ('storage' in navigator && 'estimate' in navigator.storage) {
             try {
                 const estimate = await navigator.storage.estimate();
-                if (estimate.quota) {
+                if (estimate.quota && estimate.quota > 0) {
                     total = estimate.quota;
+                }
+                if (estimate.usage && estimate.usage > 0) {
+                    used = estimate.usage;
+                    estimateAvailable = true;
                 }
             } catch (e) {
                 console.warn('Could not get storage estimate', e);
             }
         }
         
-        // Fallback: Use a more generous estimate if StorageManager not available
-        // IndexedDB can typically use 50-60% of available disk space
-        // For devices with 36GB available, that could be ~18GB
+        // Fallback total when StorageManager is unavailable / returns 0
         if (total === 0) {
-            // Use 10GB as a more realistic conservative estimate instead of 1GB
-            total = 10 * 1024 * 1024 * 1024; // 10GB
+            total = 10 * 1024 * 1024 * 1024; // 10 GB conservative guess
         }
-        
-        // Get IndexedDB usage (reports)
-        if (IndexedDBService.isAvailable()) {
-            const indexedDBUsage = await IndexedDBService.getStorageUsage();
-            used += indexedDBUsage.used;
-        }
-        
-        // Get localStorage usage (settings only - reports should be in IndexedDB)
-        const settingsToInclude = [
-            'cbs_punch_theme',
-            'cbs_color_theme',
-            'cbs_company_logo',
-            'cbs_partner_logo',
-            'cbs_sign_off_templates'
-        ];
-        
-        for (const key of settingsToInclude) {
-            const value = localStorage.getItem(key);
-            if (value) {
-                used += calculateSize(key + value);
+
+        // Fallback used when estimate.usage was not available — use JSON
+        // stringify length plus localStorage settings as a rough floor.
+        if (!estimateAvailable) {
+            if (IndexedDBService.isAvailable()) {
+                const indexedDBUsage = await IndexedDBService.getStorageUsage();
+                used += indexedDBUsage.used;
+            }
+            
+            const settingsToInclude = [
+                'cbs_punch_theme',
+                'cbs_color_theme',
+                'cbs_company_logo',
+                'cbs_partner_logo',
+                'cbs_sign_off_templates'
+            ];
+            
+            for (const key of settingsToInclude) {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    used += calculateSize(key + value);
+                }
             }
         }
         
-        const source = IndexedDBService.isAvailable() ? 'IndexedDB' : 'localStorage (~5MB)';
+        const source = estimateAvailable
+            ? 'IndexedDB'
+            : IndexedDBService.isAvailable() ? 'IndexedDB (estimated)' : 'localStorage (~5MB)';
         
-        // Only calculate percentage if we have a valid total
         const percentage = total > 0 ? Math.min((used / total) * 100, 100) : 0;
         
-        return {
-            used,
-            total,
-            percentage,
-            source
-        };
+        return { used, total, percentage, source };
     } catch (e) {
         console.error("Error calculating storage usage", e);
         return {
