@@ -165,6 +165,7 @@ interface AddIssueFormProps {
   availableLocations?: string[];
   initialIssue?: Issue | null;
   itemNumber?: number;
+  onError?: (title: string, message: string) => void;
 }
 
 export const AddIssueForm: React.FC<AddIssueFormProps> = ({ 
@@ -173,7 +174,8 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
     showLocationSelect = false, 
     availableLocations,
     initialIssue,
-    itemNumber
+    itemNumber,
+    onError
 }) => {
     const [description, setDescription] = useState(initialIssue?.description || "");
     const [photos, setPhotos] = useState<IssuePhoto[]>(initialIssue?.photos || []);
@@ -291,6 +293,8 @@ export const AddIssueForm: React.FC<AddIssueFormProps> = ({
                 }
             } catch (err) {
                 console.error("Image compression failed", err);
+                const msg = err instanceof Error ? err.message : String(err);
+                onError?.("Photo Error", `Failed to process photo: ${msg}`);
                 if (fileInputRef.current) {
                     fileInputRef.current.value = '';
                 }
@@ -500,12 +504,14 @@ interface LocationDetailProps {
     location: LocationGroup;
     onBack: () => void;
     onUpdateLocation: (issues: Issue[]) => void;
+    onError?: (title: string, message: string) => void;
 }
 
 export const LocationDetail: React.FC<LocationDetailProps> = ({ 
     location, 
     onBack, 
-    onUpdateLocation 
+    onUpdateLocation,
+    onError
 }) => {
     const [localIssues, setLocalIssues] = useState<Issue[]>(location.issues);
     const [isAddIssueOpen, setIsAddIssueOpen] = useState(false);
@@ -617,6 +623,8 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                 setUploadIssueId(null);
             } catch (err) {
                 console.error("Image upload failed", err);
+                const msg = err instanceof Error ? err.message : String(err);
+                onError?.("Photo Error", `Failed to process photo: ${msg}`);
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 setUploadIssueId(null);
             }
@@ -783,6 +791,7 @@ export const LocationDetail: React.FC<LocationDetailProps> = ({
                     onSubmit={handleSaveIssue}
                     initialIssue={editingIssue || undefined}
                     itemNumber={editingIssue ? (localIssues.findIndex(i => i.id === editingIssue.id) + 1) : (localIssues.length + 1)}
+                    onError={onError}
                 />
             )}
             

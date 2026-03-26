@@ -90,6 +90,12 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   
   componentDidCatch(error: any, errorInfo: any) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
+    try {
+      const message = error instanceof Error
+        ? error.message + '\n' + (error.stack || '')
+        : JSON.stringify(error);
+      sessionStorage.setItem('lastCrashError', message);
+    } catch (_) {}
   }
   
   render() {
@@ -153,7 +159,28 @@ export default function App() {
   
   // Toast notifications
   const toast = useToast();
-  
+
+  // Show crash error from previous session if ErrorBoundary saved one
+  useEffect(() => {
+    const lastCrash = sessionStorage.getItem('lastCrashError');
+    if (lastCrash) {
+      sessionStorage.removeItem('lastCrashError');
+      toast.error("App Crashed", lastCrash);
+    }
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const msg = event.reason instanceof Error
+        ? event.reason.message
+        : String(event.reason ?? 'Unknown error');
+      console.error("Unhandled promise rejection", event.reason);
+      toast.error("Unexpected Error", msg);
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Reports State
   const [savedReports, setSavedReports] = useState<Report[]>([]);
   // Tombstone state to track deletions across devices
@@ -870,6 +897,7 @@ export default function App() {
                     const newLocs = locations.map(l => l.id === activeLocationId ? { ...l, issues } : l);
                     handleUpdateLocations(newLocs);
                 }}
+                onError={(title, message) => toast.error(title, message)}
             />
         ) : (
             <>
