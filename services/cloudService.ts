@@ -57,6 +57,12 @@ const safeJson = async (response: Response) => {
     }
 };
 
+const serverErrorMessage = (body: any, status: number): string => {
+    const base = body?.error || `Server error (${status})`;
+    const detail = body?.details ? `: ${body.details}` : '';
+    return base + detail;
+};
+
 export const CloudService = {
     // Return null if fetch fails, empty array if successful but no reports
     async fetchReports(user?: NetlifyIdentityUser | null): Promise<CloudFetchResult> {
@@ -84,7 +90,7 @@ export const CloudService = {
 
             if (!response.ok) {
                 const body = await safeJson(response);
-                const message = body?.error || `Sync server error (${response.status})`;
+                const message = serverErrorMessage(body, response.status);
                 return { ok: false, reason: 'server', status: response.status, message };
             }
 
@@ -121,7 +127,7 @@ export const CloudService = {
 
             if (!response.ok) {
                 const body = await safeJson(response);
-                const message = body?.error || `Sync server error (${response.status})`;
+                const message = serverErrorMessage(body, response.status);
                 return { ok: false, reason: 'server', status: response.status, message };
             }
 
@@ -164,7 +170,7 @@ export const CloudService = {
 
             if (!response.ok) {
                 const body = await safeJson(response);
-                const message = body?.error || `Sync server error (${response.status})`;
+                const message = serverErrorMessage(body, response.status);
                 return { ok: false, reason: 'server', status: response.status, message };
             }
 
@@ -177,7 +183,7 @@ export const CloudService = {
         }
     },
 
-    async saveReport(report: Report, opts?: { fromQueue?: boolean; user?: NetlifyIdentityUser | null }): Promise<boolean> {
+    async saveReport(report: Report, opts?: { fromQueue?: boolean; user?: NetlifyIdentityUser | null; onError?: (title: string, message: string) => void }): Promise<boolean> {
         const headers = await getAuthHeaders(opts?.user);
         if (!headers?.Authorization) return false;
 
@@ -196,12 +202,16 @@ export const CloudService = {
             if (response.ok) {
                 return true;
             } else {
-                // If save fails, queue it for retry
+                const body = await safeJson(response);
+                const msg = serverErrorMessage(body, response.status);
+                console.error("Cloud Save Error:", msg);
+                opts?.onError?.("Save Failed", msg);
                 return opts?.fromQueue ? false : await syncQueueService.enqueueSave(report);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("Cloud Save Error:", e);
-            // Queue for retry when back online
+            const msg = e?.message || 'Network error';
+            opts?.onError?.("Save Failed", msg);
             return opts?.fromQueue ? false : await syncQueueService.enqueueSave(report);
         }
     },

@@ -740,7 +740,7 @@ export default function App() {
     saveToStorage(newReportList);
     
     if (currentUser) {
-        CloudService.saveReport(newReport, { user: currentUser });
+        CloudService.saveReport(newReport, { user: currentUser, onError: (title, msg) => toast.error(title, msg) });
     }
 
     setActiveReportId(newReport.id);
@@ -803,7 +803,7 @@ export default function App() {
       saveToStorage(newList);
       
       if (currentUser) {
-          CloudService.saveReport(updatedReport, { user: currentUser });
+          CloudService.saveReport(updatedReport, { user: currentUser, onError: (title, msg) => toast.error(title, msg) });
       }
 
       if (activeReportId === updatedReport.id) {
