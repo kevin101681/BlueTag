@@ -874,9 +874,16 @@ export default function App() {
   }, [savedReports]);
   
   const handleUpdateReport = useCallback((updatedReport: Report) => {
-      const newList = savedReports.map(r => r.id === updatedReport.id ? updatedReport : r);
-      saveToStorage(newList);
-      
+      const isOwned = savedReports.some(r => r.id === updatedReport.id);
+
+      if (isOwned) {
+          const newList = savedReports.map(r => r.id === updatedReport.id ? updatedReport : r);
+          saveToStorage(newList);
+      } else {
+          // Shared report — update in-memory state (source of truth stays in the cloud)
+          setSharedReports(prev => prev.map(r => r.id === updatedReport.id ? updatedReport : r));
+      }
+
       if (currentUser) {
           CloudService.saveReport(updatedReport, { user: currentUser, onError: (title, msg) => toast.error(title, msg) });
       }

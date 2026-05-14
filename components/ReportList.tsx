@@ -82,10 +82,10 @@ const DashboardWrapper = ({
                 locations={activeReport.locations}
                 reportId={activeReport.id}
                 onSelectLocation={onSelectLocation} 
-                onUpdateProject={isShared ? () => {} : (p: ProjectDetails) => onUpdateReport({ ...activeReport, project: p, lastModified: Date.now() })}
-                onUpdateLocations={isShared ? () => {} : (l: any[]) => onUpdateReport({ ...activeReport, locations: l, lastModified: Date.now() })}
+                onUpdateProject={(p: ProjectDetails) => onUpdateReport({ ...activeReport, project: p, lastModified: Date.now() })}
+                onUpdateLocations={(l: any[]) => onUpdateReport({ ...activeReport, locations: l, lastModified: Date.now() })}
                 onBack={onBack}
-                onAddIssueGlobal={isShared ? () => {} : onAddIssueGlobal}
+                onAddIssueGlobal={onAddIssueGlobal}
                 isDarkMode={isDarkMode}
                 toggleTheme={toggleTheme}
                 companyLogo={companyLogo}
