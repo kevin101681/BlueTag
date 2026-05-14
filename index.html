@@ -62,9 +62,15 @@
     <link rel="apple-touch-icon" href="/images/icon.png" />
     <link rel="icon" href="/images/icon.png" />
     
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/tailwind.js" onerror="window._tailwindLocalFailed=true"></script>
     <script>
-      tailwind.config = {
+      if (typeof tailwind === 'undefined') {
+        // Local copy failed; try the CDN as a fallback (injected synchronously via document.write)
+        document.write('<script src="https:\/\/cdn.tailwindcss.com"><\/script>');
+      }
+    </script>
+    <script>
+      if (typeof tailwind !== 'undefined') tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
@@ -222,6 +228,7 @@
           },
         },
       }
+    } // end tailwind defined guard
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
