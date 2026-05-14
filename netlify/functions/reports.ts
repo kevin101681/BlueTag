@@ -32,6 +32,7 @@ export const handler = async (event: any, context: any) => {
   }
 
   const userId = user.sub; // Unique Google/Netlify User ID
+  const userEmail: string | undefined = user.email;
 
   // 3. Database Connection
   // Use proper SSL validation - Neon and most providers have valid certificates
@@ -43,7 +44,7 @@ export const handler = async (event: any, context: any) => {
   try {
     await client.connect();
 
-    // 4. Auto-Init: Ensure table exists
+    // 4. Auto-Init: Ensure tables exist
     await client.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id TEXT PRIMARY KEY,
@@ -52,6 +53,16 @@ export const handler = async (event: any, context: any) => {
         data JSONB
       );
       CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id);
+
+      CREATE TABLE IF NOT EXISTS report_shares (
+        report_id TEXT NOT NULL,
+        owner_user_id TEXT NOT NULL,
+        owner_email TEXT,
+        shared_with_email TEXT NOT NULL,
+        created_at BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (report_id, shared_with_email)
+      );
+      CREATE INDEX IF NOT EXISTS idx_shares_email ON report_shares(shared_with_email);
     `);
 
     const method = event.httpMethod;
@@ -124,17 +135,51 @@ export const handler = async (event: any, context: any) => {
          return { statusCode: 400, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: "Report ID missing" }) };
       }
 
-      // Upsert query
-      const query = `
-        INSERT INTO reports (id, user_id, last_modified, data)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (id) 
-        DO UPDATE SET 
-          last_modified = EXCLUDED.last_modified,
-          data = EXCLUDED.data;
-      `;
+      // Check whether the report already exists and who owns it
+      const existingRow = await client.query(
+        'SELECT user_id FROM reports WHERE id = $1 LIMIT 1',
+        [report.id]
+      );
 
-      await client.query(query, [report.id, userId, report.lastModified, JSON.stringify(report)]);
+      if ((existingRow.rowCount ?? 0) > 0) {
+        const reportOwnerId = existingRow.rows[0].user_id;
+
+        if (reportOwnerId === userId) {
+          // Owner update — standard upsert
+          await client.query(
+            `INSERT INTO reports (id, user_id, last_modified, data)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (id)
+             DO UPDATE SET last_modified = EXCLUDED.last_modified, data = EXCLUDED.data`,
+            [report.id, userId, report.lastModified, JSON.stringify(report)]
+          );
+        } else {
+          // Not the owner — check share access by email
+          if (!userEmail) {
+            return { statusCode: 403, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: "Not authorized to update this report." }) };
+          }
+          const shareCheck = await client.query(
+            'SELECT 1 FROM report_shares WHERE report_id = $1 AND shared_with_email = $2 LIMIT 1',
+            [report.id, userEmail.toLowerCase()]
+          );
+          if ((shareCheck.rowCount ?? 0) === 0) {
+            return { statusCode: 403, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: "Not authorized to update this report." }) };
+          }
+          // Share recipient — update data while preserving original owner
+          await client.query(
+            'UPDATE reports SET last_modified = $1, data = $2 WHERE id = $3',
+            [report.lastModified, JSON.stringify(report), report.id]
+          );
+        }
+      } else {
+        // New report — insert with current user as owner
+        await client.query(
+          `INSERT INTO reports (id, user_id, last_modified, data)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (id) DO NOTHING`,
+          [report.id, userId, report.lastModified, JSON.stringify(report)]
+        );
+      }
 
       return {
         statusCode: 200,

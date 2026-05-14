@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue } from '../types';
+import { Report, ProjectDetails, ColorTheme, SignOffTemplate, Issue, SharedReportSummary } from '../types';
 import { Dashboard } from './Dashboard';
-import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Image as ImageIcon, User, Book, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
+import { Plus, Search, Settings, X, Download, Upload, Trash2, Moon, Sun, Check, LogOut, Info, Image as ImageIcon, User, Book, ArrowLeft, ArrowRight, RefreshCw, Users } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { BlueTagLogo } from './Logo';
 import { ReportCard } from './Dashboard';
 import { HOMEOWNER_MANUAL_IMAGES } from '../constants';
 import { useSwipe } from '../hooks/useSwipe';
+import { CloudService } from '../services/cloudService';
+import type { NetlifyIdentityUser } from '../types/netlify-identity';
 
 export type ThemeOption = 'light' | 'dark' | 'system';
 
@@ -45,6 +47,10 @@ interface ReportListProps {
   isOnline?: boolean;
   queuedOperations?: number;
   onModalStateChange?: (isOpen: boolean) => void;
+  sharedReports?: Report[];
+  sharedReportMeta?: Map<string, SharedReportSummary>;
+  currentUser?: NetlifyIdentityUser | null;
+  onLeaveSharedReport?: (id: string) => void;
 }
 
 // Helper to check active
@@ -64,13 +70,17 @@ const DashboardWrapper = ({
     onAddIssueGlobal,
     isClientInfoCollapsed,
     onToggleClientInfo,
-    onModalStateChange
+    onModalStateChange,
+    currentUser,
+    isShared,
+    sharedByEmail,
 }: any) => {
     return (
         <div className="w-full h-full">
             <Dashboard 
                 project={activeReport.project}
                 locations={activeReport.locations}
+                reportId={activeReport.id}
                 onSelectLocation={onSelectLocation} 
                 onUpdateProject={(p: ProjectDetails) => onUpdateReport({ ...activeReport, project: p, lastModified: Date.now() })}
                 onUpdateLocations={(l: any[]) => onUpdateReport({ ...activeReport, locations: l, lastModified: Date.now() })}
@@ -88,6 +98,9 @@ const DashboardWrapper = ({
                 onDelete={onDelete}
                 isClientInfoCollapsed={isClientInfoCollapsed}
                 onToggleClientInfo={onToggleClientInfo}
+                currentUser={currentUser}
+                isShared={isShared}
+                sharedByEmail={sharedByEmail}
             />
         </div>
     );
@@ -600,8 +613,22 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         isCreating,
         deletingReportId,
         isDeleting,
-        onRefresh
+        onRefresh,
+        sharedReports = [],
+        sharedReportMeta = new Map(),
+        currentUser,
+        onLeaveSharedReport,
     } = props;
+
+    // Combine owned + shared reports into one list for selection
+    const allReports = useMemo(() => {
+        const sharedIds = new Set(sharedReports.map(r => r.id));
+        // Owned reports that aren't also in sharedReports (safety dedup)
+        const owned = reports.filter(r => !sharedIds.has(r.id));
+        return [...owned, ...sharedReports].sort((a, b) => b.lastModified - a.lastModified);
+    }, [reports, sharedReports]);
+
+    const sharedReportIds = useMemo(() => new Set(sharedReports.map(r => r.id)), [sharedReports]);
 
     // Lazily initialize selection to avoid empty placeholder flash on load
     const [internalSelectedId, setInternalSelectedId] = useState<string | null>(() => {
@@ -632,18 +659,17 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
             const latest = reports.reduce((prev, current) => (prev.lastModified > current.lastModified) ? prev : current);
             setInternalSelectedId(latest.id);
         }
-    }, [isCreating, reports]);
+    }, [isCreating, reports]); // intentionally use `reports` (owned) not `allReports` for creation
 
     // Handle updates to reports list (e.g. initial load async)
     useEffect(() => {
-        if (reports.length > 0 && !internalSelectedId) {
+        if (allReports.length > 0 && !internalSelectedId) {
             // Default to most recent if we have none selected
-            const sorted = [...reports].sort((a, b) => b.lastModified - a.lastModified);
-            setInternalSelectedId(sorted[0].id);
-        } else if (reports.length === 0) {
+            setInternalSelectedId(allReports[0].id);
+        } else if (allReports.length === 0) {
             setInternalSelectedId(null);
         }
-    }, [reports, internalSelectedId]); 
+    }, [allReports, internalSelectedId]); 
 
     const handleLocalSelect = (id: string) => {
         setInternalSelectedId(id);
@@ -659,7 +685,9 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
         }, 600);
     };
 
-    const activeReport = reports.find(r => r.id === internalSelectedId);
+    const activeReport = allReports.find(r => r.id === internalSelectedId);
+    const activeIsShared = activeReport ? sharedReportIds.has(activeReport.id) : false;
+    const activeSharedMeta = activeReport ? sharedReportMeta.get(activeReport.id) : undefined;
     // Extract client name for the header pill
     const clientName = activeReport?.project?.fields?.[0]?.value || "";
 
@@ -725,7 +753,11 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                         onUpdateTemplates={props.onUpdateTemplates}
                         isCreating={isCreating}
                         isExiting={isExiting}
-                        onDelete={(e: React.MouseEvent, rect?: DOMRect) => props.onDeleteReport(activeReport.id, rect)}
+                        onDelete={
+                            activeIsShared
+                                ? (e: React.MouseEvent) => { e.stopPropagation(); onLeaveSharedReport?.(activeReport.id); }
+                                : (e: React.MouseEvent, rect?: DOMRect) => props.onDeleteReport(activeReport.id, rect)
+                        }
                         onAddIssueGlobal={props.onAddIssueGlobal}
                         onModalStateChange={props.onModalStateChange}
                         isClientInfoCollapsed={reportViewStates[activeReport.id]?.clientInfoCollapsed ?? false}
@@ -735,6 +767,9 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
                                 [activeReport.id]: { ...prev[activeReport.id], clientInfoCollapsed: collapsed }
                              }));
                         }}
+                        currentUser={currentUser}
+                        isShared={activeIsShared}
+                        sharedByEmail={activeSharedMeta?.ownerEmail}
                     />
                 ) : (
                     <div className="max-w-3xl mx-auto p-6 relative">
@@ -763,10 +798,16 @@ export const ReportList: React.FC<ReportListProps> = (props) => {
             
             <ReportSelectionModal 
                 isOpen={isSearchOpen}
-                reports={reports}
+                reports={allReports}
                 onSelect={handleLocalSelect}
                 onClose={() => setIsSearchOpen(false)}
-                onDelete={(id, rect) => props.onDeleteReport(id, rect)}
+                onDelete={(id, rect) => {
+                    if (sharedReportIds.has(id)) {
+                        onLeaveSharedReport?.(id);
+                    } else {
+                        props.onDeleteReport(id, rect);
+                    }
+                }}
                 deletingReportId={deletingReportId}
                 isDeleting={isDeleting}
             />

@@ -10,7 +10,7 @@ import {
   MIN_CREATION_INTERVAL_MS,
   DELETE_ANIMATION_DELAY_MS
 } from './constants';
-import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField } from './types';
+import { ProjectDetails, LocationGroup, Issue, Report, ColorTheme, SignOffTemplate, ProjectField, SharedReportSummary } from './types';
 import { NetlifyIdentityUser } from './types/netlify-identity';
 import { LocationDetail, DeleteConfirmationModal } from './components/LocationDetail';
 import { ReportList, ThemeOption } from './components/ReportList';
@@ -185,6 +185,12 @@ export default function App() {
   const [savedReports, setSavedReports] = useState<Report[]>([]);
   // Tombstone state to track deletions across devices
   const [deletedReportIds, setDeletedReportIds] = useState<string[]>([]);
+
+  // Shared-with-me reports
+  const [sharedReports, setSharedReports] = useState<Report[]>([]);
+  const [sharedReportMeta, setSharedReportMeta] = useState<Map<string, SharedReportSummary>>(new Map());
+  const sharedReportsRef = useRef<Report[]>(sharedReports);
+  const sharedReportMetaRef = useRef<Map<string, SharedReportSummary>>(sharedReportMeta);
   
   // Ref to track savedReports for async sync operations without stale closures
   const savedReportsRef = useRef<Report[]>(savedReports);
@@ -192,7 +198,7 @@ export default function App() {
   
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
 
-  // Keep ref synchronized with state
+  // Keep refs synchronized with state
   useEffect(() => {
     savedReportsRef.current = savedReports;
   }, [savedReports]);
@@ -200,6 +206,14 @@ export default function App() {
   useEffect(() => {
     deletedReportIdsRef.current = deletedReportIds;
   }, [deletedReportIds]);
+
+  useEffect(() => {
+    sharedReportsRef.current = sharedReports;
+  }, [sharedReports]);
+
+  useEffect(() => {
+    sharedReportMetaRef.current = sharedReportMeta;
+  }, [sharedReportMeta]);
 
   // Online/Offline state management
   useEffect(() => {
@@ -474,7 +488,50 @@ export default function App() {
 
           const finalSorted = Array.from(mergedMap.values()).sort((a, b) => b.lastModified - a.lastModified);
           setSavedReports(finalSorted);
-          
+
+          // Sync shared-with-me reports
+          try {
+              const sharedSummaries = await CloudService.fetchSharedWithMe(currentUser);
+              if (sharedSummaries) {
+                  const existingShared = sharedReportsRef.current;
+                  const existingSharedMap = new Map(existingShared.map(r => [r.id, r]));
+
+                  const sharedToPull = sharedSummaries.filter(s => {
+                      const existing = existingSharedMap.get(s.id);
+                      return !existing || s.lastModified > existing.lastModified;
+                  });
+
+                  const pulledShared: Report[] = [];
+                  for (let i = 0; i < sharedToPull.length; i += CHUNK) {
+                      const batch = sharedToPull.slice(i, i + CHUNK);
+                      const results = await Promise.all(
+                          batch.map(s => CloudService.fetchSharedReportById(s.id, currentUser))
+                      );
+                      for (const r of results) {
+                          if (r) pulledShared.push({ ...r, project: migrateProjectData(r.project) });
+                      }
+                  }
+
+                  const validIds = new Set(sharedSummaries.map(s => s.id));
+                  const updatedSharedMap = new Map<string, Report>();
+                  for (const [id, r] of existingSharedMap) {
+                      if (validIds.has(id)) updatedSharedMap.set(id, r);
+                  }
+                  for (const r of pulledShared) {
+                      updatedSharedMap.set(r.id, r);
+                  }
+
+                  const newSharedReports = Array.from(updatedSharedMap.values())
+                      .sort((a, b) => b.lastModified - a.lastModified);
+                  setSharedReports(newSharedReports);
+
+                  const newMeta = new Map(sharedSummaries.map(s => [s.id, s]));
+                  setSharedReportMeta(newMeta);
+              }
+          } catch (sharedErr) {
+              console.error('Shared reports sync error:', sharedErr);
+          }
+
       } catch (err) {
           console.error("Sync Error", err);
           if (!silent) {
@@ -622,14 +679,16 @@ export default function App() {
   
   useEffect(() => {
       if (isAnyModalOpen) return;
-      if (activeReportId && savedReports.length > 0) {
-          const report = savedReports.find(r => r.id === activeReportId);
+      if (activeReportId) {
+          const report =
+              savedReports.find(r => r.id === activeReportId) ||
+              sharedReports.find(r => r.id === activeReportId);
           if (report) {
                setProject(report.project);
                setLocations(report.locations);
           }
       }
-  }, [activeReportId, savedReports, isAnyModalOpen]);
+  }, [activeReportId, savedReports, sharedReports, isAnyModalOpen]);
 
   useEffect(() => {
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
@@ -751,11 +810,12 @@ export default function App() {
   }, [savedReports, currentUser]);
 
   const handleSelectReport = useCallback((id: string) => {
-    const r = savedReports.find(rep => rep.id === id);
-    if (r) {
+    const owned = savedReports.find(rep => rep.id === id);
+    const shared = sharedReports.find(rep => rep.id === id);
+    if (owned || shared) {
         setActiveReportId(id);
     }
-  }, [savedReports]);
+  }, [savedReports, sharedReports]);
 
   const handleDeleteReport = useCallback((id: string, rect?: DOMRect) => {
       setReportToDelete(id);
@@ -790,6 +850,21 @@ export default function App() {
       }
   };
 
+  const handleLeaveSharedReport = useCallback(async (id: string) => {
+      if (currentUser) {
+          await CloudService.unshareReport(id, undefined, currentUser);
+      }
+      setSharedReports(prev => prev.filter(r => r.id !== id));
+      setSharedReportMeta(prev => {
+          const next = new Map(prev);
+          next.delete(id);
+          return next;
+      });
+      if (activeReportId === id) {
+          setActiveReportId(null);
+      }
+  }, [currentUser, activeReportId]);
+
   const handleDeleteOldReports = useCallback(async () => {
       const { clearOldReports } = await import('./services/storageService');
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
@@ -799,9 +874,16 @@ export default function App() {
   }, [savedReports]);
   
   const handleUpdateReport = useCallback((updatedReport: Report) => {
-      const newList = savedReports.map(r => r.id === updatedReport.id ? updatedReport : r);
-      saveToStorage(newList);
-      
+      const isOwned = savedReports.some(r => r.id === updatedReport.id);
+
+      if (isOwned) {
+          const newList = savedReports.map(r => r.id === updatedReport.id ? updatedReport : r);
+          saveToStorage(newList);
+      } else {
+          // Shared report — update in-memory state (source of truth stays in the cloud)
+          setSharedReports(prev => prev.map(r => r.id === updatedReport.id ? updatedReport : r));
+      }
+
       if (currentUser) {
           CloudService.saveReport(updatedReport, { user: currentUser, onError: (title, msg) => toast.error(title, msg) });
       }
@@ -952,6 +1034,10 @@ export default function App() {
                 isDeleting={isDeleteExiting}
                 onRefresh={() => refreshReports(false)}
                 onModalStateChange={setIsAnyModalOpen}
+                sharedReports={sharedReports}
+                sharedReportMeta={sharedReportMeta}
+                currentUser={currentUser}
+                onLeaveSharedReport={handleLeaveSharedReport}
                 />
             </>
         )}
