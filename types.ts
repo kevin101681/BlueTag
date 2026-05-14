@@ -76,6 +76,18 @@ export interface AppState {
   cameraAccess?: boolean;
 }
 
+export interface ReportShare {
+  sharedWithEmail: string;
+  createdAt: number;
+}
+
+export interface SharedReportSummary {
+  id: string;
+  lastModified: number;
+  ownerUserId: string;
+  ownerEmail?: string;
+}
+
 export interface SignOffSection {
   id: string;
   title: string;

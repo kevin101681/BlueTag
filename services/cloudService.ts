@@ -1,4 +1,4 @@
-import { Report } from '../types';
+import { Report, ReportShare, SharedReportSummary } from '../types';
 import { syncQueueService } from './syncQueueService';
 import type { NetlifyIdentityUser } from '../types/netlify-identity';
 
@@ -242,5 +242,90 @@ export const CloudService = {
             // Queue for retry when back online
             return opts?.fromQueue ? false : await syncQueueService.enqueueDelete(id);
         }
-    }
+    },
+
+    // ── Sharing ────────────────────────────────────────────────────────────
+
+    async fetchSharesForReport(reportId: string, user?: NetlifyIdentityUser | null): Promise<ReportShare[] | null> {
+        const headers = await getAuthHeaders(user);
+        if (!headers?.Authorization) return null;
+        try {
+            const response = await fetch(`/.netlify/functions/shares?reportId=${encodeURIComponent(reportId)}`, {
+                method: 'GET',
+                headers,
+            });
+            if (!response.ok) return null;
+            return (await response.json()) as ReportShare[];
+        } catch (e) {
+            console.error('fetchSharesForReport error:', e);
+            return null;
+        }
+    },
+
+    async fetchSharedWithMe(user?: NetlifyIdentityUser | null): Promise<SharedReportSummary[] | null> {
+        if (!syncQueueService.isOnline()) return null;
+        const headers = await getAuthHeaders(user);
+        if (!headers?.Authorization) return null;
+        try {
+            const response = await fetch('/.netlify/functions/shares?mode=shared-with-me', {
+                method: 'GET',
+                headers,
+            });
+            if (!response.ok) return null;
+            return (await response.json()) as SharedReportSummary[];
+        } catch (e) {
+            console.error('fetchSharedWithMe error:', e);
+            return null;
+        }
+    },
+
+    async fetchSharedReportById(id: string, user?: NetlifyIdentityUser | null): Promise<Report | null> {
+        if (!syncQueueService.isOnline()) return null;
+        const headers = await getAuthHeaders(user);
+        if (!headers?.Authorization) return null;
+        try {
+            const response = await fetch(
+                `/.netlify/functions/shares?mode=shared-with-me&id=${encodeURIComponent(id)}`,
+                { method: 'GET', headers }
+            );
+            if (!response.ok) return null;
+            return (await response.json()) as Report;
+        } catch (e) {
+            console.error('fetchSharedReportById error:', e);
+            return null;
+        }
+    },
+
+    async shareReport(reportId: string, email: string, user?: NetlifyIdentityUser | null): Promise<{ ok: boolean; error?: string }> {
+        const headers = await getAuthHeaders(user);
+        if (!headers?.Authorization) return { ok: false, error: 'Not logged in' };
+        try {
+            const response = await fetch('/.netlify/functions/shares', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ reportId, email }),
+            });
+            const body = await safeJson(response);
+            if (!response.ok) return { ok: false, error: body?.error || `Error ${response.status}` };
+            return { ok: true };
+        } catch (e: any) {
+            return { ok: false, error: e?.message || 'Network error' };
+        }
+    },
+
+    async unshareReport(reportId: string, email: string | undefined, user?: NetlifyIdentityUser | null): Promise<boolean> {
+        const headers = await getAuthHeaders(user);
+        if (!headers?.Authorization) return false;
+        try {
+            const emailParam = email ? `&email=${encodeURIComponent(email)}` : '';
+            const response = await fetch(
+                `/.netlify/functions/shares?reportId=${encodeURIComponent(reportId)}${emailParam}`,
+                { method: 'DELETE', headers }
+            );
+            return response.ok;
+        } catch (e) {
+            console.error('unshareReport error:', e);
+            return false;
+        }
+    },
 };

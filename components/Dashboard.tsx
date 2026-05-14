@@ -1,7 +1,10 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { LocationGroup, ProjectDetails, Issue, SignOffTemplate, SignOffSection, ProjectField, Point, SignOffStroke } from '../types';
-import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser } from 'lucide-react';
+import { ChevronRight, ArrowLeft, X, Plus, PenTool, Save, Trash2, Check, ChevronDown, Undo, Redo, Info, Download, Sun, Moon, FileText, MapPin, Eye, RefreshCw, Minimize2, Share, Mail, Pencil, Edit2, Send, Calendar, ChevronUp, Hand, Move, AlertCircle, MousePointer2, Settings, GripVertical, AlignLeft, CheckSquare, PanelLeft, User as UserIcon, Phone, Briefcase, Hash, Sparkles, Camera, Mic, MicOff, Layers, Eraser, Users, UserPlus, Trash } from 'lucide-react';
+import { CloudService } from '../services/cloudService';
+import { ReportShare } from '../types';
+import type { NetlifyIdentityUser } from '../types/netlify-identity';
 import { generateSignOffPDF, SIGN_OFF_TITLE, generatePDFWithMetadata, ImageLocation, CheckboxLocation } from '../pdfService';
 import { AddIssueForm, LocationDetail, AutoResizeTextarea, compressImage, DeleteConfirmationModal } from './LocationDetail';
 import { generateUUID, PREDEFINED_LOCATIONS } from '../constants';
@@ -32,6 +35,9 @@ export interface DashboardProps {
   onDelete?: (e: React.MouseEvent, rect?: DOMRect) => void;
   isClientInfoCollapsed?: boolean;
   onToggleClientInfo?: (collapsed: boolean) => void;
+  currentUser?: NetlifyIdentityUser | null;
+  isShared?: boolean;
+  sharedByEmail?: string;
 }
 
 // Map strings to Icon components for display
@@ -64,9 +70,12 @@ export interface ReportCardProps {
         onViewSignOff?: () => void;
         onDownloadReportPDF?: () => void;
         onDownloadSignOffPDF?: () => void;
+        onShare?: () => void;
     };
     hasDocs?: boolean;
     onViewAllItems?: () => void;
+    isShared?: boolean;
+    sharedByEmail?: string;
 }
 
 export const ReportCard: React.FC<ReportCardProps> = ({ 
@@ -79,7 +88,9 @@ export const ReportCard: React.FC<ReportCardProps> = ({
     readOnly,
     actions,
     hasDocs,
-    onViewAllItems
+    onViewAllItems,
+    isShared,
+    sharedByEmail,
 }) => {
     const fields = project.fields || [];
     const isSearchResult = !actions; // Identify if this is a search result/list card vs main dashboard card
@@ -271,6 +282,20 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                                 <Mail size={18} className="sm:w-[20px] sm:h-[20px]" />
                             </button>
                         )}
+                        {actions.onShare && !isShared && (
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    actions.onShare?.();
+                                }}
+                                className={getButtonStyle(false)}
+                                title="Share with users"
+                                type="button"
+                            >
+                                <Users size={18} className="sm:w-[20px] sm:h-[20px]" />
+                            </button>
+                        )}
                     </>
                 )}
             </div>
@@ -278,6 +303,12 @@ export const ReportCard: React.FC<ReportCardProps> = ({
             {isSelected && (
                 <div className="absolute right-6 top-6 text-primary z-20">
                     <Check size={24} strokeWidth={3} />
+                </div>
+            )}
+            {isShared && (
+                <div className="absolute left-6 top-6 z-20 flex items-center gap-1.5 bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 text-primary rounded-full px-3 py-1">
+                    <Users size={12} />
+                    <span className="text-xs font-bold">Shared</span>
                 </div>
             )}
         </div>
@@ -1236,6 +1267,148 @@ const EmailOptionsModal = ({ onClose, project, locations, companyLogo, signOffTe
     </div>, document.body );
 };
 
+// ── Share With User Modal ─────────────────────────────────────────────────
+const ShareWithUserModal = ({
+    onClose,
+    reportId,
+    currentUser,
+}: {
+    onClose: () => void;
+    reportId: string;
+    currentUser: NetlifyIdentityUser;
+}) => {
+    const [shares, setShares] = useState<ReportShare[]>([]);
+    const [emailInput, setEmailInput] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    useEffect(() => {
+        CloudService.fetchSharesForReport(reportId, currentUser).then(result => {
+            if (result) setShares(result);
+            setIsLoading(false);
+        });
+    }, [reportId, currentUser]);
+
+    const handleAdd = async () => {
+        const email = emailInput.trim().toLowerCase();
+        if (!email) return;
+        setIsSaving(true);
+        setErrorMsg(null);
+        const result = await CloudService.shareReport(reportId, email, currentUser);
+        if (result.ok) {
+            setShares(prev => [...prev, { sharedWithEmail: email, createdAt: Date.now() }]);
+            setEmailInput('');
+        } else {
+            setErrorMsg(result.error || 'Failed to share report.');
+        }
+        setIsSaving(false);
+    };
+
+    const handleRemove = async (email: string) => {
+        setIsSaving(true);
+        const ok = await CloudService.unshareReport(reportId, email, currentUser);
+        if (ok) {
+            setShares(prev => prev.filter(s => s.sharedWithEmail !== email));
+        } else {
+            setErrorMsg('Failed to remove share.');
+        }
+        setIsSaving(false);
+    };
+
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+            onClick={onClose}
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="bg-surface dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-sm p-6 animate-dialog-enter border border-surface-outline-variant dark:border-gray-700"
+            >
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 rounded-2xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-primary shrink-0">
+                        <Users size={20} />
+                    </div>
+                    <h3 className="text-xl font-bold text-surface-on dark:text-gray-100">Share Report</h3>
+                </div>
+
+                {/* Add share input */}
+                <div className="flex gap-2 mb-4">
+                    <input
+                        type="email"
+                        value={emailInput}
+                        onChange={(e) => { setEmailInput(e.target.value); setErrorMsg(null); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+                        placeholder="Enter email address"
+                        disabled={isSaving}
+                        className="flex-1 px-4 py-3 rounded-2xl border border-surface-outline-variant dark:border-gray-600 bg-surface-container dark:bg-gray-700 text-surface-on dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                    />
+                    <button
+                        onClick={handleAdd}
+                        disabled={isSaving || !emailInput.trim()}
+                        className="px-4 py-3 rounded-2xl bg-primary text-white font-bold flex items-center gap-1.5 hover:bg-primary/90 disabled:opacity-50 transition-colors shrink-0"
+                    >
+                        <UserPlus size={18} />
+                    </button>
+                </div>
+
+                {errorMsg && (
+                    <p className="text-red-500 dark:text-red-400 text-sm mb-4 px-1">{errorMsg}</p>
+                )}
+
+                {/* Current shares list */}
+                <div className="mb-4">
+                    <p className="text-xs font-bold text-surface-on-variant dark:text-gray-400 uppercase tracking-wide mb-2 px-1">
+                        Shared with
+                    </p>
+                    {isLoading ? (
+                        <div className="flex justify-center py-6">
+                            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    ) : shares.length === 0 ? (
+                        <p className="text-sm text-surface-on-variant dark:text-gray-400 text-center py-4">
+                            Not shared with anyone yet.
+                        </p>
+                    ) : (
+                        <ul className="space-y-2 max-h-48 overflow-y-auto">
+                            {shares.map((s) => (
+                                <li
+                                    key={s.sharedWithEmail}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-surface-container dark:bg-gray-700 border border-surface-outline-variant dark:border-gray-600"
+                                >
+                                    <div className="w-8 h-8 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-primary shrink-0">
+                                        <UserIcon size={14} />
+                                    </div>
+                                    <span className="flex-1 text-sm font-medium text-surface-on dark:text-gray-100 truncate">
+                                        {s.sharedWithEmail}
+                                    </span>
+                                    <button
+                                        onClick={() => handleRemove(s.sharedWithEmail)}
+                                        disabled={isSaving}
+                                        className="p-1.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                                        title="Remove access"
+                                    >
+                                        <Trash size={14} />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+
+                <button
+                    onClick={onClose}
+                    disabled={isSaving}
+                    className="w-full py-3 rounded-full font-bold text-surface-on-variant dark:text-gray-400 hover:bg-surface-container dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                >
+                    Done
+                </button>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
 // [Dashboard Component]
 export const Dashboard = React.memo<DashboardProps>(({ 
   project, 
@@ -1260,7 +1433,10 @@ export const Dashboard = React.memo<DashboardProps>(({
   isExiting = false,
   onDelete,
   isClientInfoCollapsed,
-  onToggleClientInfo
+  onToggleClientInfo,
+  currentUser,
+  isShared = false,
+  sharedByEmail,
 }) => {
     const [shouldInitialExpand] = useState(initialExpand);
 
@@ -1275,11 +1451,12 @@ export const Dashboard = React.memo<DashboardProps>(({
     const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
     const [isEmailOptionsOpen, setIsEmailOptionsOpen] = useState(false);
     const [isAllItemsOpen, setIsAllItemsOpen] = useState(false);
+    const [isShareOpen, setIsShareOpen] = useState(false);
 
     useEffect(() => {
-        const anyModalOpen = isManageLocationsOpen || showReportPreview || showSignOff || showGlobalAddIssue || isEditClientInfoOpen || isEmailOptionsOpen || isAllItemsOpen;
+        const anyModalOpen = isManageLocationsOpen || showReportPreview || showSignOff || showGlobalAddIssue || isEditClientInfoOpen || isEmailOptionsOpen || isAllItemsOpen || isShareOpen;
         onModalStateChange(anyModalOpen);
-    }, [isManageLocationsOpen, showReportPreview, showSignOff, showGlobalAddIssue, isEditClientInfoOpen, isEmailOptionsOpen, isAllItemsOpen, onModalStateChange]);
+    }, [isManageLocationsOpen, showReportPreview, showSignOff, showGlobalAddIssue, isEditClientInfoOpen, isEmailOptionsOpen, isAllItemsOpen, isShareOpen, onModalStateChange]);
 
     // Lifted State handling for Client Info Collapse
     const [localDetailsCollapsed, setLocalDetailsCollapsed] = useState(false);
@@ -1371,6 +1548,8 @@ export const Dashboard = React.memo<DashboardProps>(({
                         lastModified={Date.now()}
                         onDelete={onDelete}
                         hasDocs={hasDocs}
+                        isShared={isShared}
+                        sharedByEmail={sharedByEmail}
                         actions={{
                             onEmail: () => {
                                 console.log('Email button clicked');
@@ -1384,6 +1563,7 @@ export const Dashboard = React.memo<DashboardProps>(({
                                 console.log('Sign off button clicked, setting showSignOff to true');
                                 setShowSignOff(true);
                             },
+                            onShare: currentUser && !isShared ? () => setIsShareOpen(true) : undefined,
                             onDownloadReportPDF: async () => {
                                 console.log('Download Report PDF button clicked');
                                 try {
@@ -1704,6 +1884,21 @@ export const Dashboard = React.memo<DashboardProps>(({
                     onUpdate={onUpdateLocations}
                     onClose={() => setIsAllItemsOpen(false)}
                 />
+            )}
+
+            {isShareOpen && currentUser && reportId && (
+                <ShareWithUserModal
+                    reportId={reportId}
+                    currentUser={currentUser}
+                    onClose={() => setIsShareOpen(false)}
+                />
+            )}
+
+            {isShared && sharedByEmail && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2.5 bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 text-primary rounded-full shadow-lg backdrop-blur-sm">
+                    <Users size={14} />
+                    <span className="text-xs font-bold">Shared by {sharedByEmail}</span>
+                </div>
             )}
         </div>
     );
